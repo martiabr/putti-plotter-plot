@@ -1,0 +1,1 @@
+{"N_circles": 12, "r_mean": 0.01, "r_std": 0.01, "r_step_mean": 0.1, "r_step_std": 0.01, "min_steps": 5, "max_steps": 40, "padding": 5.0, "__seed__": 168812934}
