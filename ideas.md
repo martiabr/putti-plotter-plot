@@ -5,3 +5,4 @@
 - Grids of objects. Can be as simple as polygons or circles with randomly sampled sizes. Or e.g. create a cactus creator algorithm that generates random cacti (or any other random fun object). Or even just some abstract shapes consisting of points, lines and boxes.
 - Flow fields.
 - Trigonometric parametric curves.
+- Fun with hexagons. E.g. hexagon perspective pattern with fills?
