@@ -1,0 +1,1 @@
+{"N_circles": 22, "r_mean": 0.13999999999999999, "r_std": 0.01, "r_step_mean": 0.15, "r_step_std": 0.01, "min_steps": 3, "max_steps": 15, "padding": 7.0, "shape_type": "polygon", "polygon_sides": 9, "__seed__": 1377346954}
