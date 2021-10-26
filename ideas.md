@@ -6,3 +6,4 @@
 - Flow fields. Should write general functionality for plotting FFs and then easily change out Perlin noise or nonlinear differential equations etc.
 - Trigonometric parametric curves.
 - Fun with hexagons. E.g. hexagon perspective pattern with fills?
+- Download height map data and generate contour plots for fun geographical locations. Tilezen is one data source. Could try to generate the contour lines custom with Bezier curves and math, or maybe use matplotlib and export to svg. Maybe mpl first to see how it could look and possibly expand. 
