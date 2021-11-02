@@ -1,0 +1,13 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+vsketch = {git = "https://github.com/abey79/vsketch"}
+scipy = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.8"
