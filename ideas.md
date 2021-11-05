@@ -12,3 +12,7 @@
 - Flow imager
 - Truchet tiles (circles, knots, ...)
 - 3D "potential fields" lines (think Currents artwork)
+
+### TODO:
+- generatize map code as an easy to use package
+- fix maps being flipped?
