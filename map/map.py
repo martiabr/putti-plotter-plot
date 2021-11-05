@@ -1,4 +1,5 @@
 from matplotlib import pyplot as plt
+import matplotlib as mpl
 from matplotlib.tri import Triangulation, TriAnalyzer, UniformTriRefiner
 import numpy as np
 import laspy
@@ -8,6 +9,7 @@ from scipy.ndimage import gaussian_filter
 
 # Scramble?
 # Text
+# Fix water height
 
 skips = 100
 chunk_size = 1000000
@@ -36,6 +38,12 @@ else:
     # coords = np.load('map/coords_trondheim.npy')
     print('Data loaded with shape', coords.shape)
 
+# Fix water levels:
+z_min = 1.0
+for i, point in enumerate(coords):
+    if point[2] < z_min:
+        coords[i,2] = z_min
+
 # chunks:
 # coords = np.zeros((0,3))
 # for file_name in file_names:
@@ -55,9 +63,9 @@ ymin = np.min(coords[:,1])
 ymax = np.max(coords[:,1])
 
 xmin = 561400
-xmax = 568100
-ymin = 7031000
-ymax = 7035300
+xmax = 568300
+ymin = 7031400
+ymax = 7036400
 
 xi = np.linspace(xmin, xmax, N)
 yi = np.linspace(ymin, ymax, N)
@@ -92,6 +100,14 @@ levels_final = 120
 
 # plt.figure()
 # cs = plt.contourf(xi, yi, z_smooth, levels=levels_final)
+
+# X, Y = np.meshgrid(xi, yi)
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection='3d')
+# ax.plot_surface(X, Y, z_smooth, cmap='jet')
+
+heatmap = plt.imshow(z_smooth, cmap='hot', interpolation='nearest')
+plt.colorbar(heatmap)
 
 plt.figure()
 cs = plt.contour(xi, yi, z_smooth, levels=levels_final, colors='k', linewidths=0.5)
