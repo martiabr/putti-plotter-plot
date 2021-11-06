@@ -16,24 +16,25 @@ from enum import Enum
 
 # TODO:
 # - make it possible to choose distirbution of tiles explicitly
+# - possibly shadows
 
 
 class TruchetSketch(vsketch.SketchClass):
     # Sketch parameters:
-    size = vsketch.Param(1.5)
+    size = vsketch.Param(1.5, decimals=2)
     n_x = vsketch.Param(12)
     n_y = vsketch.Param(18)
     n_fill = vsketch.Param(10)
     grid = vsketch.Param(False)
-    do_skip = vsketch.Param(False)
     
     tile_sets = Enum('TruchetTileSet', 'circles triangles diagonals knot')
     tile_set = vsketch.Param(tile_sets.knot.name, choices=[tile_set.name for tile_set in tile_sets])
     
     knot_mode = vsketch.Param('only_center', choices=['only_center', 'only_outer', 'many'])
-    knot_N = vsketch.Param(3)
-    knot_thickness = vsketch.Param(0.1)
-    knot_3d = vsketch.Param(True)
+    knot_N = vsketch.Param(4)
+    knot_thickness = vsketch.Param(0.25)
+    do_skip = vsketch.Param(False)
+    knot_end_mode = vsketch.Param('soft', choices=['none', 'hard', 'soft', 'continue'])
     
     def init_tiles(self, n, detail='0.01'):
         tiles = []
@@ -79,6 +80,7 @@ class TruchetSketch(vsketch.SketchClass):
     
     def build_knot_arcs(self, tiles, dx, do_skip=False, skip=0.0):
         dr = 2 * dx
+        
         tiles[0].arc(0, 0, self.size + dr, self.size + dr, 3*np.pi/2, 2*np.pi)
         tiles[0].arc(self.size, self.size, self.size + dr, self.size + dr, np.pi/2, np.pi)
         
@@ -88,18 +90,23 @@ class TruchetSketch(vsketch.SketchClass):
         if do_skip:
             tiles[2].line(self.size / 2 + dx, 0, self.size / 2 + dx, self.size / 2 - skip)
             tiles[2].line(self.size / 2 + dx, self.size / 2 + skip, self.size / 2 + dx, self.size)
-            tiles[2].line(0, self.size / 2 + dx, self.size / 2 - skip, self.size / 2 + dx)
-            tiles[2].line(self.size / 2 - skip, self.size / 2 + dx, self.size, self.size / 2 + dx)
+            tiles[2].line(0, self.size / 2 + dx, self.size, self.size / 2 + dx)
+            
+            tiles[3].line(self.size / 2 + dx, 0, self.size / 2 + dx, self.size)
+            tiles[3].line(0, self.size / 2 + dx, self.size / 2 - skip, self.size / 2 + dx)
+            tiles[3].line(self.size / 2 + skip, self.size / 2 + dx, self.size, self.size / 2 + dx)
+
         else:
             tiles[2].line(self.size / 2 + dx, 0, self.size / 2 + dx, self.size)
             tiles[2].line(0, self.size / 2 + dx, self.size, self.size / 2 + dx)
-            # tiles[3].line(self.size / 2 + dx, 0, self.size / 2 + dx, self.size)
-            # tiles[3].line(0, self.size / 2 + dx, self.size, self.size / 2 + dx)
+            
+            tiles[3].line(self.size / 2 + dx, 0, self.size / 2 + dx, self.size)
+            tiles[3].line(0, self.size / 2 + dx, self.size, self.size / 2 + dx)
         
         return tiles
     
     def build_knot_tiles(self, mode):
-        tiles = self.init_tiles(3)
+        tiles = self.init_tiles(4)
         
         # TODO: either only center, only outer lines or loop of lines
         # TODO: with or without "3D"
@@ -111,12 +118,46 @@ class TruchetSketch(vsketch.SketchClass):
             tiles = self.build_knot_arcs(tiles, self.knot_thickness, self.do_skip, self.knot_thickness)
             tiles = self.build_knot_arcs(tiles, -self.knot_thickness, self.do_skip, self.knot_thickness)
         elif mode == 'many':
-            for i in range(self.knot_N + 1):
+            tiles = self.build_knot_arcs(tiles, 0.0, self.do_skip, self.knot_thickness)
+            for i in range(1, self.knot_N + 1):
                 dx = self.knot_thickness * i / self.knot_N
                 tiles = self.build_knot_arcs(tiles, dx, self.do_skip, self.knot_thickness)
                 tiles = self.build_knot_arcs(tiles, -dx, self.do_skip, self.knot_thickness)
         
         return tiles
+    
+    def add_knot_ends(self, vsk, mode='hard'):
+        with vsk.pushMatrix():
+            for y in range(self.n_y):
+                vsk.translate(0, -self.size)
+                if mode == 'hard':
+                    vsk.line(0, self.size / 2 - self.knot_thickness, 0, self.size / 2 + self.knot_thickness)
+                    vsk.line(self.size * self.n_x, self.size / 2 - self.knot_thickness, self.size * self.n_x, self.size / 2 + self.knot_thickness)
+                elif mode == 'soft':
+                    vsk.arc(0, self.size / 2, 2 * self.knot_thickness, 2 * self.knot_thickness, np.pi / 2, 3 * np.pi / 2)
+                    vsk.arc(self.size * self.n_x, self.size / 2, 2 * self.knot_thickness, 2 * self.knot_thickness, -np.pi / 2, np.pi / 2)
+                elif mode == 'continue' and y % 2 == 1:
+                    vsk.arc(0, self.size, self.size - 2 * self.knot_thickness, self.size - 2 * self.knot_thickness, np.pi / 2, 3 * np.pi / 2)
+                    vsk.arc(0, self.size, self.size + 2 * self.knot_thickness, self.size + 2 * self.knot_thickness, np.pi / 2, 3 * np.pi / 2)
+                    vsk.arc(self.size * self.n_x, self.size, self.size - 2 * self.knot_thickness, self.size - 2 * self.knot_thickness, -np.pi / 2, np.pi / 2)
+                    vsk.arc(self.size * self.n_x, self.size, self.size + 2 * self.knot_thickness, self.size + 2 * self.knot_thickness, -np.pi / 2, np.pi / 2)
+                    
+                                    
+        with vsk.pushMatrix():
+            for x in range(self.n_x):
+                if mode == 'hard':
+                    vsk.line(self.size / 2 - self.knot_thickness, 0, self.size / 2 + self.knot_thickness, 0)
+                    vsk.line(self.size / 2 - self.knot_thickness, -self.size * self.n_y, self.size / 2 + self.knot_thickness, -self.size * self.n_y)
+                elif mode == 'soft':
+                    vsk.arc(self.size / 2, 0, 2 * self.knot_thickness, 2 * self.knot_thickness, np.pi, 0)
+                    vsk.arc(self.size / 2, -self.size * self.n_y, 2 * self.knot_thickness, 2 * self.knot_thickness, 0, np.pi)
+                elif mode == 'continue' and x % 2 == 0:
+                    vsk.arc(self.size, 0, self.size - 2 * self.knot_thickness, self.size - 2 * self.knot_thickness, np.pi, 0)
+                    vsk.arc(self.size, 0, self.size + 2 * self.knot_thickness, self.size + 2 * self.knot_thickness, np.pi, 0)
+                    vsk.arc(self.size, -self.size * self.n_y, self.size - 2 * self.knot_thickness, self.size - 2 * self.knot_thickness, 0, np.pi)
+                    vsk.arc(self.size, -self.size * self.n_y, self.size + 2 * self.knot_thickness, self.size + 2 * self.knot_thickness, 0, np.pi)
+                    
+                vsk.translate(self.size, 0)
     
     def build_triangles_tiles(self):
         tiles = self.init_tiles(4)
@@ -172,6 +213,9 @@ class TruchetSketch(vsketch.SketchClass):
                     vsk.sketch(tiles[tile_index])
                     vsk.translate(self.size, 0)
             vsk.translate(0, self.size)
+        
+        if self.tile_set == self.tile_sets.knot.name and self.knot_end_mode != 'none':
+            self.add_knot_ends(vsk, self.knot_end_mode)
             
     def finalize(self, vsk: vsketch.Vsketch) -> None:
         vsk.vpype("linemerge linesimplify reloop linesort")
