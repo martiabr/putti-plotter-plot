@@ -14,31 +14,124 @@ from enum import Enum
 # - multiple circles of different radius
 # - experiment with own
 
+# TODO:
+# - make it possible to choose distirbution of tiles explicitly
+
 
 class TruchetSketch(vsketch.SketchClass):
     # Sketch parameters:
     size = vsketch.Param(1.5)
     n_x = vsketch.Param(12)
     n_y = vsketch.Param(18)
-    grid = vsketch.Param(True)
+    n_fill = vsketch.Param(10)
+    grid = vsketch.Param(False)
+    do_skip = vsketch.Param(False)
     
-    tile_sets = Enum('TruchetTileSet', 'circles triangles diagonals')
-    tile_set = vsketch.Param(tile_sets.circles.name, choices=[tile_set.name for tile_set in tile_sets])
+    tile_sets = Enum('TruchetTileSet', 'circles triangles diagonals knot')
+    tile_set = vsketch.Param(tile_sets.knot.name, choices=[tile_set.name for tile_set in tile_sets])
     
-    def build_circle_tiles(self):
+    knot_mode = vsketch.Param('only_center', choices=['only_center', 'only_outer', 'many'])
+    knot_N = vsketch.Param(3)
+    knot_thickness = vsketch.Param(0.1)
+    knot_3d = vsketch.Param(True)
+    
+    def init_tiles(self, n, detail='0.01'):
         tiles = []
         
-        tile_1 = vsketch.Vsketch()
-        tile_1.detail("0.01")
-        tile_1.arc(0, 0, self.size, self.size, 3*np.pi/2, 2*np.pi)
-        tile_1.arc(self.size, self.size, self.size, self.size, np.pi/2, np.pi)
-        tiles.append(tile_1)
+        for i in range(n):
+            tile = vsketch.Vsketch()
+            tile.detail(detail)
+            tiles.append(tile)
         
-        tile_2 = vsketch.Vsketch()
-        tile_2.detail("0.01")
-        tile_2.arc(self.size, 0, self.size, self.size, np.pi, 3*np.pi/2)
-        tile_2.arc(0, self.size, self.size, self.size, 0, np.pi/2)
-        tiles.append(tile_2)
+        return tiles
+    
+    def build_circle_tiles(self):
+        tiles = self.init_tiles(2)
+        
+        tiles[0].arc(0, 0, self.size, self.size, 3*np.pi/2, 2*np.pi)
+        tiles[0].arc(self.size, self.size, self.size, self.size, np.pi/2, np.pi)
+        
+        tiles[1].arc(self.size, 0, self.size, self.size, np.pi, 3*np.pi/2)
+        tiles[1].arc(0, self.size, self.size, self.size, 0, np.pi/2)
+        
+        return tiles
+    
+    # def build_circle_tiles(self):
+    #     tiles = self.init_tiles(4)
+        
+    #     n = 5
+    #     for i in range(1, n + 1):
+    #         tiles[0].arc(0, 0, self.size, self.size, 3*np.pi/2, 2*np.pi)
+    #         tiles[0].arc(self.size, self.size, self.size, self.size, np.pi/2, np.pi)
+            
+    #         tiles[1].arc(self.size, 0, self.size, self.size, np.pi, 3*np.pi/2)
+    #         tiles[1].arc(0, self.size, self.size, self.size, 0, np.pi/2)
+            
+    #         radius = self.size * i / n
+            
+    #         tiles[2].arc(0, 0, radius, radius, 3*np.pi/2, 2*np.pi)
+    #         tiles[2].arc(self.size, self.size, radius, radius, np.pi/2, np.pi)
+            
+    #         tiles[3].arc(self.size, 0, radius, radius, np.pi, 3*np.pi/2)
+    #         tiles[3].arc(0, self.size, radius, radius, 0, np.pi/2)
+        
+    #     return tiles
+    
+    def build_knot_arcs(self, tiles, dx, do_skip=False, skip=0.0):
+        dr = 2 * dx
+        tiles[0].arc(0, 0, self.size + dr, self.size + dr, 3*np.pi/2, 2*np.pi)
+        tiles[0].arc(self.size, self.size, self.size + dr, self.size + dr, np.pi/2, np.pi)
+        
+        tiles[1].arc(self.size, 0, self.size + dr, self.size + dr, np.pi, 3*np.pi/2)
+        tiles[1].arc(0, self.size, self.size + dr, self.size + dr, 0, np.pi/2)
+        
+        if do_skip:
+            tiles[2].line(self.size / 2 + dx, 0, self.size / 2 + dx, self.size / 2 - skip)
+            tiles[2].line(self.size / 2 + dx, self.size / 2 + skip, self.size / 2 + dx, self.size)
+            tiles[2].line(0, self.size / 2 + dx, self.size / 2 - skip, self.size / 2 + dx)
+            tiles[2].line(self.size / 2 - skip, self.size / 2 + dx, self.size, self.size / 2 + dx)
+        else:
+            tiles[2].line(self.size / 2 + dx, 0, self.size / 2 + dx, self.size)
+            tiles[2].line(0, self.size / 2 + dx, self.size, self.size / 2 + dx)
+            # tiles[3].line(self.size / 2 + dx, 0, self.size / 2 + dx, self.size)
+            # tiles[3].line(0, self.size / 2 + dx, self.size, self.size / 2 + dx)
+        
+        return tiles
+    
+    def build_knot_tiles(self, mode):
+        tiles = self.init_tiles(3)
+        
+        # TODO: either only center, only outer lines or loop of lines
+        # TODO: with or without "3D"
+        # TODO: function of arcs, getting ugly
+        
+        if mode == 'only_center':
+            tiles = self.build_knot_arcs(tiles, 0.0)
+        elif mode == 'only_outer':
+            tiles = self.build_knot_arcs(tiles, self.knot_thickness, self.do_skip, self.knot_thickness)
+            tiles = self.build_knot_arcs(tiles, -self.knot_thickness, self.do_skip, self.knot_thickness)
+        elif mode == 'many':
+            for i in range(self.knot_N + 1):
+                dx = self.knot_thickness * i / self.knot_N
+                tiles = self.build_knot_arcs(tiles, dx, self.do_skip, self.knot_thickness)
+                tiles = self.build_knot_arcs(tiles, -dx, self.do_skip, self.knot_thickness)
+        
+        return tiles
+    
+    def build_triangles_tiles(self):
+        tiles = self.init_tiles(4)
+        
+        for i in range(self.n_fill):
+            size = self.size * i / self.n_fill
+            tiles[0].line(size, 0, size, size)
+            tiles[1].line(size, self.size - size, size, 0)
+            tiles[2].line(size, size, size, self.size)
+            tiles[3].line(size, self.size, size, self.size - size)
+            
+        tiles[0].polygon([(0, 0), (self.size, 0), (self.size, self.size)], close=True)
+        tiles[1].polygon([(0, 0), (0, self.size), (self.size, 0)], close=True)
+        tiles[2].polygon([(0, 0), (0, self.size), (self.size, self.size)], close=True)
+        tiles[3].polygon([(0, self.size), (self.size, self.size), (self.size,0)], close=True)
         
         return tiles
     
@@ -47,9 +140,11 @@ class TruchetSketch(vsketch.SketchClass):
         if type == self.tile_sets.circles.name:
             tiles = self.build_circle_tiles()
         elif type == self.tile_sets.triangles.name:
-            pass
+            tiles = self.build_triangles_tiles()
         elif type == self.tile_sets.diagonals.name:
             pass
+        elif type == self.tile_sets.knot.name:
+            tiles = self.build_knot_tiles(self.knot_mode)
         
         if show_grid:
             for tile in tiles:
@@ -64,6 +159,10 @@ class TruchetSketch(vsketch.SketchClass):
         
         tiles = self.build_tiles(self.tile_set, self.grid)
         n_tiles = len(tiles)
+        
+        # vsk.fill(2)
+        # vsk.penWidth("1mm", 2)
+        # vsk.polygon([(0,0), (self.size,0), (self.size, self.size)], close=True)
         
         # Draw grid of random tiles from chosen tile set:
         for y in range(self.n_y):
