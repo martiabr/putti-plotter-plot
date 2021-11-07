@@ -175,7 +175,7 @@ class TruchetSketch(vsketch.SketchClass):
                         has_circles = True
                         for i in range(2):
                             for j in range(2):
-                                grid[x+i,y+j] = np.random.randint(0, self.n_tiles)
+                                grid[x+i,y+j] = self.pick_random_tile_index()
         return grid
     
     def remove_border_circles(self, grid):
@@ -186,20 +186,20 @@ class TruchetSketch(vsketch.SketchClass):
                 if grid[x, 0] == 1 and grid[x + 1, 0] == 0:
                     has_circles = True
                     for i in range(2):
-                        grid[x + i, 0] = np.random.randint(0, self.n_tiles)
+                        grid[x + i, 0] = self.pick_random_tile_index()
                 if grid[x,self.n_y - 1] == 0 and grid[x + 1, self.n_y - 1] == 1:
                     has_circles = True
                     for i in range(2):
-                        grid[x + i,self.n_y - 1] = np.random.randint(0, self.n_tiles)
+                        grid[x + i,self.n_y - 1] = self.pick_random_tile_index()
             for y in range(self.n_y - 1):
                 if grid[0, y] == 1 and grid[0, y + 1] == 0:
                     has_circles = True
                     for i in range(2):
-                        grid[0, y + i] = np.random.randint(0, self.n_tiles)
+                        grid[0, y + i] = self.pick_random_tile_index()
                 if grid[self.n_x - 1, y] == 0 and grid[self.n_x - 1, y + 1] == 1:
                     has_circles = True
                     for i in range(2):
-                        grid[self.n_x - 1, y + i] = np.random.randint(0, self.n_tiles)
+                        grid[self.n_x - 1, y + i] = self.pick_random_tile_index()
         return grid
         
     def build_triangles_tiles(self):
@@ -235,6 +235,11 @@ class TruchetSketch(vsketch.SketchClass):
                 tile.square(0, 0, self.size)
         
         return tiles
+    
+    def pick_random_tile_index(self):
+        # tile_index = np.random.randint(0, self.n_tiles)  # random pick
+        tile_index = np.random.choice(self.n_tiles, p=self.weights) # random pick with weights
+        return tile_index
         
     def draw(self, vsk: vsketch.Vsketch) -> None:
         vsk.size("a4", landscape=False)
@@ -244,6 +249,11 @@ class TruchetSketch(vsketch.SketchClass):
         tiles = self.build_tiles(self.tile_set, self.grid)
         self.n_tiles = len(tiles)
         
+        # self.set_weights(np.ones(self.n_tiles) / self.n_tiles)
+        self.weights = np.ones(self.n_tiles) / self.n_tiles
+        self.weights = np.array([1.0, 1.0, 0.75, 0.75])
+        self.weights = self.weights / np.sum(self.weights)
+        
         # vsk.fill(2)
         # vsk.penWidth("1mm", 2)
         # vsk.polygon([(0,0), (self.size,0), (self.size, self.size)], close=True)
@@ -252,7 +262,7 @@ class TruchetSketch(vsketch.SketchClass):
         index_grid = np.zeros((self.n_x, self.n_y), dtype=int)
         for y in range(self.n_y):
             for x in range(self.n_x):
-                tile_index = np.random.randint(0, self.n_tiles)
+                tile_index = self.pick_random_tile_index()
                 index_grid[x,y] = tile_index
         
         if self.tile_set == self.tile_sets.knot.name and self.do_remove_circles:
