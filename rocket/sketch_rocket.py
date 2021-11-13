@@ -89,11 +89,17 @@ class RocketSketch(vsketch.SketchClass):
     min_fin_width = vsketch.Param(0.3)
     max_fin_width = vsketch.Param(1.0)
     
+    min_fin_height = vsketch.Param(0.05)
+    max_fin_height = vsketch.Param(0.2)
+    
+    min_fin_height_2 = vsketch.Param(0.3)
+    max_fin_height_2 = vsketch.Param(0.5)
+    
     ### Details:
     
     prob_details = vsketch.Param(0.2)
     detail_types = Enum('DetailType', 'circle rect triangle rect_outside')
-    prob_detail_types = [0.25, 0.3, 0.25, 0.2]
+    prob_detail_types = [0.3, 0.3, 0.15, 0.25]
     
     min_detail_circle_radius_gain = vsketch.Param(0.1)
     max_detail_circle_radius_gain = vsketch.Param(0.5)
@@ -194,11 +200,6 @@ class RocketSketch(vsketch.SketchClass):
     
     ###############################################################################
     
-    def draw_rocket_extras(self, vsk):
-        pass
-    
-    ###############################################################################
-    
     def draw_rocket_fins_delta(self, vsk, width, height):
         fin_width = np.random.uniform(self.min_fin_width, self.max_fin_width)
         vsk.triangle(-0.5*width, 0, -0.5*width - fin_width, 0, -0.5*width, -height)
@@ -206,14 +207,14 @@ class RocketSketch(vsketch.SketchClass):
         
     def draw_rocket_fins_clipped_delta(self, vsk, width, height):
         fin_width = np.random.uniform(self.min_fin_width, self.max_fin_width)
-        fin_height_1 = 0.4 * height  # TODO
+        fin_height_1 = height * np.random.uniform(self.min_fin_height, self.max_fin_height)
         vsk.polygon([(-0.5*width, 0), (-0.5*width - fin_width, 0), (-0.5*width - fin_width, -fin_height_1), (-0.5*width, -height)], close=True)
         vsk.polygon([(0.5*width, 0), (0.5*width + fin_width, 0), (0.5*width + fin_width, -fin_height_1), (0.5*width, -height)], close=True)
     
     def draw_rocket_fins_clipped_parallelogram(self, vsk, width, height):
         fin_width = np.random.uniform(self.min_fin_width, self.max_fin_width)
-        fin_height_1 = 0.4 * height  # TODO
-        fin_height_2 = -0.4 * height  # TODO
+        fin_height_1 = height * np.random.uniform(self.min_fin_height, self.max_fin_height)
+        fin_height_2 = -np.min([fin_height_1, height * np.random.uniform(self.min_fin_height_2, self.max_fin_height_2)])
         vsk.polygon([(-0.5*width, 0), (-0.5*width - fin_width, -fin_height_2), (-0.5*width - fin_width, -fin_height_1), (-0.5*width, -height)], close=True)
         vsk.polygon([(0.5*width, 0), (0.5*width + fin_width, -fin_height_2), (0.5*width + fin_width, -fin_height_1), (0.5*width, -height)], close=True)
     
@@ -239,7 +240,7 @@ class RocketSketch(vsketch.SketchClass):
         gain_h_2 = np.random.uniform(self.min_detail_rect_height_gain, self.max_detail_rect_height_gain)
         vsk.polygon([(-gain_w*width, -gain_h_1*height), (-gain_w*width, -gain_h_2*height), (gain_w*width, -gain_h_2*height), (gain_w*width, -gain_h_1*height)], close=True)  # TODO: randomize
 
-    def draw_rocket_detail_triangle(self, vsk, height, width):
+    def draw_rocket_detail_triangle(self, vsk, width):
         triangle_width_gain = np.random.uniform(self.min_detail_triangle_width_gain, self.max_detail_triangle_width_gain)
         vsk.triangle(-triangle_width_gain*width, 0, triangle_width_gain*width, 0, 0, -2*triangle_width_gain*width)
     
@@ -253,7 +254,6 @@ class RocketSketch(vsketch.SketchClass):
     ###############################################################################
     
     def draw_rocket_body(self, vsk, bottom_width):
-        # some prob the same width, some prob smaller
         n_body_segments = np.random.randint(self.min_body_segments, self.max_body_segments + 1)
         widths = np.zeros(n_body_segments)
         heights = np.zeros(n_body_segments)
@@ -304,6 +304,8 @@ class RocketSketch(vsketch.SketchClass):
                 elif detail_choice == self.detail_types.rect.value - 1:
                     self.draw_rocket_detail_rect(vsk, heights[i], widths[i])
                 elif detail_choice == self.detail_types.triangle.value - 1:
+                    self.draw_rocket_detail_triangle(vsk, widths[i])
+                elif detail_choice == self.detail_types.rect_outside.value - 1:
                     self.draw_rocket_detail_rect_outside(vsk, heights[i], widths[i])
             
             if do_fins:
@@ -395,7 +397,6 @@ class RocketSketch(vsketch.SketchClass):
             self.draw_rocket_bottom(vsk, bottom_width)
             self.draw_rocket_body(vsk, bottom_width)
             self.draw_rocket_tip(vsk, self.tip_width)  
-            self.draw_rocket_extras(vsk)  
 
     def draw(self, vsk: vsketch.Vsketch) -> None:
         vsk.size("a4", landscape=False)
