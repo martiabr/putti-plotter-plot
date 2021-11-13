@@ -80,6 +80,20 @@ class RocketSketch(vsketch.SketchClass):
     min_fill_line_padding = vsketch.Param(0.15)
     max_fill_line_padding = vsketch.Param(0.3)
     
+    ### Side boosters:
+    
+    prob_side_boosters = vsketch.Param(0.15)
+    side_booster_types = Enum('SideBoosterType', 'ellipse_pointy triangle triangle_inwards')
+    prob_side_booster_types = [0.4, 0.3, 0.3]
+    
+    min_n_body_segments_side_boosters = vsketch.Param(3)
+    max_n_body_segments_side_boosters = vsketch.Param(5)
+    
+    min_side_booster_width = vsketch.Param(0.3)
+    max_side_booster_width = vsketch.Param(0.8)
+    
+    side_booster_offset = 0.3
+    
     ### Fins:
     
     prob_fins = vsketch.Param(0.2)
@@ -123,8 +137,8 @@ class RocketSketch(vsketch.SketchClass):
     tip_types = Enum('TipType', 'ellipse_pointy triangle trapezoid_fancy ellipse')
     prob_tips = [0.21, 0.21, 0.21, 0.37]
     
-    min_tip_height = vsketch.Param(1.25)
-    max_tip_height = vsketch.Param(2.5)
+    min_tip_height_gain = vsketch.Param(0.5)
+    max_tip_height_gain = vsketch.Param(2.0)
     
     min_trapezoid_tip_gain = vsketch.Param(0.1)
     max_trapezoid_tip_gain = vsketch.Param(0.2)
@@ -134,11 +148,18 @@ class RocketSketch(vsketch.SketchClass):
     min_tip_ellipse_line_height_gain = vsketch.Param(1.5)
     max_tip_ellipse_line_height_gain = vsketch.Param(3.0)
     
+    min_trapezoid_fancy_tip = vsketch.Param(2)
+    max_trapezoid_fancy_tip = vsketch.Param(5)
+    
+    min_trapezoid_fancy_tip_height = vsketch.Param(0.25)
+    max_trapezoid_fancy_tip_height = vsketch.Param(0.6)
+    
+    
     ###
     
     def draw_rocket_tip_ellipse_pointy(self, vsk, width):
         angle = np.random.uniform(0, np.pi / 2)  # TODO: parametrize
-        height = np.random.uniform(self.min_tip_height, self.max_tip_height)
+        height = width * np.random.uniform(self.min_tip_height_gain, self.max_tip_height_gain)
         a = 0.5 * width / (1 - np.cos(angle))
         b = 0.5 * height / np.sin(angle)
         x = a*np.cos(angle)
@@ -162,27 +183,33 @@ class RocketSketch(vsketch.SketchClass):
         vsk.translate(0, -line_height)
         
         # Ellipse arc:
-        height = np.random.uniform(self.min_tip_height, self.max_tip_height)
+        height = upper_width * np.random.uniform(self.min_tip_height_gain, self.max_tip_height_gain)
         vsk.arc(0, 0, upper_width, height, 0, np.pi)
     
     def draw_rocket_tip_triangle(self, vsk, width):
-        height = np.random.uniform(self.min_tip_height, self.max_tip_height)
+        height = width * np.random.uniform(self.min_tip_height_gain, self.max_tip_height_gain)
         vsk.triangle(-0.5*width, 0, 0.5*width, 0, 0, -height)
         
     def draw_rocket_tip_trapezoid_fancy(self, vsk, width):
-        height = np.random.uniform(self.min_tip_height, self.max_tip_height)
+        height = width * np.random.uniform(self.min_tip_height_gain, self.max_tip_height_gain)
         upper_width = np.random.uniform(self.min_trapezoid_tip_gain, self.max_trapezoid_tip_gain) * width
         vsk.polygon([(-0.5*width, 0), (0.5*width, 0), (0.5*upper_width, -height), (-0.5*upper_width, -height)], close=True)
         
         vsk.translate(0, -height)
         
-        max_trapezoid_fancy_tip = 4
-        n_tip = np.random.randint(1, max_trapezoid_fancy_tip)
+        n_tip = np.random.randint(self.min_trapezoid_fancy_tip, self.max_trapezoid_fancy_tip)
         for i in range(n_tip):
-            height_i = np.random.uniform(0.2, 0.6)
+            height_i = np.random.uniform(self.min_trapezoid_fancy_tip_height, self.max_trapezoid_fancy_tip_height)
             vsk.polygon([(-0.5*upper_width, 0), (0.5*upper_width, 0), (0.5*upper_width, -height_i), (-0.5*upper_width, -height_i)], close=True)
             vsk.translate(0, -height_i)
             # TODO: improve this process with varying widths
+    
+    def draw_rocket_tip_triangle_inwards(self, vsk, width, left):
+        height = width * np.random.uniform(self.min_tip_height_gain, self.max_tip_height_gain)
+        if left:
+            vsk.triangle(-0.5*width, 0, 0.5*width, 0, 0.5*width, -height)
+        else:
+            vsk.triangle(-0.5*width, 0, 0.5*width, 0, -0.5*width, -height)
     
     def draw_rocket_tip(self, vsk, width):
         if width < self.consider_ellipse_width:
@@ -253,6 +280,48 @@ class RocketSketch(vsketch.SketchClass):
     
     ###############################################################################
     
+    def draw_rocket_side_boosters(self, vsk, width, total_height):
+        side_booster_width = np.random.uniform(self.min_side_booster_width, self.max_side_booster_width)
+        
+        vsk_side_booster = vsketch.Vsketch()
+        
+        vsk_side_booster.translate(0, self.side_booster_offset)
+        
+        if np.random.uniform() < 0.5:
+            self.draw_rocket_engine_trapezoid(vsk_side_booster, side_booster_width)
+        else:
+            self.draw_rocket_engine_dome(vsk_side_booster, side_booster_width)
+        
+        vsk_side_booster.rect(0, -0.5*total_height, 0.5*side_booster_width, 0.5*total_height, mode='radius')  # draw body part
+        
+        vsk_side_booster.translate(0, -total_height)
+        
+        tip_choice = np.random.choice(len(self.side_booster_types), p=self.prob_side_booster_types)
+        if tip_choice == self.side_booster_types.ellipse_pointy.value - 1:
+            self.draw_rocket_tip_ellipse_pointy(vsk_side_booster, side_booster_width)
+        elif tip_choice == self.side_booster_types.triangle.value - 1:
+            self.draw_rocket_tip_triangle(vsk_side_booster, side_booster_width)
+        elif tip_choice == self.side_booster_types.triangle_inwards.value - 1:
+            self.draw_rocket_tip_triangle_inwards(vsk_side_booster, side_booster_width, left=True)
+        
+        for i in range(2):
+            if i == 0:
+                vsk.translate(-0.5*(width + side_booster_width), 0)
+            else:
+                vsk.translate(0.5*(width + side_booster_width), 0)
+                vsk.scale(-1, 1)
+            
+            vsk.sketch(vsk_side_booster)
+                
+            if i == 0:
+                vsk.translate(0.5*(width + side_booster_width), 0)
+            else:
+                vsk.scale(-1, 1)
+                vsk.translate(-0.5*(width + side_booster_width), 0)
+         
+            
+    ###############################################################################
+    
     def draw_rocket_body(self, vsk, bottom_width):
         n_body_segments = np.random.randint(self.min_body_segments, self.max_body_segments + 1)
         widths = np.zeros(n_body_segments)
@@ -260,6 +329,9 @@ class RocketSketch(vsketch.SketchClass):
         choices = np.zeros(n_body_segments, dtype=int)
         
         use_filled_parts = np.random.uniform() < self.prob_filled_parts
+
+        do_side_boosters = np.random.uniform() < self.prob_side_boosters
+        if do_side_boosters: n_side_boosters = np.min([n_body_segments, np.random.randint(self.min_n_body_segments_side_boosters, self.max_n_body_segments_side_boosters)])
         
         for i in range(n_body_segments):
             if i == 0:
@@ -267,23 +339,25 @@ class RocketSketch(vsketch.SketchClass):
                 widths[i] = bottom_width
             else:
                 choice = np.random.choice(2, p=[self.prob_same_width, self.prob_smaller_width])
-                if choice == 0:
+                choices[i] = choice
+                if choice == 0 or (do_side_boosters and i < n_side_boosters):  # use last width if picked it or side boosters
                     widths[i] = widths[i-1]
                 elif choice == 1:
-                    # widths[i] = np.random.uniform(self.min_body_width, widths[i-1])
-                    # print(self.min_body_width, widths[i-1])
                     widths[i] = np.random.uniform(np.max([widths[i-1] - self.max_body_segment_reduction,
                                                           self.min_body_width]), widths[i-1])
-                choices[i] = choice
                     
             heights[i] = np.random.uniform(self.min_body_height, self.max_body_height)
+        
+        if do_side_boosters:
+            self.draw_rocket_side_boosters(vsk, bottom_width, np.cumsum(heights[:n_side_boosters])[-1])
         
         for i in range(n_body_segments):
             vsk.rect(0, -0.5*heights[i], 0.5*widths[i], 0.5*heights[i], mode='radius')  # draw body part
             
             do_fill = (use_filled_parts and np.random.uniform() < self.prob_fill)
-            do_fins = (i == 0 and np.random.uniform() < self.prob_fins)
-            do_details = (not do_fill and not do_fins and np.random.uniform() < self.prob_details)
+            do_fins = (i == 0 and not do_side_boosters and np.random.uniform() < self.prob_fins)
+            do_details = (not do_fill and not do_fins and not (do_side_boosters and i <= n_side_boosters)
+                          and np.random.uniform() < self.prob_details)
             
             if do_fill:  # fill it
                 fill_line_padding = np.random.uniform(self.min_fill_line_padding, self.max_fill_line_padding)
@@ -322,6 +396,7 @@ class RocketSketch(vsketch.SketchClass):
         self.tip_width = widths[-1]
     
     ###############################################################################
+    
     def draw_rocket_engine_triangle(self, vsk, inner_width, outer_width, height):
         vsk.polygon([(-0.5*outer_width, 0), (-0.5*inner_width, -height),
                      (0.5*inner_width, -height), (0.5*outer_width, 0)], close=True)
