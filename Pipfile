@@ -11,6 +11,7 @@ laspy = "*"
 matplotlib = "*"
 numpy = "*"
 plotter-util = {editable = true, path = "./plotter_util"}
+pyshp = "*"
 
 [dev-packages]
 

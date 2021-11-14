@@ -5,8 +5,6 @@ from scipy.interpolate import interp2d, griddata
 from scipy.ndimage import gaussian_filter
 
 class MapSketch(vsketch.SketchClass):
-    # Sketch parameters:
-    # radius = vsketch.Param(2.0)
 
     def draw(self, vsk: vsketch.Vsketch) -> None:
         vsk.size("a4", landscape=False)
@@ -51,7 +49,8 @@ class MapSketch(vsketch.SketchClass):
         levels_final = 80
         
         cs = plt.contour(xi, yi, z_smooth, levels=levels_final, colors='k', linewidths=0.5)
-        plt.gca().axis('off')
+        
+        vsk.scale(1,-1)
 
         paths = cs.allsegs
         for i in range(len(paths)):
@@ -59,12 +58,12 @@ class MapSketch(vsketch.SketchClass):
                 for k in range(len(paths[i][j])-1):
                     vsk.line(scale*paths[i][j][k][0], scale*paths[i][j][k][1], scale*paths[i][j][k+1][0], scale*paths[i][j][k+1][1])
         print('done')
-        
+                
         # TODO: text
         # vsk.vpype("text -f futural -s 20 -p 0 1000 bymarka2010")
         
         vsk.vpype("linemerge linesimplify reloop linesort")
-        vsk.save("map/output/map_bymarka_2_optimized_3.svg")
+        vsk.save("map/output/map_bymarka_2_optimized_4.svg")
         
     def finalize(self, vsk: vsketch.Vsketch) -> None:
         vsk.vpype("linemerge linesimplify reloop linesort")

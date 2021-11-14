@@ -9,7 +9,8 @@ from scipy.ndimage import gaussian_filter
 
 # Scramble?
 # Text
-# Fix water height
+
+# Might be possible to load level curves directly and read them in as shapely objects -> very little code
 
 skips = 100
 chunk_size = 1000000
