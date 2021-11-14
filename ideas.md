@@ -12,6 +12,7 @@
 - Flow imager
 - Truchet tiles (circles, knots, ...)
 - 3D "potential fields" lines (think Currents artwork)
+- Experiment with markers/colored pens/multiple layers
 
 ### TODO:
 - generatize map code as an easy to use package
