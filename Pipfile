@@ -12,6 +12,7 @@ matplotlib = "*"
 numpy = "*"
 plotter-util = {editable = true, path = "./plotter_util"}
 pyshp = "*"
+perlin-noise = "*"
 
 [dev-packages]
 
