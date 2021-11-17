@@ -13,6 +13,7 @@
 - Truchet tiles (circles, knots, ...)
 - 3D "potential fields" lines (think Currents artwork)
 - Experiment with markers/colored pens/multiple layers
+- Fractals
 
 ### TODO:
 - generatize map code as an easy to use package
