@@ -8,11 +8,14 @@
 - Fun with hexagons. E.g. hexagon perspective pattern with fills?
 - Download height map data and generate contour plots for fun geographical locations. Tilezen is one data source. Could try to generate the contour lines custom with Bezier curves and math, or maybe use matplotlib and export to svg. Maybe mpl first to see how it could look and possibly expand. Can retrieve the contour lines from mpl and do things with them if wanted. 
 - Experiment with occult plugin to do 2D occlusion. 
+- Occult -> 3d isometric drawing with towers, bridges, stairs, ... typical doodle but randomized and parametrized. Possibly procedural algorithm involved?
 - Experiment with shapely and occult to do 3D occlusion.
 - Flow imager
 - Truchet tiles (circles, knots, ...)
 - 3D "potential fields" lines (think Currents artwork)
 - Experiment with markers/colored pens/multiple layers
+- MASSIV map series. Either just map or also line and dots to show path somehow.
+- Map library with geotif. Autoscaling to fit a4. Crop function to fit a4. More easily prototype with low resolution then go to real. 
 
 ### TODO:
 - generatize map code as an easy to use package
