@@ -13,10 +13,10 @@ class MapSketch(vsketch.SketchClass):
         vsk.penWidth("2mm")
         
         skips = 1
-        padding = 1.5
-        levels = 60
+        padding = 1.25
+        levels = 50
         sigma = 0.1
-        interp_scale = 3
+        interp_scale = 2
         water_level = 1e-4
         
         img = rio.open('map/valle/dtm10/data/dtm10_6501_2_10m_z33.tif').read(1)
@@ -30,22 +30,23 @@ class MapSketch(vsketch.SketchClass):
         
         img = interp_map(img, interp_scale)
         
-        img = smoothen_map(img, sigma)
+        # img = smoothen_map(img, sigma)
         
         img = trunc_map_lower(img, water_level)
         
-        # draw_border(vsk, padding=padding)
+        draw_border(vsk, padding=padding)
                 
         scale = get_map_scale_factor(vsk, padding, img.shape[1])
         
         draw_map(img, vsk, levels=levels, scale=scale, offset=[padding, padding])
         
-        draw_water(vsk, img, 2, water_level=water_level, scale=scale, offset=[padding, padding], radius=0.02)
+        # period = int(img.shape[1] / 60)
+        # draw_water(vsk, img, period, water_level=water_level, scale=scale, offset=[padding, padding], radius=0.04)
 
         # draw_title(vsk, "VALLE", padding=padding)
         
         vsk.vpype("linemerge linesimplify reloop linesort")
-        vsk.save("map/output/map_valle.svg")
+        vsk.save("map/output/map_valle_7.svg")
         
     def finalize(self, vsk: vsketch.Vsketch) -> None:
         vsk.vpype("linemerge linesimplify reloop linesort")
