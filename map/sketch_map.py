@@ -1,69 +1,51 @@
 import vsketch
 from matplotlib import pyplot as plt
 import numpy as np
-from scipy.interpolate import interp2d, griddata
-from scipy.ndimage import gaussian_filter
+import rasterio as rio
+from map_helpers import draw_border, draw_map, draw_title, draw_water, interp_map, get_map_scale_factor, show_map_image, trunc_map_lower, smoothen_map, crop_map
 
 class MapSketch(vsketch.SketchClass):
 
     def draw(self, vsk: vsketch.Vsketch) -> None:
         vsk.size("a4", landscape=False)
         vsk.scale("cm")
+        # vsk.detail("1mm")
+        vsk.penWidth("2mm")
         
-        scale = 0.0035
+        skips = 1
+        padding = 1.5
+        levels = 60
+        sigma = 0.1
+        interp_scale = 3
+        water_level = 1e-4
         
-        vsk.rotate(np.pi/2)
+        img = rio.open('map/valle/dtm10/data/dtm10_6501_2_10m_z33.tif').read(1)
         
-        coords = np.load('map/coords_bymarka_2.npy')
-        print('Data loaded with shape', coords.shape)
+        x_lim = [3600, 4000]
+        y_0 = 285
+        y_1 = int(y_0 + (x_lim[1] - x_lim[0]) / (21 - 2*padding) * (29.7 - 2*padding))
+        img = crop_map(img, x_lim, [y_0, y_1])
         
-        # Fix water levels:
-        z_min = 1.0
-        for i, point in enumerate(coords):
-            if point[2] < z_min:
-                coords[i,2] = z_min
-
-        # Generate a regular grid to interpolate the data:
-        N = 2000
-        # xmin = np.min(coords[:,0])
-        # xmax = np.max(coords[:,0])
-        # ymin = np.min(coords[:,1])
-        # ymax = np.max(coords[:,1])
-        xmin = 561400
-        xmax = 568300
-        ymin = 7031400
-        ymax = 7036400
-        xi = np.linspace(xmin, xmax, N)
-        yi = np.linspace(ymin, ymax, N)
-
-        # Interpolate using delaunay triangularization :
-        zi = griddata((coords[:,0], coords[:,1]),coords[:,2], (xi[None,:], yi[:,None]), method='nearest')
-        print('Interpolation completed.')
-
-        # Filter using Gaussian filter:
-        sigma = 4.5 * np.ones(2)
-        z_smooth = gaussian_filter(zi, sigma)
-        # TODO: test other smoothers
-        print('Smoothing completed.')
+        img = img[::skips,::skips]
         
-        levels_final = 80
+        img = interp_map(img, interp_scale)
         
-        cs = plt.contour(xi, yi, z_smooth, levels=levels_final, colors='k', linewidths=0.5)
+        img = smoothen_map(img, sigma)
         
-        vsk.scale(1,-1)
-
-        paths = cs.allsegs
-        for i in range(len(paths)):
-            for j in range(len(paths[i])):
-                for k in range(len(paths[i][j])-1):
-                    vsk.line(scale*paths[i][j][k][0], scale*paths[i][j][k][1], scale*paths[i][j][k+1][0], scale*paths[i][j][k+1][1])
-        print('done')
+        img = trunc_map_lower(img, water_level)
+        
+        # draw_border(vsk, padding=padding)
                 
-        # TODO: text
-        # vsk.vpype("text -f futural -s 20 -p 0 1000 bymarka2010")
+        scale = get_map_scale_factor(vsk, padding, img.shape[1])
+        
+        draw_map(img, vsk, levels=levels, scale=scale, offset=[padding, padding])
+        
+        draw_water(vsk, img, 2, water_level=water_level, scale=scale, offset=[padding, padding], radius=0.02)
+
+        # draw_title(vsk, "VALLE", padding=padding)
         
         vsk.vpype("linemerge linesimplify reloop linesort")
-        vsk.save("map/output/map_bymarka_2_optimized_4.svg")
+        vsk.save("map/output/map_valle.svg")
         
     def finalize(self, vsk: vsketch.Vsketch) -> None:
         vsk.vpype("linemerge linesimplify reloop linesort")

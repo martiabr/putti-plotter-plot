@@ -13,8 +13,11 @@ numpy = "*"
 plotter-util = {editable = true, path = "./plotter_util"}
 pyshp = "*"
 perlin-noise = "*"
+occult = {git = "https://github.com/LoicGoulefert/occult.git"}
+rasterio = "*"
 
 [dev-packages]
+autopep8 = "*"
 
 [requires]
 python_version = "3.8"

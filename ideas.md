@@ -14,8 +14,10 @@
 - Truchet tiles (circles, knots, ...)
 - 3D "potential fields" lines (think Currents artwork)
 - Experiment with markers/colored pens/multiple layers
-- MASSIV map series. Either just map or also line and dots to show path somehow.
+- **MASSIV map series. Either just map or also line and dots to show path somehow.**
+- DNT map series - add cabins and paths and stuff somehow?
 - Map library with geotif. Autoscaling to fit a4. Crop function to fit a4. More easily prototype with low resolution then go to real. 
+- **Isometric occult tests**
 
 ### TODO:
 - generatize map code as an easy to use package
