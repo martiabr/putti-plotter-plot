@@ -55,7 +55,7 @@ img = trunc_map_lower(img, 1e-4)
 print('trunc done')
 
 
-# show_map_image(img)
+show_map_image(img)
 
 draw_contour_plot(img, levels=30)
 
