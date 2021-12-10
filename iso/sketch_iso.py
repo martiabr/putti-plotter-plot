@@ -52,7 +52,8 @@ class isoShape:
         self.v_min = compute_vertical_dist(self.x_iso, self.y_iso)
         self.v_max = compute_vertical_dist(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc + self.y_size, self.z_euc + self.z_size))
     
-    def draw(self, vsk):
+    def draw(self, vsk, dx_shade=0, dy_shade=None, dz_shade=0):
+        # Get all points in screen coordinates:
         lower_bottom = iso_to_screen(*euc_3d_to_iso(self.x_euc, self.y_euc, self.z_euc))
         right_bottom = iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc, self.z_euc))
         left_bottom = iso_to_screen(*euc_3d_to_iso(self.x_euc, self.y_euc + self.y_size, self.z_euc))
@@ -60,10 +61,28 @@ class isoShape:
         left_top = iso_to_screen(*euc_3d_to_iso(self.x_euc, self.y_euc + self.y_size, self.z_euc + self.z_size))
         right_top = iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc, self.z_euc + self.z_size))
         upper_top = iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc + self.y_size, self.z_euc + self.z_size))
-        vsk.polygon([lower_bottom, right_bottom, right_top, upper_top, left_top, left_bottom], close=True) 
+        
+        # Draw main polygon of outer shape:
+        vsk.polygon([lower_bottom, right_bottom, right_top, upper_top, left_top, left_bottom], close=True)
+        
+        # Draw inner lines:
         vsk.line(*lower_bottom, *lower_top)       
         vsk.line(*lower_top, *left_top)       
-        vsk.line(*lower_top, *right_top)       
+        vsk.line(*lower_top, *right_top)   
+        
+        # Shading:
+        if dy_shade is not None:
+            y_shade = int(self.y_size / dy_shade)
+            dy = self.y_size / (y_shade + 1)
+            for y in np.linspace(self.y_euc + dy, self.y_euc + self.y_size - dy, y_shade):
+                vsk.line(*iso_to_screen(*euc_3d_to_iso(self.x_euc, y, self.z_euc)), *iso_to_screen(*euc_3d_to_iso(self.x_euc, y, self.z_euc + self.z_size)))
+    
+        if dx_shade is not None:
+            x_shade = int(self.x_size / dx_shade)
+            dx = self.x_size / (x_shade + 1)
+            for x in np.linspace(self.x_euc + dx, self.x_euc + self.x_size - dx, x_shade):
+                vsk.line(*iso_to_screen(*euc_3d_to_iso(x, self.y_euc, self.z_euc)), *iso_to_screen(*euc_3d_to_iso(x, self.y_euc, self.z_euc + self.z_size)))
+    
     
     def draw_debug(self, vsk, offset=0):
         x_x_min, y_x_min = iso_to_screen(self.x_min, -offset)
@@ -132,7 +151,7 @@ def get_draw_order(shapes):
 class IsoSketch(vsketch.SketchClass):
     
     draw_axes = vsketch.Param(False)
-    draw_grid = vsketch.Param(True)
+    draw_grid = vsketch.Param(False)
     draw_debug = vsketch.Param(False)
 
     def draw(self, vsk: vsketch.Vsketch) -> None:
@@ -146,25 +165,34 @@ class IsoSketch(vsketch.SketchClass):
         if self.draw_axes: draw_axes(vsk, x_axis_length=7, y_axis_length=7)
         if self.draw_grid: draw_grid(vsk, x_size=6, y_size=6)
         
-        shape_0 = isoShape(2, 1, 0, 2, 1, 2)
-        shape_1 = isoShape(1, 2, 0, 3, 1, 1)
-        shape_2 = isoShape(1, 4, 0, 1, 1, 1)
-        shape_3 = isoShape(2, 3, 0, 1, 2, 1)
-        shapes = [shape_0, shape_1, shape_2, shape_3]
+        # shape_0 = isoShape(2, 1, 0, 2, 1, 2)
+        # shape_1 = isoShape(1, 2, 0, 3, 1, 1)
+        # shape_2 = isoShape(1, 4, 0, 1, 1, 1)
+        # shape_3 = isoShape(2, 3, 0, 1, 2, 1)
+        # shapes = [shape_0, shape_1, shape_2, shape_3]
         # random.shuffle(shapes)
         
-        # shape_1.draw_debug(vsk, offset=0.2)
         
-        # print(check_iso_shape_overlap(shape_1, shape_2))
-        # print(check_iso_shape_overlap(shape_2, shape_3))
-        # print(check_iso_shape_in_front(shape_1, shape_2))
-        # print(check_iso_shape_in_front(shape_2, shape_1))
+        N = 50
+        draw_order = None
+        while draw_order is None:  # this is really bad, but a quick way to avoid the occasional cycle
+            try:
+                shapes = []
+                for i in range(N):
+                    x = np.random.uniform(0, 10)
+                    y = np.random.uniform(0, 10)
+                    z = np.random.uniform(0, 19)
+                    x_size = np.random.uniform(0.25, 3.0)
+                    y_size = np.random.uniform(0.25, 3.0)
+                    z_size = np.random.uniform(0.25, 3.0)
+                    shapes.append(isoShape(x, y, z, x_size, y_size, z_size))
         
-        draw_order = get_draw_order(shapes)
-        # print(draw_order)
+                draw_order = get_draw_order(shapes)
+            except:
+                pass
         
         for i in draw_order:
-            shapes[i].draw(vsk)
+            shapes[i].draw(vsk, dx_shade=0.15, dy_shade=0.075)
             if self.draw_debug: shapes[i].draw_debug(vsk, offset=0.2*i)
             
         vsk.vpype("occult -i")
