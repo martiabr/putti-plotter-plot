@@ -1,5 +1,7 @@
 import vsketch
 import numpy as np
+from graphlib import TopologicalSorter
+import random
 
 # Ideas:
 # - isometric grid with towers, bridges, slopes etc.
@@ -16,9 +18,6 @@ import numpy as np
 
 # TODO: pi / 6 constant
 
-# def euc_2d_to_iso(x, y):
-#     x_iso = 
-
 def compute_horizontal_dist(x_iso, y_iso):
     return (x_iso - y_iso) * np.cos(np.pi / 6)
 
@@ -27,7 +26,6 @@ def compute_vertical_dist(x_iso, y_iso):
 
 def iso_to_screen(x_iso, y_iso):
     return compute_horizontal_dist(x_iso, y_iso), - compute_vertical_dist(x_iso, y_iso)
-#     return (x_iso - y_iso) * np.cos(np.pi / 6), - (x_iso + y_iso ) * np.sin(np.pi / 6)
 
 def euc_3d_to_iso(x, y, z):
     return (x + z), (y + z)
@@ -77,13 +75,11 @@ class isoShape:
         vsk.strokeWeight(3)
         vsk.line(x_x_min, y_x_min, x_x_max, y_x_max)
         vsk.line(x_y_min, y_y_min, x_y_max, y_y_max)
-        vsk.line(6, -self.v_min, 6, -self.v_max)
-        vsk.line(self.h_min, -7, self.h_max, -7)
+        vsk.line(6 + offset, -self.v_min, 6 + offset, -self.v_max)
+        vsk.line(self.h_min, -7 - offset, self.h_max, -7 - offset)
         vsk.stroke(1)
         vsk.strokeWeight(1)
         
-        # TODO: draw h and v debug lines as well to verify
-
 def draw_axes(vsk, x_axis_length=5, y_axis_length=5):
     x_x, y_x = iso_to_screen(x_axis_length, 0)
     x_y, y_y = iso_to_screen(0, y_axis_length)
@@ -91,12 +87,10 @@ def draw_axes(vsk, x_axis_length=5, y_axis_length=5):
     vsk.line(0, 0, x_y, y_y)
 
 def draw_grid(vsk, grid_size=1, x_size=5, y_size=5):
-    vsk.stroke(3)
     for x in np.arange(0, x_size + 1, grid_size):
         vsk.line(*iso_to_screen(x, 0), *iso_to_screen(x, y_size))
     for y in np.arange(0, y_size + 1, grid_size):
         vsk.line(*iso_to_screen(0, y), *iso_to_screen(x_size, y))
-    vsk.stroke(1)
         
 def check_iso_shape_overlap(shape_1, shape_2):
     return not (shape_1.x_min >= shape_2.x_max or shape_2.x_min >= shape_1.x_max) and \
@@ -114,11 +108,32 @@ def check_iso_shape_in_front(shape_1, shape_2):
     if shape_1.z_euc >= shape_2.z_euc + shape_2.z_size: return True
     elif shape_2.z_euc >= shape_1.z_euc + shape_1.z_size: return False
 
+def get_draw_order(shapes):
+    # Need to construct graph and run topological sort
+    graph = {}
+    for i, shape in enumerate(shapes):
+        graph[str(i)] = []  # new empty array for current shape
+        
+        for node_key in graph.keys():  # for every node already visited
+        # create array of shapes to "visit" (all the ones that are already in graph)
+            if node_key != str(i):
+                node_shape = shapes[int(node_key)]
+                if check_iso_shape_overlap(shape, node_shape):  # for every one check if they overlap and if so which is in front. Create corresponding edge in graph.
+                    if check_iso_shape_in_front(shape, node_shape):
+                        graph[node_key].append(str(i))
+                    else:
+                        graph[str(i)].append(node_key)
+                        
+        # print(graph)
+        
+    ts = TopologicalSorter(graph)
+    return [int(i) for i in reversed([*ts.static_order()])]
+
 class IsoSketch(vsketch.SketchClass):
     
-    draw_axes = vsketch.Param(True)
+    draw_axes = vsketch.Param(False)
     draw_grid = vsketch.Param(True)
-    
+    draw_debug = vsketch.Param(False)
 
     def draw(self, vsk: vsketch.Vsketch) -> None:
         vsk.size("a4", landscape=False)
@@ -126,25 +141,33 @@ class IsoSketch(vsketch.SketchClass):
         
         # DO NO OCCULT THINGS HERE
         
-        shape_1 = isoShape(2, 1, 0, 2, 1, 2)
-        shape_2 = isoShape(1, 2, 0, 3, 1, 1)
+        vsk.vpype("occult -i")
         
         if self.draw_axes: draw_axes(vsk, x_axis_length=7, y_axis_length=7)
         if self.draw_grid: draw_grid(vsk, x_size=6, y_size=6)
         
-        shape_2.draw(vsk)
+        shape_0 = isoShape(2, 1, 0, 2, 1, 2)
+        shape_1 = isoShape(1, 2, 0, 3, 1, 1)
+        shape_2 = isoShape(1, 4, 0, 1, 1, 1)
+        shape_3 = isoShape(2, 3, 0, 1, 2, 1)
+        shapes = [shape_0, shape_1, shape_2, shape_3]
+        # random.shuffle(shapes)
         
-        shape_1.draw(vsk)
-        shape_1.draw_debug(vsk, offset=0.2)
+        # shape_1.draw_debug(vsk, offset=0.2)
         
+        # print(check_iso_shape_overlap(shape_1, shape_2))
+        # print(check_iso_shape_overlap(shape_2, shape_3))
+        # print(check_iso_shape_in_front(shape_1, shape_2))
+        # print(check_iso_shape_in_front(shape_2, shape_1))
         
-        print(shape_1.y_min, shape_1.y_max)
-        print(shape_2.y_min, shape_2.y_max)
-        print(check_iso_shape_overlap(shape_1, shape_2))
-        print(check_iso_shape_in_front(shape_1, shape_2))
-        print(check_iso_shape_in_front(shape_2, shape_1))
+        draw_order = get_draw_order(shapes)
+        # print(draw_order)
         
-        vsk.vpype("occult")
+        for i in draw_order:
+            shapes[i].draw(vsk)
+            if self.draw_debug: shapes[i].draw_debug(vsk, offset=0.2*i)
+            
+        vsk.vpype("occult -i")
         
         
     def finalize(self, vsk: vsketch.Vsketch) -> None:

@@ -17,7 +17,6 @@ occult = {git = "https://github.com/LoicGoulefert/occult.git"}
 rasterio = "*"
 
 [dev-packages]
-autopep8 = "*"
 
 [requires]
-python_version = "3.8"
+python_version = "3.9"
