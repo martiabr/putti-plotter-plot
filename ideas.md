@@ -17,8 +17,7 @@
 - **MASSIV map series. Either just map or also line and dots to show path somehow.**
 - DNT map series - add cabins and paths and stuff somehow?
 - Map library with geotif. Autoscaling to fit a4. Crop function to fit a4. More easily prototype with low resolution then go to real. 
-- **Isometric occult tests**
+- **Isometric occult tests:** 1. simplex noise to generate cubic terrain, houses on land (randomly placed or somehow find nice places to place buildings algorithmically. 2. city generator - roads and skyscrapers/towers (possibly using wave collapse algorithm (https://marian42.de/article/wfc/) or something else)
 
 ### TODO:
-- generatize map code as an easy to use package
-- fix maps being flipped?
+- librarify iso
