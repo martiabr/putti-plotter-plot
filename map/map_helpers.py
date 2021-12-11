@@ -56,8 +56,9 @@ def draw_border(vsk, width=21, height=29.7, padding=0):
 # Water drawing something?
 
 def draw_water(vsk, img, period, water_level=0, radius=0.1, scale=1, offset=[0,0]):
+    half_period = int(period / 2)
     for x,y in np.ndindex(img.shape):
-        if x % period == 0 and y % period == 0 and img[x, y] < water_level:
+        if x % period == half_period and y % period == half_period and img[x, y] < water_level:
             vsk.circle(scale*y + offset[0], scale*x + offset[1], radius)
 
 def draw_title(vsk, title, font_size=20, padding=0, width=21, height=29.7):

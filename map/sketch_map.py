@@ -1,5 +1,4 @@
 import vsketch
-from matplotlib import pyplot as plt
 import numpy as np
 import rasterio as rio
 from map_helpers import draw_border, draw_map, draw_title, draw_water, interp_map, get_map_scale_factor, show_map_image, trunc_map_lower, smoothen_map, crop_map
