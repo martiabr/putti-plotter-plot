@@ -13,8 +13,26 @@ from graphlib import TopologicalSorter
 #       \ /
 
 # TODO: pi / 6 constant
-# TODO: somehow to basic view culling or whatever it is called, basically find out which shapes are in view and only draw those.
 
+# TODO: connected textures (see explanation iso_town)
+# how to do this with occult? only way I see is to add polygon to other layer and only draw the first layer?
+# only way I know... 
+# No, that also doesnt work because everythign on layer 2 is above layer 1...
+
+# TODO: Slopes and corner slopes
+
+# TODO: somehow to basic view culling or whatever it is called, basically find out which shapes are in view and only draw those.
+#   for all shapes:
+#       have set of sets that describe what is being covered of x, y, v
+#           for all shapes in front of shape:
+#               add x, y, v coverage set of shape to the set of sets.
+#               if completely covered: break and mark as "do not draw".
+
+# main question here is how to define set. Pythons own set doesnt really work.
+# python-ranges library does what we want. But could also be implemented from scratch. 
+# With that lib we can simply do Union of the preexsisting RangeSet for x, y, v with a new Range for the visited shape.
+# And to check if completely covered can either check if intersection is equal to the shape bounds 
+# or possibly the in operator works directly? Need to check this.
 
 def compute_horizontal_dist(x_iso, y_iso):
     return (x_iso - y_iso) * np.cos(np.pi / 6)
@@ -68,12 +86,24 @@ class isoShape:
         upper_top = iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc + self.y_size, self.z_euc + self.z_size))
         
         # Draw main polygon of outer shape:
+        vsk.stroke(1)
         vsk.polygon([lower_bottom, right_bottom, right_top, upper_top, left_top, left_bottom], close=True)
         
         # Draw inner lines:
+        # vsk.stroke(2)
         vsk.line(*lower_bottom, *lower_top)       
         vsk.line(*lower_top, *left_top)       
         vsk.line(*lower_top, *right_top)   
+        
+        # Draw outer lines:
+        # vsk.line(*lower_bottom, *left_bottom)
+        # vsk.line(*lower_bottom, *right_bottom)   
+        # vsk.line(*left_bottom, *left_top)   
+        # vsk.line(*right_bottom, *right_top)   
+        # vsk.line(*left_top, *upper_top)   
+        # vsk.line(*right_top, *upper_top)   
+        # vsk.stroke(1)
+        
         
         # Shading:
         if dy_shade is not None:

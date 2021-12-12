@@ -26,27 +26,26 @@ class IsoTownSketch(vsketch.SketchClass):
     def draw(self, vsk: vsketch.Vsketch) -> None:
         vsk.size("a4", landscape=False)
         vsk.scale("cm")
+        # vsk.noiseDetail()
         
         if self.draw_axes: iso.draw_axes(vsk, x_axis_length=7, y_axis_length=7)
         if self.draw_grid: iso.draw_grid(vsk, x_size=6, y_size=6)
         
-        shapes = []
-        gain = 7
-        z_grid = (gain*vsk.noise(np.linspace(0, 9, 10), np.linspace(0, 9, 10))).astype(int)
-        for x, row in enumerate(z_grid):
-            for y, z_top in enumerate(row):
-                print(x, y, z_top)
-                for z in range(z_top):
-                    shapes.append(iso.isoShape(x, y, z, 1, 1, 1))
-        # for x in range(7):
-        #     for y in range(7):
-        #         z = vsk.noise(x, y)
-        #         for h in range(z+1):
-        #             shapes.append(iso.isoShape(x, y, h))
+        vsk.vpype("occult -i")
         
-        # shape_0 = iso.isoShape(1, 1, 0, 1, 1, 1)
-        # shape_1 = iso.isoShape(2, 1, 0, 1, 3, 1)
-        # shapes = [shape_0, shape_1]
+        
+        shapes = []
+        shapes.append(iso.isoShape(1, 1, 0, 1, 1, 1))
+        shapes.append(iso.isoShape(0, 2, 0, 3, 1, 1))
+        
+        # shapes = []
+        # amplitude = 7
+        # gain = 0.2
+        # z_grid = (amplitude * vsk.noise(gain * np.linspace(0, 9, 10), gain * np.linspace(0, 9, 10))).astype(int)
+        # for x, row in enumerate(z_grid):
+        #     for y, z_top in enumerate(row):
+        #         for z in range(z_top):
+        #             shapes.append(iso.isoShape(x, y, z, 1, 1, 1))
         
         if self.draw_shading:
             dx_shade=0.15
