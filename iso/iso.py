@@ -1,11 +1,7 @@
 import vsketch
 import numpy as np
 from graphlib import TopologicalSorter
-import random
 
-# Ideas:
-# - isometric grid with towers, bridges, slopes etc.
-# - 3d tubes using circles
 
 # We define grid and box like this:
 # \             /
@@ -17,18 +13,24 @@ import random
 #       \ /
 
 # TODO: pi / 6 constant
+# TODO: somehow to basic view culling or whatever it is called, basically find out which shapes are in view and only draw those.
+
 
 def compute_horizontal_dist(x_iso, y_iso):
     return (x_iso - y_iso) * np.cos(np.pi / 6)
 
+
 def compute_vertical_dist(x_iso, y_iso):
     return (x_iso + y_iso) * 0.5
+
 
 def iso_to_screen(x_iso, y_iso):
     return compute_horizontal_dist(x_iso, y_iso), - compute_vertical_dist(x_iso, y_iso)
 
+
 def euc_3d_to_iso(x, y, z):
     return (x + z), (y + z)
+
 
 class isoShape:
     def __init__(self, x, y, z, x_size, y_size, z_size) -> None:
@@ -37,10 +39,12 @@ class isoShape:
         self.set_iso_from_euc(x, y, z)
         self.set_min_max_values()
         
+        
     def set_iso_from_euc(self, x, y, z):
         self.x_iso, self.y_iso = euc_3d_to_iso(x, y, z)
         self.dist_h = compute_horizontal_dist(self.x_iso, self.y_iso)
         self.dist_v = compute_vertical_dist(self.x_iso, self.y_iso)
+        
         
     def set_min_max_values(self):
         self.x_min = self.x_iso
@@ -52,7 +56,8 @@ class isoShape:
         self.v_min = compute_vertical_dist(self.x_iso, self.y_iso)
         self.v_max = compute_vertical_dist(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc + self.y_size, self.z_euc + self.z_size))
     
-    def draw(self, vsk, dx_shade=0, dy_shade=None, dz_shade=0):
+    
+    def draw(self, vsk, dx_shade=None, dy_shade=None, dz_shade=None):
         # Get all points in screen coordinates:
         lower_bottom = iso_to_screen(*euc_3d_to_iso(self.x_euc, self.y_euc, self.z_euc))
         right_bottom = iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc, self.z_euc))
@@ -82,6 +87,12 @@ class isoShape:
             dx = self.x_size / (x_shade + 1)
             for x in np.linspace(self.x_euc + dx, self.x_euc + self.x_size - dx, x_shade):
                 vsk.line(*iso_to_screen(*euc_3d_to_iso(x, self.y_euc, self.z_euc)), *iso_to_screen(*euc_3d_to_iso(x, self.y_euc, self.z_euc + self.z_size)))
+        
+        if dz_shade is not None:
+            z_shade = int(self.y_size / dz_shade)
+            dz = self.y_size / (z_shade + 1)
+            for y in np.linspace(self.y_euc + dz, self.y_euc + self.y_size - dz, z_shade):
+                vsk.line(*iso_to_screen(*euc_3d_to_iso(self.x_euc, y, self.z_euc + self.z_size)), *iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, y, self.z_euc + self.z_size)))
     
     
     def draw_debug(self, vsk, offset=0):
@@ -99,11 +110,13 @@ class isoShape:
         vsk.stroke(1)
         vsk.strokeWeight(1)
         
+        
 def draw_axes(vsk, x_axis_length=5, y_axis_length=5):
     x_x, y_x = iso_to_screen(x_axis_length, 0)
     x_y, y_y = iso_to_screen(0, y_axis_length)
     vsk.line(0, 0, x_x, y_x)
     vsk.line(0, 0, x_y, y_y)
+
 
 def draw_grid(vsk, grid_size=1, x_size=5, y_size=5):
     for x in np.arange(0, x_size + 1, grid_size):
@@ -111,10 +124,12 @@ def draw_grid(vsk, grid_size=1, x_size=5, y_size=5):
     for y in np.arange(0, y_size + 1, grid_size):
         vsk.line(*iso_to_screen(0, y), *iso_to_screen(x_size, y))
         
+        
 def check_iso_shape_overlap(shape_1, shape_2):
     return not (shape_1.x_min >= shape_2.x_max or shape_2.x_min >= shape_1.x_max) and \
            not (shape_1.y_min >= shape_2.y_max or shape_2.y_min >= shape_1.y_max) and \
            not (shape_1.h_min >= shape_2.h_max or shape_2.h_min >= shape_1.h_max)
+
 
 def check_iso_shape_in_front(shape_1, shape_2):
     '''Note: assumes shape_1 and shape_2 overlap.'''
@@ -126,6 +141,7 @@ def check_iso_shape_in_front(shape_1, shape_2):
     
     if shape_1.z_euc >= shape_2.z_euc + shape_2.z_size: return True
     elif shape_2.z_euc >= shape_1.z_euc + shape_1.z_size: return False
+
 
 def get_draw_order(shapes):
     # Need to construct graph and run topological sort
@@ -143,64 +159,5 @@ def get_draw_order(shapes):
                     else:
                         graph[str(i)].append(node_key)
                         
-        # print(graph)
-        
     ts = TopologicalSorter(graph)
     return [int(i) for i in reversed([*ts.static_order()])]
-
-class IsoSketch(vsketch.SketchClass):
-    
-    draw_axes = vsketch.Param(False)
-    draw_grid = vsketch.Param(False)
-    draw_debug = vsketch.Param(False)
-
-    def draw(self, vsk: vsketch.Vsketch) -> None:
-        vsk.size("a4", landscape=False)
-        vsk.scale("cm")
-        
-        # DO NO OCCULT THINGS HERE
-        
-        vsk.vpype("occult -i")
-        
-        if self.draw_axes: draw_axes(vsk, x_axis_length=7, y_axis_length=7)
-        if self.draw_grid: draw_grid(vsk, x_size=6, y_size=6)
-        
-        # shape_0 = isoShape(2, 1, 0, 2, 1, 2)
-        # shape_1 = isoShape(1, 2, 0, 3, 1, 1)
-        # shape_2 = isoShape(1, 4, 0, 1, 1, 1)
-        # shape_3 = isoShape(2, 3, 0, 1, 2, 1)
-        # shapes = [shape_0, shape_1, shape_2, shape_3]
-        # random.shuffle(shapes)
-        
-        
-        N = 50
-        draw_order = None
-        while draw_order is None:  # this is really bad, but a quick way to avoid the occasional cycle
-            try:
-                shapes = []
-                for i in range(N):
-                    x = np.random.uniform(0, 10)
-                    y = np.random.uniform(0, 10)
-                    z = np.random.uniform(0, 19)
-                    x_size = np.random.uniform(0.25, 3.0)
-                    y_size = np.random.uniform(0.25, 3.0)
-                    z_size = np.random.uniform(0.25, 3.0)
-                    shapes.append(isoShape(x, y, z, x_size, y_size, z_size))
-        
-                draw_order = get_draw_order(shapes)
-            except:
-                pass
-        
-        for i in draw_order:
-            shapes[i].draw(vsk, dx_shade=0.15, dy_shade=0.075)
-            if self.draw_debug: shapes[i].draw_debug(vsk, offset=0.2*i)
-            
-        vsk.vpype("occult -i")
-        
-        
-    def finalize(self, vsk: vsketch.Vsketch) -> None:
-        vsk.vpype("linemerge linesimplify reloop linesort")
-
-
-if __name__ == "__main__":
-    IsoSketch.display()
