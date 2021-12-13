@@ -27,12 +27,29 @@ from graphlib import TopologicalSorter
 #           for all shapes in front of shape:
 #               add x, y, v coverage set of shape to the set of sets.
 #               if completely covered: break and mark as "do not draw".
+#       mark as "draw"
 
 # main question here is how to define set. Pythons own set doesnt really work.
 # python-ranges library does what we want. But could also be implemented from scratch. 
 # With that lib we can simply do Union of the preexsisting RangeSet for x, y, v with a new Range for the visited shape.
 # And to check if completely covered can either check if intersection is equal to the shape bounds 
 # or possibly the in operator works directly? Need to check this.
+
+# TODO: add different shapes:
+# - slopes
+# - corner slopes
+# - roof triangles
+# - pyramids
+# - arches
+# - stairs 
+# - 2d wall textures, e.g. windows and doors
+# - sphere (ellipse in iso)
+# - dome
+
+# larger building blocks:
+# - chimneys
+# - handrails
+# - bridges
 
 def compute_horizontal_dist(x_iso, y_iso):
     return (x_iso - y_iso) * np.cos(np.pi / 6)
