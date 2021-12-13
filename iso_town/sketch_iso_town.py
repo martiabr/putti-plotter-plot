@@ -16,36 +16,43 @@ import iso
 
 # The simpler solution for now is just to add shading on top as well...
 
+# TODO: additional shapes, shape collections
+# TODO: change terrain code to create islands in water, mountains, ...
+
 class IsoTownSketch(vsketch.SketchClass):
     
     draw_axes = vsketch.Param(False)
     draw_grid = vsketch.Param(False)
     draw_debug = vsketch.Param(False)
     draw_shading = vsketch.Param(False)
+    
+    amplitude = vsketch.Param(4.0)
+    gain = vsketch.Param(0.3)
+    octaves = vsketch.Param(3)
+    falloff = vsketch.Param(0.4)
+    scale = vsketch.Param(0.5)
+    terrain_size = vsketch.Param(18)
 
     def draw(self, vsk: vsketch.Vsketch) -> None:
         vsk.size("a4", landscape=False)
         vsk.scale("cm")
-        # vsk.noiseDetail()
+        vsk.noiseDetail(self.octaves, self.falloff)
         
-        if self.draw_axes: iso.draw_axes(vsk, x_axis_length=7, y_axis_length=7)
-        if self.draw_grid: iso.draw_grid(vsk, x_size=6, y_size=6)
-        
-        vsk.vpype("occult -i")
-        
-        
-        shapes = []
-        shapes.append(iso.isoShape(1, 1, 0, 1, 1, 1))
-        shapes.append(iso.isoShape(0, 2, 0, 3, 1, 1))
+        if self.draw_axes: iso.draw_axes(vsk, x_axis_length=7, y_axis_length=7, scale=self.scale)
+        if self.draw_grid: iso.draw_grid(vsk, x_size=6, y_size=6, scale=self.scale)
         
         # shapes = []
-        # amplitude = 7
-        # gain = 0.2
+        # shapes.append(iso.Box(1, 1, 0, 1, 1, 1, scale=self.scale))
+        # shapes.append(iso.Box(0, 2, 0, 3, 1, 1, scale=self.scale))
+        
+        shapes = []
         # z_grid = (amplitude * vsk.noise(gain * np.linspace(0, 9, 10), gain * np.linspace(0, 9, 10))).astype(int)
-        # for x, row in enumerate(z_grid):
-        #     for y, z_top in enumerate(row):
-        #         for z in range(z_top):
-        #             shapes.append(iso.isoShape(x, y, z, 1, 1, 1))
+        z_grid = (self.amplitude * vsk.noise(self.gain * np.linspace(0, self.terrain_size - 1, self.terrain_size), self.gain * np.linspace(0, self.terrain_size - 1, self.terrain_size)))
+        for x, row in enumerate(z_grid):
+            for y, z_top in enumerate(row):
+                # for z in range(z_top):
+                #     shapes.append(iso.Box(x, y, z, 1, 1, 1))
+                shapes.append(iso.Box(x, y, 0, 1, 1, z_top, scale=self.scale))
         
         if self.draw_shading:
             dx_shade=0.15
