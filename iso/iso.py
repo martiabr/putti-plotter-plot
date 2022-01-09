@@ -1,6 +1,7 @@
 import vsketch
 import numpy as np
 from graphlib import TopologicalSorter
+from enum import Enum
 
 
 # We define grid and box like this:
@@ -42,14 +43,21 @@ from graphlib import TopologicalSorter
 # - pyramids
 # - arches
 # - stairs 
-# - 2d wall textures, e.g. windows and doors
-# - sphere (ellipse in iso)
+# - circle (ellipse in iso)
 # - dome
 
 # larger building blocks:
 # - chimneys
 # - handrails
 # - bridges
+
+# deco:
+# - 2d wall textures, e.g. windows and doors
+# - hanging decorations
+# - flags
+
+Rotation = Enum('Rotation', 'XP YP XM YM')  # x plus, y plus, x minus, y minus
+Corner = Enum('Corner', 'BOTTOM RIGHT TOP LEFT')  # down, right, up, left
 
 def compute_horizontal_dist(x_iso, y_iso):
     return (x_iso - y_iso) * np.cos(np.pi / 6)
@@ -72,15 +80,23 @@ class isoShape:
         self.x_euc, self.y_euc, self.z_euc = x, y, z
         self.x_size, self.y_size, self.z_size = x_size, y_size, z_size
         self.scale = scale
-        self.set_iso_from_euc(x, y, z)
-        self.set_min_max_values()
-        
-        
-    def set_iso_from_euc(self, x, y, z):
-        self.x_iso, self.y_iso = euc_3d_to_iso(x, y, z)
+        self.x_iso, self.y_iso = euc_3d_to_iso(x, y, z)  # get origin in iso coords
+        self.set_lower_upper_iso_rect()
         self.dist_h = compute_horizontal_dist(self.x_iso, self.y_iso)
         self.dist_v = compute_vertical_dist(self.x_iso, self.y_iso)
-        
+        self.set_min_max_values()
+    
+    
+    def set_lower_upper_iso_rect(self):
+        self.lower_bottom = iso_to_screen(*euc_3d_to_iso(self.x_euc, self.y_euc, self.z_euc), self.scale)
+        self.lower_right = iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc, self.z_euc), self.scale)
+        self.lower_top = iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc + self.y_size, self.z_euc), self.scale)
+        self.lower_left = iso_to_screen(*euc_3d_to_iso(self.x_euc, self.y_euc + self.y_size, self.z_euc), self.scale)
+        self.upper_bottom = iso_to_screen(*euc_3d_to_iso(self.x_euc, self.y_euc, self.z_euc + self.z_size), self.scale)
+        self.upper_right = iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc, self.z_euc + self.z_size), self.scale)
+        self.upper_top = iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc + self.y_size, self.z_euc + self.z_size), self.scale)
+        self.upper_left = iso_to_screen(*euc_3d_to_iso(self.x_euc, self.y_euc + self.y_size, self.z_euc + self.z_size), self.scale)
+        self.upper_center = iso_to_screen(*euc_3d_to_iso(self.x_euc + 0.5*self.x_size, self.y_euc + 0.5*self.y_size, self.z_euc + self.z_size), self.scale)
         
     def set_min_max_values(self):
         self.x_min = self.x_iso
@@ -102,13 +118,11 @@ class isoShape:
         x_y_min, y_y_min = iso_to_screen(-offset, self.y_min, self.scale)
         x_y_max, y_y_max = iso_to_screen(-offset, self.y_max, self.scale)
         
-        vsk.stroke(2)
         vsk.strokeWeight(3)
         vsk.line(x_x_min, y_x_min, x_x_max, y_x_max)
         vsk.line(x_y_min, y_y_min, x_y_max, y_y_max)
         vsk.line(6 + offset, -self.v_min, 6 + offset, -self.v_max)
         vsk.line(self.h_min, -7 - offset, self.h_max, -7 - offset)
-        vsk.stroke(1)
         vsk.strokeWeight(1)
 
 
@@ -117,60 +131,263 @@ class Box(isoShape):
         super().__init__(x, y, z, x_size, y_size, z_size, scale)       
     
     def draw(self, vsk, dx_shade=None, dy_shade=None, dz_shade=None):
-        # Get all points in screen coordinates:
-        lower_bottom = iso_to_screen(*euc_3d_to_iso(self.x_euc, self.y_euc, self.z_euc), self.scale)
-        right_bottom = iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc, self.z_euc), self.scale)
-        left_bottom = iso_to_screen(*euc_3d_to_iso(self.x_euc, self.y_euc + self.y_size, self.z_euc), self.scale)
-        lower_top = iso_to_screen(*euc_3d_to_iso(self.x_euc, self.y_euc, self.z_euc + self.z_size), self.scale)
-        left_top = iso_to_screen(*euc_3d_to_iso(self.x_euc, self.y_euc + self.y_size, self.z_euc + self.z_size), self.scale)
-        right_top = iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc, self.z_euc + self.z_size), self.scale)
-        upper_top = iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc + self.y_size, self.z_euc + self.z_size), self.scale)
-        
         # Draw main polygon of outer shape:
-        vsk.stroke(1)
-        vsk.polygon([lower_bottom, right_bottom, right_top, upper_top, left_top, left_bottom], close=True)
+        vsk.polygon([self.lower_bottom, self.lower_right, self.upper_right,
+                     self.upper_top, self.upper_left, self.lower_left], close=True)
         
         # Draw inner lines:
-        # vsk.stroke(2)
-        vsk.line(*lower_bottom, *lower_top)       
-        vsk.line(*lower_top, *left_top)       
-        vsk.line(*lower_top, *right_top)   
-        
-        # Draw outer lines:
-        # vsk.line(*lower_bottom, *left_bottom)
-        # vsk.line(*lower_bottom, *right_bottom)   
-        # vsk.line(*left_bottom, *left_top)   
-        # vsk.line(*right_bottom, *right_top)   
-        # vsk.line(*left_top, *upper_top)   
-        # vsk.line(*right_top, *upper_top)   
-        # vsk.stroke(1)
-        
+        vsk.line(*self.lower_bottom, *self.upper_bottom)       
+        vsk.line(*self.upper_bottom, *self.upper_left)       
+        vsk.line(*self.upper_bottom, *self.upper_right)   
         
         # Shading:
         if dy_shade is not None:
             y_shade = int(self.y_size / dy_shade)
             dy = self.y_size / (y_shade + 1)
             for y in np.linspace(self.y_euc + dy, self.y_euc + self.y_size - dy, y_shade):
-                vsk.line(*iso_to_screen(*euc_3d_to_iso(self.x_euc, y, self.z_euc), self.scale), *iso_to_screen(*euc_3d_to_iso(self.x_euc, y, self.z_euc + self.z_size), self.scale))
+                vsk.line(*iso_to_screen(*euc_3d_to_iso(self.x_euc, y, self.z_euc), self.scale),
+                         *iso_to_screen(*euc_3d_to_iso(self.x_euc, y, self.z_euc + self.z_size), self.scale))
     
         if dx_shade is not None:
             x_shade = int(self.x_size / dx_shade)
             dx = self.x_size / (x_shade + 1)
             for x in np.linspace(self.x_euc + dx, self.x_euc + self.x_size - dx, x_shade):
-                vsk.line(*iso_to_screen(*euc_3d_to_iso(x, self.y_euc, self.z_euc), self.scale), *iso_to_screen(*euc_3d_to_iso(x, self.y_euc, self.z_euc + self.z_size), self.scale))
+                vsk.line(*iso_to_screen(*euc_3d_to_iso(x, self.y_euc, self.z_euc), self.scale),
+                         *iso_to_screen(*euc_3d_to_iso(x, self.y_euc, self.z_euc + self.z_size), self.scale))
         
         if dz_shade is not None:
             z_shade = int(self.y_size / dz_shade)
             dz = self.y_size / (z_shade + 1)
             for y in np.linspace(self.y_euc + dz, self.y_euc + self.y_size - dz, z_shade):
-                vsk.line(*iso_to_screen(*euc_3d_to_iso(self.x_euc, y, self.z_euc + self.z_size), self.scale), *iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, y, self.z_euc + self.z_size), self.scale))
+                vsk.line(*iso_to_screen(*euc_3d_to_iso(self.x_euc, y, self.z_euc + self.z_size), self.scale),
+                         *iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, y, self.z_euc + self.z_size), self.scale))
      
+   
+class Slope(isoShape):
+    def __init__(self, x, y, z, x_size, y_size, z_size, rotation=Rotation.XP, scale=1) -> None:
+        super().__init__(x, y, z, x_size, y_size, z_size, scale=scale)
+        self.rotation = rotation
+    
+    def draw(self, vsk, dx_shade=None, dy_shade=None, dz_shade=None):
+        if self.rotation == Rotation.XP:
+            vsk.polygon([self.lower_bottom, self.lower_right, self.upper_right, self.upper_top, self.lower_left], close=True)
+            vsk.line(*self.lower_bottom, *self.upper_right)    
+        elif self.rotation == Rotation.YP:
+            vsk.polygon([self.lower_bottom, self.lower_right, self.upper_top, self.upper_left, self.lower_left], close=True)
+            vsk.line(*self.lower_bottom, *self.upper_left)   
+        elif self.rotation == Rotation.XM:
+            if self.z_size > self.x_size:
+                vsk.polygon([self.lower_bottom, self.lower_right, self.upper_bottom, self.upper_left, self.lower_left], close=True)
+            else:
+                vsk.polygon([self.lower_bottom, self.lower_right, self.lower_top, self.upper_left, self.lower_left], close=True)
+                vsk.line(*self.upper_bottom, *self.lower_right)
+                vsk.line(*self.upper_bottom, *self.upper_left)
+            vsk.line(*self.lower_bottom, *self.upper_bottom)
+        elif self.rotation == Rotation.YM:
+            if self.z_size > self.y_size:
+                vsk.polygon([self.lower_bottom, self.lower_right, self.upper_right, self.upper_bottom, self.lower_left], close=True)
+            else:
+                vsk.polygon([self.lower_bottom, self.lower_right, self.upper_right, self.lower_top, self.lower_left], close=True)
+                vsk.line(*self.upper_bottom, *self.lower_left)
+                vsk.line(*self.upper_bottom, *self.upper_right)
+            vsk.line(*self.lower_bottom, *self.upper_bottom)
+                
+        
+        # Shading:
+        if dx_shade is not None and self.rotation != Rotation.YP:
+            x_shade = int(self.x_size / dx_shade)  # TODO: function of this
+            dx = self.x_size / (x_shade + 1)
+            for i, x in enumerate(np.linspace(self.x_euc + dx, self.x_euc + self.x_size - dx, x_shade)):
+                from_iso = euc_3d_to_iso(x, self.y_euc, self.z_euc)
+                if self.rotation == Rotation.XP:
+                    to_iso = euc_3d_to_iso(x, self.y_euc, self.z_euc + ((i + 1) / (x_shade + 1)) * self.z_size)
+                elif self.rotation == Rotation.XM:
+                    to_iso = euc_3d_to_iso(x, self.y_euc, self.z_euc + ((x_shade - i) / (x_shade + 1)) * self.z_size)
+                elif self.rotation == Rotation.YM:
+                    to_iso = euc_3d_to_iso(x, self.y_euc, self.z_euc + self.z_size)
+                vsk.line(*iso_to_screen(*from_iso, self.scale), *iso_to_screen(*to_iso, self.scale))
+                    
+        if dy_shade is not None and self.rotation != Rotation.XP:
+            y_shade = int(self.y_size / dy_shade)
+            dy = self.y_size / (y_shade + 1)
+            for i, y in enumerate(np.linspace(self.y_euc + dy, self.y_euc + self.y_size - dy, y_shade)):
+                from_iso = euc_3d_to_iso(self.x_euc, y, self.z_euc)
+                if self.rotation == Rotation.YP:
+                    to_iso = euc_3d_to_iso(self.x_euc, y, self.z_euc + ((i + 1) / (y_shade + 1)) * self.z_size)
+                elif self.rotation == Rotation.YM:
+                    to_iso = euc_3d_to_iso(self.x_euc, y, self.z_euc + ((y_shade - i) / (y_shade + 1)) * self.z_size)
+                elif self.rotation == Rotation.XM:
+                    to_iso = euc_3d_to_iso(self.x_euc, y, self.z_euc + self.z_size)
+                vsk.line(*iso_to_screen(*from_iso, self.scale), *iso_to_screen(*to_iso, self.scale))
+
+        # if dz_shade is not None:
+        #     z_shade = int(self.y_size / dz_shade)
+        #     dz = self.y_size / (z_shade + 1)
+        #     for y in np.linspace(self.y_euc + dz, self.y_euc + self.y_size - dz, z_shade):
+        #         vsk.line(*iso_to_screen(*euc_3d_to_iso(self.x_euc, y, self.z_euc + self.z_size), self.scale), *iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, y, self.z_euc + self.z_size), self.scale))
+
+# class Roof(isoShape):
+#     def __init__(self, x, y, z, x_size, y_size, z_size, scale=1) -> None:
+#         super().__init__(x, y, z, x_size, y_size, z_size, scale=scale)  
+    
+#     def draw(self, vsk, dx_shade=None, dy_shade=None, dz_shade=None):
+#         if self.rotation == Rotation.YP or self.rotation == Rotation.XM:
+#             if self.z_size > self.x_size:
+#                 vsk.polygon([self.lower_bottom, self.lower_right, self.upper_bottom, self.upper_left, self.lower_left], close=True)
+#             else:
+#                 vsk.polygon([self.lower_bottom, self.lower_right, self.lower_top, self.upper_left, self.lower_left], close=True)
+#                 vsk.line(*self.upper_bottom, *self.lower_right)
+#                 vsk.line(*self.upper_bottom, *self.upper_left)
+#             vsk.line(*self.lower_bottom, *self.upper_bottom)
+        # elif self.rotation == Rotation.XP or self.rotation == Rotation.YM:
+        #     if self.z_size > self.y_size:
+        #         vsk.polygon([self.lower_bottom, self.lower_right, self.upper_right, self.upper_bottom, self.lower_left], close=True)
+        #     else:
+        #         vsk.polygon([self.lower_bottom, self.lower_right, self.upper_right, self.lower_top, self.lower_left], close=True)
+        #         vsk.line(*self.upper_bottom, *self.lower_left)
+        #         vsk.line(*self.upper_bottom, *self.upper_right)
+        #     vsk.line(*self.lower_bottom, *self.upper_bottom)
+
+class Stairs(isoShape):
+    def __init__(self, x, y, z, x_size, y_size, z_size, n_steps, rotation=Rotation.XP, scale=1) -> None:
+        super().__init__(x, y, z, x_size, y_size, z_size, scale=scale)
+        self.rotation = rotation
+        self.n_steps = n_steps
+        
+    def draw(self, vsk, dx_shade=None, dy_shade=None, dz_shade=None):
+        points = []
+        if self.rotation == Rotation.XP:
+            points += [self.lower_bottom, self.lower_right, self.upper_right, self.upper_top]
+            
+            for step in range(self.n_steps):
+                d_step = 1 - step / self.n_steps
+                d_step_next = 1 - (step + 1) / self.n_steps
+                points += [iso_to_screen(*euc_3d_to_iso(self.x_euc + d_step_next * self.x_size, self.y_euc + self.y_size, self.z_euc + d_step * self.z_size), self.scale)]
+                points += [iso_to_screen(*euc_3d_to_iso(self.x_euc + d_step_next * self.x_size, self.y_euc + self.y_size, self.z_euc + d_step_next * self.z_size), self.scale)]
+            
+            points += [self.lower_left]
+            vsk.polygon(points, close=True)
+            
+            for step in range(self.n_steps):
+                d_step = 1 - step / self.n_steps
+                d_step_next = 1 - (step + 1) / self.n_steps
+                
+                start = euc_3d_to_iso(self.x_euc + d_step * self.x_size, self.y_euc, self.z_euc + d_step * self.z_size)
+                middle = euc_3d_to_iso(self.x_euc + d_step_next * self.x_size, self.y_euc, self.z_euc + d_step * self.z_size)
+                middle_top = euc_3d_to_iso(self.x_euc + d_step_next * self.x_size, self.y_euc + self.y_size, self.z_euc + d_step * self.z_size)
+                end = euc_3d_to_iso(self.x_euc + d_step_next * self.x_size, self.y_euc, self.z_euc + d_step_next * self.z_size)
+                end_top = euc_3d_to_iso(self.x_euc + d_step_next * self.x_size, self.y_euc + self.y_size, self.z_euc + d_step_next * self.z_size)
+                
+                vsk.line(*iso_to_screen(*start, self.scale), *iso_to_screen(*middle, self.scale))
+                vsk.line(*iso_to_screen(*middle, self.scale), *iso_to_screen(*end, self.scale))
+                vsk.line(*iso_to_screen(*middle, self.scale), *iso_to_screen(*middle_top, self.scale))
+                if step < self.n_steps - 1: vsk.line(*iso_to_screen(*end, self.scale), *iso_to_screen(*end_top, self.scale)) 
+        elif self.rotation == Rotation.YP:
+            points += [self.lower_bottom, self.lower_left, self.upper_left, self.upper_top]
+            
+            for step in range(self.n_steps):
+                d_step = 1 - step / self.n_steps
+                d_step_next = 1 - (step + 1) / self.n_steps
+                points += [iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc + d_step_next * self.y_size, self.z_euc + d_step * self.z_size), self.scale)]
+                points += [iso_to_screen(*euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc + d_step_next * self.y_size, self.z_euc + d_step_next * self.z_size), self.scale)]
+            
+            points += [self.lower_right]
+            vsk.polygon(points, close=True)
+            
+            for step in range(self.n_steps):
+                d_step = 1 - step / self.n_steps
+                d_step_next = 1 - (step + 1) / self.n_steps
+                
+                start = euc_3d_to_iso(self.x_euc, self.y_euc + d_step * self.y_size, self.z_euc + d_step * self.z_size)
+                middle = euc_3d_to_iso(self.x_euc, self.y_euc + d_step_next * self.y_size, self.z_euc + d_step * self.z_size)
+                middle_top = euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc + d_step_next * self.y_size, self.z_euc + d_step * self.z_size)
+                end = euc_3d_to_iso(self.x_euc, self.y_euc + d_step_next * self.y_size, self.z_euc + d_step_next * self.z_size)
+                end_top = euc_3d_to_iso(self.x_euc + self.x_size, self.y_euc + d_step_next * self.y_size, self.z_euc + d_step_next * self.z_size)
+                
+                vsk.line(*iso_to_screen(*start, self.scale), *iso_to_screen(*middle, self.scale))
+                vsk.line(*iso_to_screen(*middle, self.scale), *iso_to_screen(*end, self.scale))
+                vsk.line(*iso_to_screen(*middle, self.scale), *iso_to_screen(*middle_top, self.scale))
+                if step < self.n_steps - 1: vsk.line(*iso_to_screen(*end, self.scale), *iso_to_screen(*end_top, self.scale))
+                
+      
+class Arch(isoShape):
+    def __init__(self, x, y, z, x_size, y_size, z_size, rotation=Rotation.XP, scale=1) -> None:
+        super().__init__(x, y, z, x_size, y_size, z_size, scale=scale)
+        self.rotation = rotation
+        
+    def draw(self, vsk, dx_shade=None, dy_shade=None, dz_shade=None):
+        
+        # Draw main polygon of outer shape:
+        vsk.polygon([self.lower_bottom, self.lower_right, self.upper_right,
+                     self.upper_top, self.upper_left, self.lower_left], close=True)
+        
+        # Draw inner lines:
+        vsk.line(*self.lower_bottom, *self.upper_bottom)       
+        vsk.line(*self.upper_bottom, *self.upper_left)       
+        vsk.line(*self.upper_bottom, *self.upper_right)   
+        
+        if self.rotation == Rotation.XP:
+            vsk.arc(*iso_to_screen(*euc_3d_to_iso(self.x_euc, self.y_euc, self.z_euc + 0.5), self.scale), 1, 0.5, 0, np.pi)
+        
+        vsk.circle(*iso_to_screen(self.x_iso, self.y_iso, self.scale), 0.1)
+                
+class Pyramid(isoShape):
+    def __init__(self, x, y, z, x_size, y_size, z_size, scale=1) -> None:
+        super().__init__(x, y, z, x_size, y_size, z_size, scale=scale)
+    
+    def draw(self, vsk, dx_shade=None, dy_shade=None, dz_shade=None):
+        if self.x_size > 2*self.z_size and self.y_size > 2*self.z_size:
+            vsk.polygon([self.lower_bottom, self.lower_right, self.lower_top, self.lower_left], close=True)
+            vsk.line(*self.lower_right, *self.upper_center)
+            vsk.line(*self.lower_top, *self.upper_center)
+            vsk.line(*self.lower_left, *self.upper_center)
+        elif self.x_size > 2*self.z_size:
+            vsk.polygon([self.lower_bottom, self.lower_right, self.lower_top, self.upper_center, self.lower_left], close=True)
+            vsk.line(*self.lower_right, *self.upper_center)
+        elif self.y_size > 2*self.z_size:
+            vsk.polygon([self.lower_bottom, self.lower_right, self.upper_center, self.lower_top, self.lower_left], close=True)
+            vsk.line(*self.lower_left, *self.upper_center)
+        else:
+            vsk.polygon([self.lower_bottom, self.lower_right, self.upper_center, self.lower_left], close=True)
+        vsk.line(*self.lower_bottom, *self.upper_center)
+
+
+# class CornerSlope(isoShape):
+#     def __init__(self, x, y, z, x_size, y_size, z_size, rotation=Rotation.XP, corner=Corner.RIGHT, scale=1) -> None:
+#         super().__init__(x, y, z, x_size, y_size, z_size, scale=scale)
+#         self.rotation = rotation
+    
+#     def draw(self, vsk, dx_shade=None, dy_shade=None, dz_shade=None):    
+#         if self.rotation == Rotation.XP:
+#             vsk.polygon([self.lower_bottom, self.lower_right, self.upper_right, self.upper_top, self.lower_left], close=True)
+#             vsk.line(*self.lower_bottom, *self.upper_right)    
+#         elif self.rotation == Rotation.YP:
+#             vsk.polygon([self.lower_bottom, self.lower_right, self.upper_top, self.upper_left, self.lower_left], close=True)
+#             vsk.line(*self.lower_bottom, *self.upper_left)   
+#         elif self.rotation == Rotation.XM:
+#             if self.z_size > self.x_size:
+#                 vsk.polygon([self.lower_bottom, self.lower_right, self.upper_bottom, self.upper_left, self.lower_left], close=True)
+#             else:
+#                 vsk.polygon([self.lower_bottom, self.lower_right, self.lower_top, self.upper_left, self.lower_left], close=True)
+#                 vsk.line(*self.upper_bottom, *self.lower_right)
+#                 vsk.line(*self.upper_bottom, *self.upper_left)
+#             vsk.line(*self.lower_bottom, *self.upper_bottom)
+#         elif self.rotation == Rotation.YM:
+#             if self.z_size > self.y_size:
+#                 vsk.polygon([self.lower_bottom, self.lower_right, self.upper_right, self.upper_bottom, self.lower_left], close=True)
+#             else:
+#                 vsk.polygon([self.lower_bottom, self.lower_right, self.upper_right, self.lower_top, self.lower_left], close=True)
+#                 vsk.line(*self.upper_bottom, *self.lower_left)
+#                 vsk.line(*self.upper_bottom, *self.upper_right)
+#             vsk.line(*self.lower_bottom, *self.upper_bottom)
         
 def draw_axes(vsk, x_axis_length=5, y_axis_length=5, scale=1):
+    vsk.strokeWeight(3)
     x_x, y_x = iso_to_screen(x_axis_length, 0, scale)
     x_y, y_y = iso_to_screen(0, y_axis_length, scale)
     vsk.line(0, 0, x_x, y_x)
     vsk.line(0, 0, x_y, y_y)
+    vsk.strokeWeight(1)
 
 
 def draw_grid(vsk, grid_size=1, x_size=5, y_size=5, scale=1):
@@ -178,7 +395,7 @@ def draw_grid(vsk, grid_size=1, x_size=5, y_size=5, scale=1):
         vsk.line(*iso_to_screen(x, 0, scale), *iso_to_screen(x, y_size, scale))
     for y in np.arange(0, y_size + 1, grid_size):
         vsk.line(*iso_to_screen(0, y, scale), *iso_to_screen(x_size, y, scale))
-        
+            
         
 def check_iso_shape_overlap(shape_1, shape_2):
     return not (shape_1.x_min >= shape_2.x_max or shape_2.x_min >= shape_1.x_max) and \
