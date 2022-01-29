@@ -25,6 +25,7 @@ from scipy.integrate import solve_ivp
 # - Add custom parameters a la scipy
 # - Fix function mess
 # - Draw flow field function
+# - Some sort of normalization of derivatives (like perlin flow field) such that the path is traced out better/more efficiently? 
 
 def draw_border(vsk, x_bounds, y_bounds):
     vsk.line(x_bounds[0], y_bounds[0], x_bounds[1], y_bounds[0])
@@ -61,6 +62,8 @@ class PhaseSketch(vsketch.SketchClass):
     
     border = vsketch.Param(True)
     grid = vsketch.Param(False)
+    backward = vsketch.Param(True)
+    randomize = vsketch.Param(True)
     x_min = vsketch.Param(4.0)
     x_max = vsketch.Param(4.0)
     y_min = vsketch.Param(4.0)
@@ -108,49 +111,57 @@ class PhaseSketch(vsketch.SketchClass):
         k = 1
         d = 1
         
-        scale = 0.1
+        # scale = 0.1
         x_bounds = np.array([-self.x_min, self.x_max])
         y_bounds = np.array([-self.y_min, self.y_max])
-        x_range = np.linspace(x_bounds[0],x_bounds[1],N)
-        y_range = np.linspace(y_bounds[0],y_bounds[1],N)
-        for x in x_range:
-            for y in y_range:
-                # Debug stuff:
-                if self.grid:
-                    vsk.circle(x, y, radius=0.02)
-                
-                # Derivative function:
-                # dx = y
-                # dy = -k * np.sin(x) - d * y
-                
-                # The basic way is to normalize vector such that only angle is given by perlin noise...
-                angle = 2 * np.pi * vsk.noise(x_bounds[0] + self.f_n*x, y_bounds[0] + self.f_n*y)
-                dx = np.cos(angle)
-                dy = np.sin(angle)
-            
-                
-                # Draw field:
-                # Just direction, max norm, ...
-                # v = scale * np.array([dx, dy])
-                # v_norm = np.linalg.norm(v)
-                # v_norm_max = 0.2
-                # if v_norm > v_norm_max:
-                #     v = v_norm_max * v / v_norm
-                # vsk.line(x, y, x + v[0], y + v[1])
         
-                # Integrate:
-                # t = np.linspace(0, 0.4, 51)
-                # sol = solve_ivp(f_scipy, (0, 0.4), [x, y], t_eval=t)
-                # for i in range(50):
-                    # vsk.line(sol.y[0,i], sol.y[1,i], sol.y[0,i+1], sol.y[1,i+1])
-                # Ok maybe it is not that simple. Should probably do the integration ourself. And take more care with designing field?
-                # odeint is probably also overkill when we want to do many lines. It will take forever to solve. RK4 is probably faster.
-                # Or just pick faster solver
-                
-                dt = 4e-2
-                traj_length = 4
-                trace_trajectory(vsk, f_perlin, traj_length, x, y, dt, x_bounds=x_bounds, y_bounds=y_bounds)
-                trace_trajectory(vsk, f_perlin, traj_length, x, y, -dt, x_bounds=x_bounds, y_bounds=y_bounds)
+        if self.randomize:
+            xy_points = np.random.uniform(low=[x_bounds[0], y_bounds[0]], high=[x_bounds[1], y_bounds[1]], size=(300,2))
+        else:
+            x_range = np.linspace(x_bounds[0], x_bounds[1], N)
+            y_range = np.linspace(y_bounds[0], y_bounds[1], N)
+            X, Y = np.meshgrid(x_range, y_range)
+            xy_points = np.vstack((X.flatten(), Y.flatten())).T
+
+        for point in xy_points:
+            x, y = point
+            
+            # Debug stuff:
+            if self.grid:
+                vsk.circle(x, y, radius=0.02)
+            
+            # Derivative function:
+            # dx = y
+            # dy = -k * np.sin(x) - d * y
+            
+            # The basic way is to normalize vector such that only angle is given by perlin noise...
+            angle = 2 * np.pi * vsk.noise(x_bounds[0] + self.f_n*x, y_bounds[0] + self.f_n*y)
+            dx = np.cos(angle)
+            dy = np.sin(angle)
+        
+            
+            # Draw field:
+            # Just direction, max norm, ...
+            # v = scale * np.array([dx, dy])
+            # v_norm = np.linalg.norm(v)
+            # v_norm_max = 0.2
+            # if v_norm > v_norm_max:
+            #     v = v_norm_max * v / v_norm
+            # vsk.line(x, y, x + v[0], y + v[1])
+    
+            # Integrate:
+            # t = np.linspace(0, 0.4, 51)
+            # sol = solve_ivp(f_scipy, (0, 0.4), [x, y], t_eval=t)
+            # for i in range(50):
+                # vsk.line(sol.y[0,i], sol.y[1,i], sol.y[0,i+1], sol.y[1,i+1])
+            # Ok maybe it is not that simple. Should probably do the integration ourself. And take more care with designing field?
+            # odeint is probably also overkill when we want to do many lines. It will take forever to solve. RK4 is probably faster.
+            # Or just pick faster solver
+            
+            dt = 2e-2
+            traj_length = 50
+            trace_trajectory(vsk, f_perlin, traj_length, x, y, dt, x_bounds=x_bounds, y_bounds=y_bounds)
+            if self.backward: trace_trajectory(vsk, f_perlin, traj_length, x, y, -dt, x_bounds=x_bounds, y_bounds=y_bounds)
 
         if self.border: draw_border(vsk, x_bounds, y_bounds)
 
