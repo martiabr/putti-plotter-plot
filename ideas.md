@@ -20,7 +20,8 @@
 - **Isometric occult tests:** 1. simplex noise to generate cubic terrain, houses on land (randomly placed or somehow find nice places to place buildings algorithmically. 2. city generator - roads and skyscrapers/towers (possibly using wave collapse algorithm (https://marian42.de/article/wfc/) or something else)
 - Bauhaus - random shapes, (parallel) lines, multi-color, ... Possibly based on randomly generated quadtree looking grid?
 - Single line plot
-  - Multi color random walk 
+  - Multi color random walk
+- Play with new shapes feature
 
 ### TODO:
 - librarify iso
