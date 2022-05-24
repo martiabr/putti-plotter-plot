@@ -22,6 +22,7 @@
 - Single line plot
   - Multi color random walk
 - Play with new shapes feature
+- Write code for shading shapes. Combined with occult and multiple layers this could create cool effect of random shapes on top of eachother. Would also be cool in black. 
 
 ### TODO:
 - librarify iso
