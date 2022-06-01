@@ -13,6 +13,22 @@ import matplotlib.pyplot as plt
 # - Somehow get the line to go back to start?
 # - Randomize parameters for different colors to spice things up?
 
+def dist_to_rect(width, height, x, y):
+    dist_x = 0.0
+    if x > 0.5 * width:
+        dist_x = x - 0.5 * width
+    elif x < - 0.5 * width:
+        dist_x = x + 0.5 * width
+    
+    dist_y = 0.0
+    if y > 0.5 * height:
+        dist_y = y - 0.5 * height
+    elif y < - 0.5 * height:
+        dist_y = y + 0.5 * height
+        
+    return np.array([dist_x, dist_y])
+
+
 class WalkColorSketch(vsketch.SketchClass):
     dt = vsketch.Param(0.25)
     N = vsketch.Param(1250)
@@ -43,6 +59,7 @@ class WalkColorSketch(vsketch.SketchClass):
     path_mode = vsketch.Param("LINE", choices=["LINE", "CIRCLES"])
     
     pos_penalty_mode = vsketch.Param("CIRCLE", choices=["CIRCLE", "RECT"])
+    k_p_rect = vsketch.Param(0.01, decimals=3)
     
     center_radius = vsketch.Param(0.2)
     freq_radius = vsketch.Param(0.5)
@@ -59,11 +76,12 @@ class WalkColorSketch(vsketch.SketchClass):
     
     width = 21.0
     height = 29.7
+    padding = vsketch.Param(4.0)
+    
 
     def draw(self, vsk: vsketch.Vsketch) -> None:
         vsk.size("a4", landscape=False)
         vsk.scale("cm")
-        
         
         # np.random.seed(1234)
         
@@ -94,8 +112,9 @@ class WalkColorSketch(vsketch.SketchClass):
                                 if self.pos_penalty_mode == "CIRCLE":
                                     acc[i] -= self.k_p * np.sign(pos[i-1]) * np.square(pos[i-1])
                                 elif self.pos_penalty_mode == "RECT":
-                                    if np.abs(pos[i-1,0]) > self.width / 2 or np.abs(pos[i-1,1]) > self.height / 2:
-                                        acc[i] -= self.k_p * np.sign(pos[i-1]) * np.square(pos[i-1])
+                                    dist = dist_to_rect((self.width - self.padding) / self.scale, (self.height - self.padding) / self.scale, pos[i-1,0], pos[i-1,1])
+                                    # acc[i] -= self.k_p_rect * np.sign(dist) * np.square(dist)
+                                    acc[i] -= self.k_p_rect * dist
                                 
                                 acc_norm = np.linalg.norm(acc[i])
                                 if acc_norm > self.acc_max:
