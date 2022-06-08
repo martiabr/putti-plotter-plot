@@ -24,6 +24,7 @@
 - Play with new shapes feature
 - Write code for shading shapes. Combined with occult and multiple layers this could create cool effect of random shapes on top of eachother. Would also be cool in black. 
 - Path from overlapping circles. Either with or without occlusion
+- Experiment with curves/paths of thick lines by shading or filling somehow. Polygon or set of lines. Noise on thickness for cool effect. Inspiration: Broken Record podcast logo.
 
 ### TODO:
 - librarify iso
