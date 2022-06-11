@@ -13,3 +13,7 @@ pyshp = "*"
 perlin-noise = "*"
 occult = {git = "https://github.com/LoicGoulefert/occult.git"}
 rasterio = "*"
+
+---
+
+Note: occult + fill does not work together...
