@@ -4,7 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-vsketch = {git = "https://github.com/abey79/vsketch"}
+vsketch = {git = "https://github.com/abey79/vsketch", editable = true, ref = "0d937c851ac528bf182d0b71eb42ead525848c60"}
 scipy = "*"
 laszip = "*"
 laspy = "*"
@@ -13,10 +13,10 @@ numpy = "*"
 plotter-util = {editable = true, path = "./plotter_util"}
 pyshp = "*"
 perlin-noise = "*"
-occult = {git = "https://github.com/LoicGoulefert/occult.git"}
 rasterio = "*"
 iso = {editable = true, path = "./iso"}
 line-profiler = "*"
+vpype-occult = "*"
 
 [dev-packages]
 
