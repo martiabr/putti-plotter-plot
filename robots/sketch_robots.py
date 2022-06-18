@@ -66,7 +66,37 @@ def generate_circle_eye_sketch(radius, x_pupil_gain, detail="0.01"):
     eye_sketch.circle(x_pupil_gain * radius, 0, 1e-2)
     return eye_sketch
 
-def generate_arm_stick_sketch(link_length_1, alpha_1, link_length_2, alpha_2, width, joint_radius,
+def generate_claw_sketch(base_width, claw_width, length_1, length_2, angle_1, angle_2, joint_radius=None, use_pointy=False, detail="0.01"):
+    hand_sketch = vsketch.Vsketch()
+    hand_sketch.detail(detail)
+    
+    points = np.zeros((4, 2))
+    points[0] = np.array([0, 0.5 * base_width])
+    points[1] = points[0] + np.array([length_1 * np.cos(angle_1), length_1 * np.sin(angle_1)])
+    points[2] = points[1] + np.array([claw_width * np.sin(angle_1), -claw_width * np.cos(angle_1)])
+    points[-1] = points[0] + np.array([claw_width * np.sin(angle_1), -claw_width * np.cos(angle_1)])
+    
+    points_2 = np.zeros((3, 2)) if use_pointy else  np.zeros((4, 2))
+    points_2[0] = points[1]
+    points_2[1] = points_2[0] + np.array([length_2 * np.cos(angle_2), -length_2 * np.sin(angle_2)])
+    if not use_pointy: points_2[2] = points_2[1] + np.array([-claw_width * np.sin(angle_2), -claw_width * np.cos(angle_2)])
+    points_2[-1] = points_2[0] + np.array([-claw_width * np.sin(angle_2), -claw_width * np.cos(angle_2)])
+
+    claw_shape = hand_sketch.createShape()
+    claw_shape.rect(0.5 * claw_width, 0, claw_width, base_width, mode="center")
+    claw_shape.polygon(points[:,0], points[:,1], close=True)
+    claw_shape.polygon(points_2[:,0], points_2[:,1], close=True)
+    claw_shape.polygon(points[:,0], -points[:,1], close=True)
+    claw_shape.polygon(points_2[:,0], -points_2[:,1], close=True)
+    
+    hand_sketch.shape(claw_shape)
+    
+    if joint_radius is not None:
+        hand_sketch.circle(0.5 * base_width, 0, radius=joint_radius)
+    
+    return hand_sketch
+
+def generate_arm_stick_sketch(link_length_1, alpha_1, link_length_2, alpha_2, width, joint_radius, hand_sketch=None,
                               detail="0.01", debug=False):
     arm_sketch = vsketch.Vsketch()
     arm_sketch.detail(detail)
@@ -75,25 +105,35 @@ def generate_arm_stick_sketch(link_length_1, alpha_1, link_length_2, alpha_2, wi
         arm_sketch.rotate(alpha_1)
         arm_sketch.rect(0.5 * link_length_1, 0, link_length_1, width, mode="center")
         arm_sketch.translate(link_length_1, 0)
-        with arm_sketch.pushMatrix():
-            arm_sketch.rotate(alpha_2 - alpha_1)
-            arm_sketch.rect(0.5 * link_length_2, 0, link_length_2, width, mode="center")
-            arm_sketch.circle(0, 0, joint_radius)
+        arm_sketch.rotate(alpha_2 - alpha_1)
+        arm_sketch.rect(0.5 * link_length_2, 0, link_length_2, width, mode="center")
+        arm_sketch.circle(0, 0, joint_radius)
+        
+        if hand_sketch is not None:
+            arm_sketch.translate(link_length_2, 0)
+            arm_sketch.sketch(hand_sketch)
+        
     return arm_sketch
 
-def generate_arm_tube_sketch(length, alpha, width, N_lines=20, detail="0.01", debug=False):
+
+def     generate_arm_tube_sketch(length, alpha, width, N_lines=20, hand_sketch=None, detail="0.01", debug=False):
     arm_sketch = vsketch.Vsketch()
     arm_sketch.detail(detail)
     
     with arm_sketch.pushMatrix():
         arm_sketch.rotate(alpha)
         draw_line_thick(arm_sketch, np.array([0, 0]), np.array([length, 0]), width, N_lines=N_lines, debug=debug)
+    
+        if hand_sketch is not None:
+            arm_sketch.translate(length, 0)
+            arm_sketch.sketch(hand_sketch)
+            
     return arm_sketch
     
 
 def generate_arm_tube_curve_sketch(x_end, y_end, x_c1, y_c1, x_c2, y_c2, width, width_end=None,
                         shoulder_width=None, shoulder_height=None, use_shoulder=False,
-                        N_lines=20, detail="0.01", debug=False):
+                        N_lines=20, hand_sketch=None, detail="0.01", debug=False):
     arm_sketch = vsketch.Vsketch()
     arm_sketch.detail(detail)
     
@@ -103,6 +143,13 @@ def generate_arm_tube_curve_sketch(x_end, y_end, x_c1, y_c1, x_c2, y_c2, width, 
         
     draw_bezier_thick(arm_sketch, np.array([0.0, 0.0]), np.array([x_end, y_end]), np.array([x_c1, y_c1]),
                         np.array([x_c2, y_c2]), width=width, width_end=width_end, N_segments=40, N_lines=N_lines, debug=debug)
+    
+    if hand_sketch is not None:
+        angle = np.arctan2(y_end - y_c2, x_end - x_c2)
+        arm_sketch.translate(x_end, y_end)
+        arm_sketch.rotate(angle)
+        arm_sketch.sketch(hand_sketch)
+            
     return arm_sketch
 
 
@@ -151,9 +198,11 @@ def draw_neck(vsk, length, width, N_lines=8, debug=False):
 
 ### Heads:
 
-def draw_trapezoid_head(vsk, width, upper_width_gain, height):
+def draw_trapezoid_head(vsk, width, upper_width_gain, height, x=0, y=0):
     upper_width = upper_width_gain * width
-    vsk.polygon([(0.5 * width, 0), (0.5 * upper_width, -height), (-0.5 * upper_width, -height), (-0.5 * width, 0)], close=True)
+    with vsk.pushMatrix():
+        vsk.translate(x, y)
+        vsk.polygon([(0.5 * width, 0.5 * height), (0.5 * upper_width, -0.5 * height), (-0.5 * upper_width, -0.5 * height), (-0.5 * width, 0.5 * height)], close=True)
     
 ### Mouths:
 
@@ -221,8 +270,8 @@ class RobotsSketch(vsketch.SketchClass):
     head_trapezoid_width_max = vsketch.Param(2.0, min_value=0)
     head_trapezoid_upper_width_gain_min = vsketch.Param(0.6, min_value=0)
     head_trapezoid_upper_width_gain_max = vsketch.Param(0.8, min_value=0)
-    head_trapezoid_height_min = vsketch.Param(0.6, min_value=0)
-    head_trapezoid_height_max = vsketch.Param(1.5, min_value=0)
+    head_trapezoid_height_min = vsketch.Param(1.0, min_value=0)
+    head_trapezoid_height_max = vsketch.Param(1.8, min_value=0)
     
     # Neck parameters:
     neck_prob = vsketch.Param(0.75, min_value=0, max_value=1)
@@ -286,7 +335,7 @@ class RobotsSketch(vsketch.SketchClass):
     arm_tube_N_lines_min =  vsketch.Param(5, min_value=0)
     arm_tube_N_lines_max =  vsketch.Param(20, min_value=0)
     
-    arm_stick_width_min = vsketch.Param(0.02, min_value=0)
+    arm_stick_width_min = vsketch.Param(0.04, min_value=0)
     arm_stick_width_max = vsketch.Param(0.20, min_value=0)
     arm_stick_length_1_min = vsketch.Param(0.4, min_value=0)
     arm_stick_length_1_max = vsketch.Param(0.8, min_value=0)
@@ -300,9 +349,24 @@ class RobotsSketch(vsketch.SketchClass):
     arm_stick_joint_radius_max = vsketch.Param(0.25, min_value=0)
     
     # Hand parameters:
-    hand_types = Enum('FootType', 'CLAW_1 CLAW_2')
-    hand_claw_1_prob = vsketch.Param(0.5, min_value=0)
-    hand_claw_2_prob = vsketch.Param(0.5, min_value=0)
+    hand_types = Enum('FootType', 'NONE CLAW')
+    hand_none_prob = vsketch.Param(0.5, min_value=0)
+    hand_claw_prob = vsketch.Param(0.5, min_value=0)
+    
+    hand_claw_length_1_min = vsketch.Param(0.3, min_value=0)
+    hand_claw_length_1_max = vsketch.Param(0.6, min_value=0)
+    hand_claw_length_2_min = vsketch.Param(0.3, min_value=0)
+    hand_claw_length_2_max = vsketch.Param(0.4, min_value=0)
+    hand_claw_angle_1_min = vsketch.Param(0.5, min_value=0)
+    hand_claw_angle_1_max = vsketch.Param(1.0, min_value=0)
+    hand_claw_angle_2_min = vsketch.Param(0.3, min_value=0)
+    hand_claw_angle_2_max = vsketch.Param(0.7, min_value=0)
+    hand_claw_width_min = vsketch.Param(0.1, min_value=0)
+    hand_claw_width_max = vsketch.Param(0.2, min_value=0)
+    hand_claw_circle_prob = vsketch.Param(0.5, min_value=0)
+    hand_claw_circle_radius_min = vsketch.Param(0.075, min_value=0)
+    hand_claw_circle_radius_max = vsketch.Param(0.15, min_value=0)
+    hand_claw_pointy_prob = vsketch.Param(0.5, min_value=0)
 
     # Leg parameters:
     leg_types = Enum('LegType', 'TUBE TUBE_CURVE')
@@ -324,6 +388,51 @@ class RobotsSketch(vsketch.SketchClass):
     foot_rect_prob = vsketch.Param(0.5, min_value=0)
     foot_arc_prob = vsketch.Param(0.5, min_value=0)
     
+    def draw_eyes(self, vsk, face_width):
+        self.eye_choice = pick_random_element(self.eye_types, self.eye_type_probs)
+        self.eye_radius = 0.0
+        
+        if self.eye_choice == enum_type_to_int(self.eye_types.POINT):
+            eye_sketch = generate_point_eye_sketch()
+        elif self.eye_choice == enum_type_to_int(self.eye_types.ELLIPSE_POINT):
+            eye_sketch = generate_ellipse_point_eye_sketch()
+        elif self.eye_choice == enum_type_to_int(self.eye_types.CIRCLE):
+            self.eye_radius = np.random.uniform(self.eye_circle_radius_gain_min, self.eye_circle_radius_gain_max) * self.body_width
+            pupil_x_gain = np.random.uniform(-self.eye_circle_x_pupil_gain_max, self.eye_circle_x_pupil_gain_max)
+            eye_sketch = generate_circle_eye_sketch(self.eye_radius, pupil_x_gain)
+        elif self.eye_choice == enum_type_to_int(self.eye_types.SINGLE_CIRCLE):
+            self.eye_radius = np.random.uniform(self.eye_single_circle_radius_gain_min, self.eye_single_circle_radius_gain_max) * self.body_width
+            pupil_x_gain = np.random.uniform(-self.eye_circle_x_pupil_gain_max, self.eye_circle_x_pupil_gain_max)
+            eye_sketch = generate_circle_eye_sketch(self.eye_radius, pupil_x_gain)
+        
+        if self.eye_choice == enum_type_to_int(self.eye_types.SINGLE_CIRCLE):
+            vsk.sketch(eye_sketch)
+        else:
+            eye_x_gain = np.random.uniform(self.eye_x_gain_min, self.eye_x_gain_max)
+            with vsk.pushMatrix():
+                x_eye = np.max((eye_x_gain * 0.5 * face_width, 1.2 * self.eye_radius))
+                vsk.translate(x_eye, 0)
+                vsk.sketch(eye_sketch)
+                vsk.translate(-2 * x_eye, 0)
+                if np.random.random_sample() < 0.5: vsk.scale(-1, 1)
+                vsk.sketch(eye_sketch)
+                
+                
+    def draw_mouth(self, vsk, face_width, face_lower_height, debug=False):
+        mouth_choice = pick_random_element(self.mouth_types, self.mouth_type_probs)
+        with vsk.pushMatrix():
+            vsk.translate(0, 0.2 * face_lower_height + self.eye_radius)
+            
+            if mouth_choice == enum_type_to_int(self.mouth_types.SMILE):
+                draw_bezier(vsk, np.array([-0.1, 0]), np.array([0.1, 0]), np.array([-0.1, 0.2]), np.array([0.1, 0.2]), debug=debug)  # TODO: function of this
+            elif mouth_choice == enum_type_to_int(self.mouth_types.GRILL):
+                mouth_width = np.random.uniform(self.mouth_grill_width_gain_min, self.mouth_grill_width_gain_max) * face_width
+                mouth_height = np.random.uniform(self.mouth_grill_height_min, self.mouth_grill_height_max)
+                mouth_N_lines = np.random.randint(self.mouth_grill_N_lines_min, self.mouth_grill_N_lines_max + 1)
+                vsk.translate(0, 0.5 * mouth_height)
+                draw_grill_mouth(vsk, mouth_width, mouth_height, mouth_N_lines, debug=debug)
+
+    
     def draw_body(self, vsk, draw_face=False, debug=False):
         if self.body_choice == enum_type_to_int(self.body_types.RECT):
             use_inner_rect = np.random.random_sample() < self.inner_rect_prob
@@ -344,49 +453,9 @@ class RobotsSketch(vsketch.SketchClass):
         elif self.body_choice == enum_type_to_int(self.body_types.BULLET):
             draw_bullet_body(vsk, self.body_width, self.body_width, self.body_lower_height)
             
-        # Eyes:
         if draw_face:
-            eye_choice = pick_random_element(self.eye_types, self.eye_type_probs)
-            eye_radius = 0.0
-            
-            if eye_choice == enum_type_to_int(self.eye_types.POINT):
-                eye_sketch = generate_point_eye_sketch()
-            elif eye_choice == enum_type_to_int(self.eye_types.ELLIPSE_POINT):
-                eye_sketch = generate_ellipse_point_eye_sketch()
-            elif eye_choice == enum_type_to_int(self.eye_types.CIRCLE):
-                eye_radius = np.random.uniform(self.eye_circle_radius_gain_min, self.eye_circle_radius_gain_max) * self.body_width
-                pupil_x_gain = np.random.uniform(-self.eye_circle_x_pupil_gain_max, self.eye_circle_x_pupil_gain_max)
-                eye_sketch = generate_circle_eye_sketch(eye_radius, pupil_x_gain)
-            elif eye_choice == enum_type_to_int(self.eye_types.SINGLE_CIRCLE):
-                eye_radius = np.random.uniform(self.eye_single_circle_radius_gain_min, self.eye_single_circle_radius_gain_max) * self.body_width
-                pupil_x_gain = np.random.uniform(-self.eye_circle_x_pupil_gain_max, self.eye_circle_x_pupil_gain_max)
-                eye_sketch = generate_circle_eye_sketch(eye_radius, pupil_x_gain)
-            
-            if eye_choice == enum_type_to_int(self.eye_types.SINGLE_CIRCLE):
-                vsk.sketch(eye_sketch)
-            else:
-                eye_x_gain = np.random.uniform(self.eye_x_gain_min, self.eye_x_gain_max)
-                with vsk.pushMatrix():
-                    x_eye = np.max((eye_x_gain * 0.5 * self.body_width, 1.2 * eye_radius))
-                    vsk.translate(x_eye, 0)
-                    vsk.sketch(eye_sketch)
-                    vsk.translate(-2 * x_eye, 0)
-                    if np.random.random_sample() < 0.5: vsk.scale(-1, 1)
-                    vsk.sketch(eye_sketch)
-            
-            # Mouth:
-            mouth_choice = pick_random_element(self.mouth_types, self.mouth_type_probs)
-            with vsk.pushMatrix():
-                vsk.translate(0, 0.2 * self.body_lower_height + eye_radius)
-                
-                if mouth_choice == enum_type_to_int(self.mouth_types.SMILE):
-                    draw_bezier(vsk, np.array([-0.1, 0]), np.array([0.1, 0]), np.array([-0.1, 0.2]), np.array([0.1, 0.2]), debug=debug)  # TODO: function of this
-                elif mouth_choice == enum_type_to_int(self.mouth_types.GRILL):
-                    mouth_width = np.random.uniform(self.mouth_grill_width_gain_min, self.mouth_grill_width_gain_max) * self.body_width
-                    mouth_height = np.random.uniform(self.mouth_grill_height_min, self.mouth_grill_height_max)
-                    mouth_N_lines = np.random.randint(self.mouth_grill_N_lines_min, self.mouth_grill_N_lines_max + 1)
-                    vsk.translate(0, 0.5 * mouth_height)
-                    draw_grill_mouth(vsk, mouth_width, mouth_height, mouth_N_lines, debug=debug)
+            self.draw_eyes(vsk, self.body_width)
+            self.draw_mouth(vsk, self.body_width, self.body_lower_height)
         else:
             # TODO: Add control panels and fun flurishes here!
             pass
@@ -409,7 +478,9 @@ class RobotsSketch(vsketch.SketchClass):
             self.body_lower_height = np.random.uniform(self.body_bullet_lower_height_min, self.body_bullet_lower_height_max)
             # self.body_upper_height = arc_height
             self.body_upper_height = 0.5 * self.body_width
-                
+        
+
+               
         # Arms:
         arm_choice = pick_random_element(self.arm_types, self.arm_type_probs)
         if arm_choice != enum_type_to_int(self.arm_types.NONE):
@@ -424,14 +495,11 @@ class RobotsSketch(vsketch.SketchClass):
                 arm_width = np.random.uniform(self.arm_tube_width_min, self.arm_tube_width_max)
                     
             if arm_choice == enum_type_to_int(self.arm_types.TUBE_CURVE):
-                arm_sketch = generate_arm_tube_curve_sketch(1.0, -0.75, 0.8, 0.0, 1.0, -0.1, width=arm_width,
-                                                            shoulder_width=shoulder_width, shoulder_height=shoulder_height,
-                                                            use_shoulder=use_shoulder, N_lines=20, debug=debug)
+                pass
             elif arm_choice == enum_type_to_int(self.arm_types.TUBE):
                 arm_length = np.random.uniform(self.arm_tube_length_min, self.arm_tube_length_max)
                 arm_angle = np.deg2rad(np.random.uniform(self.arm_tube_angle_min, self.arm_tube_angle_max))
                 arm_N_lines = np.random.randint(self.arm_tube_N_lines_min, self.arm_tube_N_lines_max + 1)
-                arm_sketch = generate_arm_tube_sketch(arm_length, arm_angle, arm_width, N_lines=arm_N_lines)
             elif arm_choice == enum_type_to_int(self.arm_types.STICK):
                 arm_length_1 = np.random.uniform(self.arm_stick_length_1_min, self.arm_stick_length_1_max)
                 arm_length_2 = np.random.uniform(self.arm_stick_length_2_min, self.arm_stick_length_2_max)
@@ -439,9 +507,37 @@ class RobotsSketch(vsketch.SketchClass):
                 arm_angle_2 = np.deg2rad(np.random.uniform(self.arm_stick_angle_2_min, self.arm_stick_angle_2_max))
                 arm_width = np.random.uniform(self.arm_stick_width_min, self.arm_stick_width_max)
                 arm_joint_radius = np.max((0.5 * arm_width, np.random.uniform(self.arm_stick_joint_radius_min, self.arm_stick_joint_radius_max)))
-                arm_sketch = generate_arm_stick_sketch(arm_length_1, arm_angle_1, arm_length_2, arm_angle_2, arm_width, arm_joint_radius)
-            else:
-                arm_sketch = generate_arm_stick_sketch(0.5, 0.5, 0.5, -0.5, 0.1, 0.2)
+                
+            # Hands:
+            hand_choice = pick_random_element(self.hand_types, self.hand_type_probs)
+            hand_sketch = None
+            if hand_choice == enum_type_to_int(self.hand_types.CLAW):
+                claw_length_1 = np.random.uniform(self.hand_claw_length_1_min, self.hand_claw_length_1_max)
+                claw_length_2 = np.random.uniform(self.hand_claw_length_2_min, self.hand_claw_length_2_max)
+                claw_angle_1 = np.random.uniform(self.hand_claw_angle_1_min, self.hand_claw_angle_1_max)
+                claw_angle_2 = np.min((np.random.uniform(self.hand_claw_angle_2_min, self.hand_claw_angle_2_max), 0.5 * np.pi - claw_angle_1))
+                claw_width = np.random.uniform(self.hand_claw_width_min, self.hand_claw_width_max)
+                use_claw_circle = np.random.random_sample() < self.hand_claw_circle_prob
+                
+                claw_circle_radius = None
+                if use_claw_circle:
+                    claw_circle_radius = np.random.uniform(self.hand_claw_circle_radius_min, self.hand_claw_circle_radius_max)
+                    
+                use_claw_pointy = np.random.random_sample() < self.hand_claw_pointy_prob
+                
+                # TODO: make sure angles are not more than 90 deg, circle radius is large enough, angles do not make claw collide
+                hand_sketch = generate_claw_sketch(arm_width, claw_width, claw_length_1, claw_length_2, claw_angle_1, claw_angle_2, claw_circle_radius, use_claw_pointy)
+        
+            # Draw arm and hands:                    
+            if arm_choice == enum_type_to_int(self.arm_types.TUBE_CURVE):
+                arm_sketch = generate_arm_tube_curve_sketch(1.0, -0.75, 0.8, 0.0, 1.0, -0.1, width=arm_width,
+                                                            shoulder_width=shoulder_width, shoulder_height=shoulder_height,
+                                                            use_shoulder=use_shoulder, N_lines=20, hand_sketch=hand_sketch, debug=debug)
+            elif arm_choice == enum_type_to_int(self.arm_types.TUBE):
+                arm_sketch = generate_arm_tube_sketch(arm_length, arm_angle, arm_width, N_lines=arm_N_lines, hand_sketch=hand_sketch)
+            elif arm_choice == enum_type_to_int(self.arm_types.STICK):
+                arm_sketch = generate_arm_stick_sketch(arm_length_1, arm_angle_1, arm_length_2, arm_angle_2,
+                                                       arm_width, arm_joint_radius, hand_sketch=hand_sketch)
                 
             with vsk.pushMatrix():
                 vsk.translate(0.5 * self.body_width, 0)  
@@ -494,7 +590,8 @@ class RobotsSketch(vsketch.SketchClass):
                 if head_choice == enum_type_to_int(self.head_types.RECT):
                     head_width = np.random.uniform(self.head_rect_width_min, self.head_rect_width_max)
                     head_height = np.random.uniform(self.head_rect_height_min, self.head_rect_height_max)
-                    draw_rect_body(vsk, head_width, head_height, y=-0.5*head_height)
+                    head_lower_height = 0.5 * head_height
+                    draw_rect_body(vsk, head_width, head_height, y=-head_lower_height)
                 elif head_choice == enum_type_to_int(self.head_types.BULLET):
                     head_width = 2 * np.random.uniform(self.head_bullet_radius_min, self.head_bullet_radius_max)
                     head_lower_height = np.random.uniform(self.head_bullet_lower_height_min, self.head_bullet_lower_height_max)
@@ -503,7 +600,12 @@ class RobotsSketch(vsketch.SketchClass):
                     head_width = np.random.uniform(self.head_trapezoid_width_min, self.head_trapezoid_width_max)
                     head_upper_width_gain = np.random.uniform(self.head_trapezoid_upper_width_gain_min, self.head_trapezoid_upper_width_gain_max)
                     head_height = np.random.uniform(self.head_trapezoid_height_min, self.head_trapezoid_height_max)
-                    draw_trapezoid_head(vsk, head_width, head_upper_width_gain, head_height)
+                    head_lower_height = 0.5 * head_height
+                    draw_trapezoid_head(vsk, head_width, head_upper_width_gain, head_height, y=-head_lower_height)
+                vsk.translate(0, -head_lower_height)
+                
+                self.draw_eyes(vsk, head_width)
+                self.draw_mouth(vsk, head_width, head_lower_height)
                     
         # Draw antennas:
         # antenna_sketch = generate_antenna_sketch(0.25, 0.15, 0.075, 0.6, 0.2)
@@ -524,7 +626,7 @@ class RobotsSketch(vsketch.SketchClass):
         self.mouth_type_probs = np.array([self.mouth_none_prob, self.mouth_smile_prob, self.mouth_grill_prob])
         self.eye_type_probs = np.array([self.eye_point_prob, self.eye_ellipse_point_prob, self.eye_circle_prob, self.eye_circle_single_prob])
         self.arm_type_probs = np.array([self.arm_none_prob, self.arm_tube_prob, self.arm_tube_curve_prob, self.arm_stick_prob])
-        self.hand_type_probs = np.array([self.hand_claw_1_prob, self.hand_claw_2_prob])
+        self.hand_type_probs = np.array([self.hand_none_prob, self.hand_claw_prob])
         self.leg_type_probs = np.array([self.leg_tube_prob, self.leg_tube_curve_prob])
         self.foot_type_probs = np.array([self.foot_rect_prob, self.foot_arc_prob])
         
