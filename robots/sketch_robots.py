@@ -59,14 +59,15 @@ def generate_ellipse_point_eye_sketch(detail="0.01"):
     eye_sketch.noFill()
     return eye_sketch
 
-def generate_circle_eye_sketch(radius, x_pupil_gain, detail="0.01"):
+def generate_circle_eye_sketch(radius, x_pupil_gain=None, detail="0.01"):
     eye_sketch = vsketch.Vsketch()
     eye_sketch.detail(detail)
     eye_sketch.circle(0, 0, radius=radius)
-    eye_sketch.circle(x_pupil_gain * radius, 0, 1e-2)
+    if x_pupil_gain is not None: eye_sketch.circle(x_pupil_gain * radius, 0, 1e-2)
     return eye_sketch
 
-def generate_claw_sketch(base_width, claw_width, length_1, length_2, angle_1, angle_2, joint_radius=None, use_pointy=False, detail="0.01"):
+def generate_claw_sketch(base_width, claw_width, length_1, length_2, angle_1, angle_2, joint_radius=None,
+                         joint_point=False, use_pointy=False, detail="0.01"):
     hand_sketch = vsketch.Vsketch()
     hand_sketch.detail(detail)
     
@@ -93,11 +94,14 @@ def generate_claw_sketch(base_width, claw_width, length_1, length_2, angle_1, an
     
     if joint_radius is not None:
         hand_sketch.circle(0.5 * base_width, 0, radius=joint_radius)
+        if joint_point:
+            hand_sketch.circle(.5 * base_width, 0, 1e-2)
+            
     
     return hand_sketch
 
-def generate_arm_stick_sketch(link_length_1, alpha_1, link_length_2, alpha_2, width, joint_radius, hand_sketch=None,
-                              detail="0.01", debug=False):
+def generate_arm_stick_sketch(link_length_1, alpha_1, link_length_2, alpha_2, width, joint_radius,
+                              joint_point=False, hand_sketch=None, detail="0.01", debug=False):
     arm_sketch = vsketch.Vsketch()
     arm_sketch.detail(detail)
     
@@ -108,6 +112,7 @@ def generate_arm_stick_sketch(link_length_1, alpha_1, link_length_2, alpha_2, wi
         arm_sketch.rotate(alpha_2 - alpha_1)
         arm_sketch.rect(0.5 * link_length_2, 0, link_length_2, width, mode="center")
         arm_sketch.circle(0, 0, joint_radius)
+        if joint_point: arm_sketch.circle(0, 0, 1e-2)
         
         if hand_sketch is not None:
             arm_sketch.translate(link_length_2, 0)
@@ -156,7 +161,7 @@ def generate_arm_tube_curve_sketch(x_end, y_end, x_c1, y_c1, x_c2, y_c2, width, 
 def generate_leg_tube_sketch(length, width, N_lines=8, detail="0.01", debug=False):
     leg_sketch = vsketch.Vsketch()
     leg_sketch.detail(detail)
-    draw_line_thick(leg_sketch, np.array([0.0, 0.0]), np.array([0, length]), width=width, N_lines=N_lines, debug=debug)
+    draw_line_thick(leg_sketch, np.array([0.0, 0.0]), np.array([0, -length]), width=width, N_lines=N_lines, debug=debug)
     return leg_sketch
     
 
@@ -214,7 +219,7 @@ class RobotsSketch(vsketch.SketchClass):
     
     # Main parameters:
     n_x = vsketch.Param(3, min_value=1)
-    n_y = vsketch.Param(5, min_value=1)
+    n_y = vsketch.Param(4, min_value=1)
     grid_dist_x = vsketch.Param(8.0)
     grid_dist_y = vsketch.Param(9.0)
     scale = vsketch.Param(0.7, decimals=2)
@@ -228,26 +233,26 @@ class RobotsSketch(vsketch.SketchClass):
     body_circle_prob = vsketch.Param(0.25, min_value=0, max_value=1)
     body_bullet_prob = vsketch.Param(0.35, min_value=0, max_value=1)
     
-    body_rect_width_max = vsketch.Param(4.0, min_value=0)
-    body_rect_width_min = vsketch.Param(1.0, min_value=0)
-    body_rect_height_max = vsketch.Param(4.0, min_value=0)
-    body_rect_height_min = vsketch.Param(1.0, min_value=0)
+    body_rect_width_min = vsketch.Param(1.5, min_value=0)
+    body_rect_width_max = vsketch.Param(3.5, min_value=0)
+    body_rect_height_min = vsketch.Param(1.5, min_value=0)
+    body_rect_height_max = vsketch.Param(3.5, min_value=0)
     
     inner_rect_prob = vsketch.Param(0.3, min_value=0, max_value=1)
+    body_rect_inner_padding_min = vsketch.Param(0.2)
     body_rect_inner_padding_max = vsketch.Param(0.75)
-    body_rect_inner_padding_min = vsketch.Param(0.1)
     
-    body_circle_radius_max = vsketch.Param(2.5, min_value=0)
     body_circle_radius_min = vsketch.Param(1.2, min_value=0)
+    body_circle_radius_max = vsketch.Param(2.5, min_value=0)
     
     inner_circle_prob = vsketch.Param(0.3, min_value=0, max_value=1)
-    body_circle_inner_padding_max = vsketch.Param(0.5)
     body_circle_inner_padding_min = vsketch.Param(0.1)
+    body_circle_inner_padding_max = vsketch.Param(0.5)
     
-    body_bullet_radius_max = vsketch.Param(1.5, min_value=0)
     body_bullet_radius_min = vsketch.Param(0.75, min_value=0)
-    body_bullet_lower_height_max = vsketch.Param(2.0, min_value=0)
+    body_bullet_radius_max = vsketch.Param(1.5, min_value=0)
     body_bullet_lower_height_min = vsketch.Param(0.5, min_value=0)
+    body_bullet_lower_height_max = vsketch.Param(2.0, min_value=0)
     
     # Head parameters:
     head_prob = vsketch.Param(0.5, min_value=0, max_value=1)
@@ -284,16 +289,19 @@ class RobotsSketch(vsketch.SketchClass):
     neck_N_lines_max =  vsketch.Param(6, min_value=0)
     
     # Eye parameters:
-    eye_types = Enum('EyeType', 'POINT ELLIPSE_POINT CIRCLE SINGLE_CIRCLE')
-    eye_point_prob = vsketch.Param(0.25, min_value=0, max_value=1)
-    eye_ellipse_point_prob = vsketch.Param(0.25, min_value=0, max_value=1)
-    eye_circle_prob = vsketch.Param(0.25, min_value=0, max_value=1)
-    eye_circle_single_prob = vsketch.Param(0.25, min_value=0, max_value=1)
+    eye_types = Enum('EyeType', 'POINT ELLIPSE_POINT CIRCLE SINGLE_CIRCLE CIRCLE_EMPTY')
+    eye_point_prob = vsketch.Param(0.2, min_value=0, max_value=1)
+    eye_ellipse_point_prob = vsketch.Param(0.2, min_value=0, max_value=1)
+    eye_circle_prob = vsketch.Param(0.2, min_value=0, max_value=1)
+    eye_circle_single_prob = vsketch.Param(0.2, min_value=0, max_value=1)
+    eye_circle_empty_prob = vsketch.Param(0.2, min_value=0, max_value=1)
     
     eye_circle_radius_gain_min = vsketch.Param(0.06, min_value=0)
     eye_circle_radius_gain_max = vsketch.Param(0.1, min_value=0)
     eye_single_circle_radius_gain_min = vsketch.Param(0.08, min_value=0)
     eye_single_circle_radius_gain_max = vsketch.Param(0.15, min_value=0)
+    eye_circle_empty_radius_gain_min = vsketch.Param(0.01, min_value=0)
+    eye_circle_empty_radius_gain_max = vsketch.Param(0.03, min_value=0)
     
     eye_circle_x_pupil_gain_max = vsketch.Param(0.2, min_value=0)
     
@@ -319,6 +327,8 @@ class RobotsSketch(vsketch.SketchClass):
     arm_tube_prob = vsketch.Param(0.2, min_value=0)
     arm_tube_curve_prob = vsketch.Param(0.3, min_value=0)
     arm_stick_prob = vsketch.Param(0.5, min_value=0)
+    
+    arm_y_gain_max = vsketch.Param(0.4, min_value=0)
     
     arm_shoulder_prob = vsketch.Param(0.5, min_value=0, max_value=1)
     arm_shoulder_width_min = vsketch.Param(0.10, min_value=0)
@@ -347,6 +357,7 @@ class RobotsSketch(vsketch.SketchClass):
     arm_stick_angle_2_max = vsketch.Param(80)
     arm_stick_joint_radius_min = vsketch.Param(0.15, min_value=0)
     arm_stick_joint_radius_max = vsketch.Param(0.25, min_value=0)
+    arm_stick_joint_point_prob = vsketch.Param(0.3, min_value=0)
     
     # Hand parameters:
     hand_types = Enum('FootType', 'NONE CLAW')
@@ -364,9 +375,10 @@ class RobotsSketch(vsketch.SketchClass):
     hand_claw_width_min = vsketch.Param(0.1, min_value=0)
     hand_claw_width_max = vsketch.Param(0.2, min_value=0)
     hand_claw_circle_prob = vsketch.Param(0.5, min_value=0)
+    hand_claw_circle_point_prob = vsketch.Param(0.5, min_value=0)
     hand_claw_circle_radius_min = vsketch.Param(0.075, min_value=0)
     hand_claw_circle_radius_max = vsketch.Param(0.15, min_value=0)
-    hand_claw_pointy_prob = vsketch.Param(0.5, min_value=0)
+    hand_claw_pointy_prob = vsketch.Param(0.3, min_value=0)
 
     # Leg parameters:
     leg_types = Enum('LegType', 'TUBE TUBE_CURVE')
@@ -376,8 +388,8 @@ class RobotsSketch(vsketch.SketchClass):
     leg_x_gain_max = vsketch.Param(0.40, min_value=0)
     leg_x_gain_min = vsketch.Param(0.15, min_value=0)
     
-    leg_tube_width_max = vsketch.Param(0.20, min_value=0)
-    leg_tube_width_min = vsketch.Param(0.05, min_value=0)
+    leg_tube_width_max = vsketch.Param(0.40, min_value=0)
+    leg_tube_width_min = vsketch.Param(0.1, min_value=0)
     leg_tube_length_min = vsketch.Param(0.4, min_value=0)
     leg_tube_length_max = vsketch.Param(1.75, min_value=0)
     leg_tube_N_lines_min =  vsketch.Param(0, min_value=0)
@@ -404,6 +416,10 @@ class RobotsSketch(vsketch.SketchClass):
             self.eye_radius = np.random.uniform(self.eye_single_circle_radius_gain_min, self.eye_single_circle_radius_gain_max) * self.body_width
             pupil_x_gain = np.random.uniform(-self.eye_circle_x_pupil_gain_max, self.eye_circle_x_pupil_gain_max)
             eye_sketch = generate_circle_eye_sketch(self.eye_radius, pupil_x_gain)
+        elif self.eye_choice == enum_type_to_int(self.eye_types.CIRCLE_EMPTY):
+            self.eye_radius = np.random.uniform(self.eye_circle_empty_radius_gain_min, self.eye_circle_empty_radius_gain_max) * self.body_width
+            eye_sketch = generate_circle_eye_sketch(self.eye_radius)
+            
         
         if self.eye_choice == enum_type_to_int(self.eye_types.SINGLE_CIRCLE):
             vsk.sketch(eye_sketch)
@@ -479,7 +495,30 @@ class RobotsSketch(vsketch.SketchClass):
             # self.body_upper_height = arc_height
             self.body_upper_height = 0.5 * self.body_width
         
-
+        
+                
+            
+        # Legs: 
+        leg_choice = pick_random_element(self.leg_types, self.leg_type_probs)
+        leg_x_gain = np.random.uniform(self.leg_x_gain_min, self.leg_x_gain_max)
+        
+        if leg_choice == enum_type_to_int(self.leg_types.TUBE) or leg_choice == enum_type_to_int(self.leg_types.TUBE_CURVE):
+            leg_length = np.random.uniform(self.leg_tube_length_min, self.leg_tube_length_max)
+            leg_width = np.random.uniform(self.leg_tube_width_min, self.leg_tube_width_max)
+            leg_N_lines = np.random.randint(self.leg_tube_N_lines_min, self.leg_tube_N_lines_max + 1)
+            leg_sketch = generate_leg_tube_sketch(leg_length, leg_width, N_lines=leg_N_lines, debug=debug)
+        
+        
+        # Foot:
+        leg_sketch.arc(0, 0, 0.5, 0.4, 0, np.pi, close="chord")
+            
+        with vsk.pushMatrix():
+            vsk.translate(leg_x_gain * self.body_width, 0)
+            vsk.sketch(leg_sketch)
+            vsk.translate(-2 * leg_x_gain * self.body_width, 0)
+            vsk.sketch(leg_sketch)
+        vsk.translate(0, -self.body_lower_height - leg_length)
+        
                
         # Arms:
         arm_choice = pick_random_element(self.arm_types, self.arm_type_probs)
@@ -490,6 +529,12 @@ class RobotsSketch(vsketch.SketchClass):
                 shoulder_height = np.random.uniform(self.arm_shoulder_height_min, self.arm_shoulder_height_max)
             else:
                 shoulder_width, shoulder_height = None, None
+            
+            arm_y = 0.0
+            if self.body_choice == enum_type_to_int(self.body_types.BULLET):
+                arm_y = self.body_lower_height * np.random.uniform(0, self.arm_y_gain_max)
+            elif self.body_choice == enum_type_to_int(self.body_types.RECT):
+                arm_y = self.body_height * (np.random.uniform(0, self.arm_y_gain_max) - 0.5 * self.arm_y_gain_max)
                 
             if arm_choice == enum_type_to_int(self.arm_types.TUBE) or arm_choice == enum_type_to_int(self.arm_types.TUBE_CURVE):
                 arm_width = np.random.uniform(self.arm_tube_width_min, self.arm_tube_width_max)
@@ -507,6 +552,7 @@ class RobotsSketch(vsketch.SketchClass):
                 arm_angle_2 = np.deg2rad(np.random.uniform(self.arm_stick_angle_2_min, self.arm_stick_angle_2_max))
                 arm_width = np.random.uniform(self.arm_stick_width_min, self.arm_stick_width_max)
                 arm_joint_radius = np.max((0.5 * arm_width, np.random.uniform(self.arm_stick_joint_radius_min, self.arm_stick_joint_radius_max)))
+                use_arm_joint_point =  np.random.random_sample() < self.arm_stick_joint_point_prob
                 
             # Hands:
             hand_choice = pick_random_element(self.hand_types, self.hand_type_probs)
@@ -518,15 +564,16 @@ class RobotsSketch(vsketch.SketchClass):
                 claw_angle_2 = np.min((np.random.uniform(self.hand_claw_angle_2_min, self.hand_claw_angle_2_max), 0.5 * np.pi - claw_angle_1))
                 claw_width = np.random.uniform(self.hand_claw_width_min, self.hand_claw_width_max)
                 use_claw_circle = np.random.random_sample() < self.hand_claw_circle_prob
-                
                 claw_circle_radius = None
                 if use_claw_circle:
                     claw_circle_radius = np.random.uniform(self.hand_claw_circle_radius_min, self.hand_claw_circle_radius_max)
+                use_claw_circle_point = np.random.random_sample() < self.hand_claw_pointy_prob
                     
                 use_claw_pointy = np.random.random_sample() < self.hand_claw_pointy_prob
                 
                 # TODO: make sure angles are not more than 90 deg, circle radius is large enough, angles do not make claw collide
-                hand_sketch = generate_claw_sketch(arm_width, claw_width, claw_length_1, claw_length_2, claw_angle_1, claw_angle_2, claw_circle_radius, use_claw_pointy)
+                hand_sketch = generate_claw_sketch(arm_width, claw_width, claw_length_1, claw_length_2, claw_angle_1,
+                                                   claw_angle_2, claw_circle_radius, use_claw_circle_point, use_claw_pointy)
         
             # Draw arm and hands:                    
             if arm_choice == enum_type_to_int(self.arm_types.TUBE_CURVE):
@@ -537,37 +584,15 @@ class RobotsSketch(vsketch.SketchClass):
                 arm_sketch = generate_arm_tube_sketch(arm_length, arm_angle, arm_width, N_lines=arm_N_lines, hand_sketch=hand_sketch)
             elif arm_choice == enum_type_to_int(self.arm_types.STICK):
                 arm_sketch = generate_arm_stick_sketch(arm_length_1, arm_angle_1, arm_length_2, arm_angle_2,
-                                                       arm_width, arm_joint_radius, hand_sketch=hand_sketch)
+                                                       arm_width, arm_joint_radius, joint_point=use_arm_joint_point, hand_sketch=hand_sketch)
                 
             with vsk.pushMatrix():
-                vsk.translate(0.5 * self.body_width, 0)  
+                vsk.translate(0.5 * self.body_width, arm_y)  
                 vsk.sketch(arm_sketch)
                 vsk.translate(-self.body_width, 0)
                 vsk.scale(-1, 1)
                 vsk.sketch(arm_sketch)
                 
-            
-        # Legs: 
-        leg_choice = pick_random_element(self.leg_types, self.leg_type_probs)
-        leg_x_gain = np.random.uniform(self.leg_x_gain_min, self.leg_x_gain_max)
-        
-        if leg_choice == enum_type_to_int(self.leg_types.TUBE) or leg_choice == enum_type_to_int(self.leg_types.TUBE_CURVE):
-            leg_length = np.random.uniform(self.leg_tube_length_min, self.leg_tube_length_max)
-            leg_width = np.random.uniform(self.leg_tube_width_min, self.leg_tube_width_max)
-            leg_N_lines = np.random.randint(self.leg_tube_N_lines_min, self.leg_tube_N_lines_max + 1)
-            leg_sketch = generate_leg_tube_sketch(leg_length, leg_width, N_lines=leg_N_lines, debug=debug)
-        
-        
-        # Foot:
-        leg_sketch.translate(0, leg_length)
-        leg_sketch.arc(0, 0, 0.5, 0.4, 0, np.pi, close="chord")
-            
-        with vsk.pushMatrix():
-            vsk.translate(leg_x_gain * self.body_width, self.body_lower_height)
-            vsk.sketch(leg_sketch)
-            vsk.translate(-2 * leg_x_gain * self.body_width, 0)
-            vsk.sketch(leg_sketch)
-        
         
         self.draw_head = np.random.random_sample() < self.head_prob
         
@@ -591,29 +616,34 @@ class RobotsSketch(vsketch.SketchClass):
                     head_width = np.random.uniform(self.head_rect_width_min, self.head_rect_width_max)
                     head_height = np.random.uniform(self.head_rect_height_min, self.head_rect_height_max)
                     head_lower_height = 0.5 * head_height
+                    head_upper_height = 0.5 * head_height
                     draw_rect_body(vsk, head_width, head_height, y=-head_lower_height)
                 elif head_choice == enum_type_to_int(self.head_types.BULLET):
                     head_width = 2 * np.random.uniform(self.head_bullet_radius_min, self.head_bullet_radius_max)
                     head_lower_height = np.random.uniform(self.head_bullet_lower_height_min, self.head_bullet_lower_height_max)
+                    head_upper_height = 0.5 * head_width
                     draw_bullet_body(vsk, head_width, head_width, head_lower_height, y=-head_lower_height)
                 elif head_choice == enum_type_to_int(self.head_types.TRAPEZOID):
                     head_width = np.random.uniform(self.head_trapezoid_width_min, self.head_trapezoid_width_max)
                     head_upper_width_gain = np.random.uniform(self.head_trapezoid_upper_width_gain_min, self.head_trapezoid_upper_width_gain_max)
                     head_height = np.random.uniform(self.head_trapezoid_height_min, self.head_trapezoid_height_max)
                     head_lower_height = 0.5 * head_height
+                    head_upper_height = 0.5 * head_height
                     draw_trapezoid_head(vsk, head_width, head_upper_width_gain, head_height, y=-head_lower_height)
                 vsk.translate(0, -head_lower_height)
                 
                 self.draw_eyes(vsk, head_width)
                 self.draw_mouth(vsk, head_width, head_lower_height)
                     
-        # Draw antennas:
-        # antenna_sketch = generate_antenna_sketch(0.25, 0.15, 0.075, 0.6, 0.2)
-        # with vsk.pushMatrix():
-        #     vsk.translate(0.3 * self.body_width, -self.body_upper_height - 0.5 * 0.15)
-        #     vsk.sketch(antenna_sketch)
-        #     vsk.translate(-2 * 0.3 * self.body_width, 0)
-        #     vsk.sketch(antenna_sketch)
+                # Draw antennas:
+                # antenna_sketch = generate_antenna_sketch(0.25, 0.15, 0.075, 0.6, 0.2)
+                # with vsk.pushMatrix():
+                #     vsk.translate(0.3 * head_width, -head_upper_height - 0.5 * 0.15)
+                #     vsk.sketch(antenna_sketch)
+                #     vsk.translate(-2 * 0.3 * head_width, 0)
+                #     vsk.sketch(antenna_sketch)
+        
+        vsk.translate(0, self.body_lower_height + leg_length)  # reset position
         
     
     def draw(self, vsk: vsketch.Vsketch) -> None:
@@ -624,7 +654,8 @@ class RobotsSketch(vsketch.SketchClass):
         self.body_type_probs = np.array([self.body_rect_prob, self.body_circle_prob, self.body_bullet_prob])
         self.head_type_probs = np.array([self.head_rect_prob, self.head_bullet_prob, self.head_trapezoid_prob])
         self.mouth_type_probs = np.array([self.mouth_none_prob, self.mouth_smile_prob, self.mouth_grill_prob])
-        self.eye_type_probs = np.array([self.eye_point_prob, self.eye_ellipse_point_prob, self.eye_circle_prob, self.eye_circle_single_prob])
+        self.eye_type_probs = np.array([self.eye_point_prob, self.eye_ellipse_point_prob, self.eye_circle_prob,
+                                        self.eye_circle_single_prob, self.eye_circle_empty_prob])
         self.arm_type_probs = np.array([self.arm_none_prob, self.arm_tube_prob, self.arm_tube_curve_prob, self.arm_stick_prob])
         self.hand_type_probs = np.array([self.hand_none_prob, self.hand_claw_prob])
         self.leg_type_probs = np.array([self.leg_tube_prob, self.leg_tube_curve_prob])
