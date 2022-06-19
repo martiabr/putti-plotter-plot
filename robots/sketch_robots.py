@@ -93,9 +93,9 @@ def generate_claw_sketch(base_width, claw_width, length_1, length_2, angle_1, an
     hand_sketch.shape(claw_shape)
     
     if joint_radius is not None:
-        hand_sketch.circle(0.5 * base_width, 0, radius=joint_radius)
+        hand_sketch.circle(0, 0, radius=joint_radius)
         if joint_point:
-            hand_sketch.circle(.5 * base_width, 0, 1e-2)
+            hand_sketch.circle(0, 0, 1e-2)
             
     
     return hand_sketch
@@ -370,6 +370,22 @@ class RobotsSketch(vsketch.SketchClass):
     mouth_grill_height_max = vsketch.Param(0.5, min_value=0)
     mouth_grill_N_lines_min = vsketch.Param(3, min_value=0)
     mouth_grill_N_lines_max = vsketch.Param(8, min_value=0)
+    
+    # Antenna parameters:
+    antenna_prob = vsketch.Param(0.4, min_value=0)
+    antenna_single_prob = vsketch.Param(0.4, min_value=0)
+    antenna_base_width_min = vsketch.Param(0.2, min_value=0)
+    antenna_base_width_max = vsketch.Param(0.3, min_value=0)
+    antenna_base_height_min = vsketch.Param(0.1, min_value=0)
+    antenna_base_height_max = vsketch.Param(0.2, min_value=0)
+    antenna_width_min = vsketch.Param(0.04, min_value=0)
+    antenna_width_max = vsketch.Param(0.08, min_value=0)
+    antenna_height_min = vsketch.Param(0.2, min_value=0)
+    antenna_height_max = vsketch.Param(1.0, min_value=0)
+    antenna_radius_min = vsketch.Param(0.1, min_value=0)
+    antenna_radius_max = vsketch.Param(0.3, min_value=0)
+    antenna_x_gain_min = vsketch.Param(0.2, min_value=0)
+    antenna_x_gain_max = vsketch.Param(0.4, min_value=0)
     
     # Arm parameters:
     arm_types = Enum('ArmType', 'NONE TUBE TUBE_CURVE STICK')
@@ -683,7 +699,7 @@ class RobotsSketch(vsketch.SketchClass):
                 use_claw_circle = np.random.random_sample() < self.hand_claw_circle_prob
                 claw_circle_radius = None
                 if use_claw_circle:
-                    claw_circle_radius = np.random.uniform(self.hand_claw_circle_radius_min, self.hand_claw_circle_radius_max)
+                    claw_circle_radius = np.max((np.random.uniform(self.hand_claw_circle_radius_min, self.hand_claw_circle_radius_max), 0.5 * arm_width))
                 use_claw_circle_point = np.random.random_sample() < self.hand_claw_pointy_prob
                     
                 use_claw_pointy = np.random.random_sample() < self.hand_claw_pointy_prob
@@ -764,12 +780,24 @@ class RobotsSketch(vsketch.SketchClass):
                 self.draw_mouth(vsk, head_width, head_lower_height)
                     
                 # Draw antennas:
-                # antenna_sketch = generate_antenna_sketch(0.25, 0.15, 0.075, 0.6, 0.2)
-                # with vsk.pushMatrix():
-                #     vsk.translate(0.3 * head_width, -head_upper_height - 0.5 * 0.15)
-                #     vsk.sketch(antenna_sketch)
-                #     vsk.translate(-2 * 0.3 * head_width, 0)
-                #     vsk.sketch(antenna_sketch)
+                antenna_base_width = np.random.uniform(self.antenna_base_width_min, self.antenna_base_width_max)
+                antenna_base_height = np.random.uniform(self.antenna_base_height_min, self.antenna_base_height_max)
+                antenna_width = np.random.uniform(self.antenna_width_min, self.antenna_width_max)
+                antenna_height = np.random.uniform(self.antenna_height_min, self.antenna_height_max)
+                antenna_radius = np.random.uniform(self.antenna_radius_min, self.antenna_radius_max)
+                antenna_sketch = generate_antenna_sketch(antenna_base_width, antenna_base_height, antenna_width, antenna_height, antenna_radius)
+                with vsk.pushMatrix():
+                    vsk.translate(0, -head_upper_height - 0.5 * antenna_base_height)
+                    if head_choice in (enum_type_to_int(self.head_types.BULLET), enum_type_to_int(self.head_types.TRAPEZOID)) \
+                        or np.random.random_sample() < self.antenna_single_prob:
+                        vsk.sketch(antenna_sketch)
+                    else:
+                        antenna_x_gain = np.random.uniform(self.antenna_x_gain_min, self.antenna_x_gain_max)
+                        antenna_x = np.min((np.max((antenna_x_gain * head_width, 0.5 * antenna_base_width)), 0.5 * (head_width - antenna_base_width)))
+                        vsk.translate(antenna_x, 0)
+                        vsk.sketch(antenna_sketch)
+                        vsk.translate(-2 * antenna_x, 0)
+                        vsk.sketch(antenna_sketch)
         
         vsk.translate(0, self.body_lower_height + leg_length)  # reset position
         
