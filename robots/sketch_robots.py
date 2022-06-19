@@ -205,6 +205,15 @@ def generate_leg_omni_sketch(width, trapezoid_width, height, radius, radius_inne
     leg_sketch.polygon([(0.5 * width_lower, 0), (0.5 * width, -height), (-0.5 * width, -height), (-0.5 * width_lower, 0)], close=True)
     return leg_sketch
 
+def generate_leg_wheels_sketch(width, height, nut_height, nut_width, N_lines, detail="0.01", debug=False):
+    leg_sketch = vsketch.Vsketch()
+    leg_sketch.detail(detail)
+    
+    draw_line_thick(leg_sketch, np.array([0.0, 0.0]), np.array([0, -height]), width=width, N_lines=N_lines, debug=debug)
+    leg_sketch.rect(0.5 * (width + nut_height), -0.5 * height, nut_height, nut_width, mode="center")
+    
+    return leg_sketch
+
 
 def generate_antenna_sketch(base_width, base_height, antenna_width, antenna_height, antenna_radius, detail="0.01"):
     antenna_sketch = vsketch.Vsketch()
@@ -369,7 +378,9 @@ class RobotsSketch(vsketch.SketchClass):
     arm_tube_curve_prob = vsketch.Param(0.3, min_value=0)
     arm_stick_prob = vsketch.Param(0.5, min_value=0)
     
-    arm_y_gain_max = vsketch.Param(0.4, min_value=0)
+    arm_rect_y_gain_min = vsketch.Param(-0.3)
+    arm_rect_y_gain_max = vsketch.Param(0.1)
+    arm_bullet_y_gain_max = vsketch.Param(0.4, min_value=0)
     
     arm_tube_width_min = vsketch.Param(0.15, min_value=0)
     arm_tube_width_max = vsketch.Param(0.40, min_value=0)
@@ -437,9 +448,10 @@ class RobotsSketch(vsketch.SketchClass):
     hand_claw_pointy_prob = vsketch.Param(0.3, min_value=0)
 
     # Leg parameters:
-    leg_types = Enum('LegType', 'TUBE OMNI')
-    leg_tube_prob = vsketch.Param(0.5, min_value=0)
-    leg_omni_prob = vsketch.Param(0.5, min_value=0)
+    leg_types = Enum('LegType', 'TUBE OMNI WHEELS')
+    leg_tube_prob = vsketch.Param(0.4, min_value=0)
+    leg_omni_prob = vsketch.Param(0.3, min_value=0)
+    leg_wheels_prob = vsketch.Param(0.3, min_value=0)
     
     leg_x_gain_max = vsketch.Param(0.40, min_value=0)
     leg_x_gain_min = vsketch.Param(0.15, min_value=0)
@@ -451,16 +463,27 @@ class RobotsSketch(vsketch.SketchClass):
     leg_tube_N_lines_min =  vsketch.Param(0, min_value=0)
     leg_tube_N_lines_max =  vsketch.Param(20, min_value=0)
     
-    leg_omni_width_gain_min = vsketch.Param(0.5, min_value=0, max_value=1)
-    leg_omni_width_gain_max = vsketch.Param(0.9, min_value=0, max_value=1)
-    leg_omni_trapezoid_width_gain_min = vsketch.Param(0.5, min_value=0, max_value=1)
-    leg_omni_trapezoid_width_gain_max = vsketch.Param(0.7, min_value=0, max_value=1)
-    leg_omni_height_gain_min = vsketch.Param(0.15, min_value=0, max_value=1)
-    leg_omni_height_gain_max = vsketch.Param(0.4, min_value=0, max_value=1)
-    leg_omni_radius_gain_min = vsketch.Param(0.1, min_value=0, max_value=1)
-    leg_omni_radius_gain_max = vsketch.Param(0.5, min_value=0, max_value=1)
-    leg_omni_inner_radius_min = vsketch.Param(0.05, min_value=0, max_value=1)
-    leg_omni_inner_radius_max = vsketch.Param(0.1, min_value=0, max_value=1)
+    leg_omni_width_gain_min = vsketch.Param(0.5, min_value=0)
+    leg_omni_width_gain_max = vsketch.Param(0.9, min_value=0)
+    leg_omni_trapezoid_width_gain_min = vsketch.Param(0.5, min_value=0)
+    leg_omni_trapezoid_width_gain_max = vsketch.Param(0.7, min_value=0)
+    leg_omni_height_gain_min = vsketch.Param(0.15, min_value=0)
+    leg_omni_height_gain_max = vsketch.Param(0.4, min_value=0)
+    leg_omni_radius_gain_min = vsketch.Param(0.1, min_value=0)
+    leg_omni_radius_gain_max = vsketch.Param(0.5, min_value=0)
+    leg_omni_inner_radius_min = vsketch.Param(0.05, min_value=0)
+    leg_omni_inner_radius_max = vsketch.Param(0.1, min_value=0)
+
+    leg_wheels_height_min = vsketch.Param(0.6, min_value=0)
+    leg_wheels_height_max = vsketch.Param(1.2, min_value=0)
+    leg_wheels_width_gain_min = vsketch.Param(0.4, min_value=0)
+    leg_wheels_width_gain_max = vsketch.Param(0.8, min_value=0)
+    leg_wheels_nut_height_min = vsketch.Param(0.1, min_value=0)
+    leg_wheels_nut_height_max = vsketch.Param(0.2, min_value=0)
+    leg_wheels_nut_width_gain_min = vsketch.Param(0.5, min_value=0)
+    leg_wheels_nut_width_gain_max = vsketch.Param(0.9, min_value=0)
+    leg_wheels_N_lines_min = vsketch.Param(5, min_value=0)
+    leg_wheels_N_lines_max = vsketch.Param(10, min_value=0)
     
     # Foot parameters:
     foot_types = Enum('FootType', 'RECT ARC')
@@ -568,8 +591,8 @@ class RobotsSketch(vsketch.SketchClass):
         
         if leg_choice == enum_type_to_int(self.leg_types.TUBE):  # two
             leg_x_gain = np.random.uniform(self.leg_x_gain_min, self.leg_x_gain_max)
-        else:  # one
-            pass
+        elif leg_choice == enum_type_to_int(self.leg_types.WHEELS): 
+            leg_x_gain = 0.5
         
         if leg_choice == enum_type_to_int(self.leg_types.TUBE):
             leg_length = np.random.uniform(self.leg_tube_length_min, self.leg_tube_length_max)
@@ -582,19 +605,27 @@ class RobotsSketch(vsketch.SketchClass):
             leg_omni_height = np.random.uniform(self.leg_omni_height_gain_min, self.leg_omni_height_gain_max) * leg_omni_width
             leg_omni_radius = np.random.uniform(self.leg_omni_radius_gain_min, self.leg_omni_radius_gain_max) * leg_omni_trapezoid_width
             leg_omni_inner_radius = np.random.uniform(self.leg_omni_inner_radius_min, self.leg_omni_inner_radius_max)
-            
             leg_length = leg_omni_radius + leg_omni_height
             leg_sketch = generate_leg_omni_sketch(leg_omni_width, leg_omni_trapezoid_width, leg_omni_height, leg_omni_radius, leg_omni_inner_radius)
+        elif leg_choice == enum_type_to_int(self.leg_types.WHEELS):
+            leg_wheels_height = np.random.uniform(self.leg_wheels_height_min, self.leg_wheels_height_max)
+            leg_wheels_width = np.random.uniform(self.leg_wheels_width_gain_min, self.leg_wheels_width_gain_max) * leg_wheels_height
+            leg_wheels_nut_height = np.random.uniform(self.leg_wheels_nut_height_min, self.leg_wheels_nut_height_max)
+            leg_wheels_nut_width = np.random.uniform(self.leg_wheels_nut_width_gain_min, self.leg_wheels_nut_width_gain_max) * leg_wheels_nut_height
+            leg_wheels_N_lines = np.random.randint(self.leg_wheels_N_lines_min, self.leg_wheels_N_lines_max + 1)
+            leg_length = 0.5 * leg_wheels_height
+            leg_sketch = generate_leg_wheels_sketch(leg_wheels_width, leg_wheels_height, leg_wheels_nut_width, leg_wheels_nut_height, leg_wheels_N_lines)
         
         # Foot:
         if leg_choice == enum_type_to_int(self.leg_types.TUBE):
             leg_sketch.arc(0, 0, 0.5, 0.4, 0, np.pi, close="chord")
             
         with vsk.pushMatrix():
-            if leg_choice == enum_type_to_int(self.leg_types.TUBE):  # two
+            if leg_choice in (enum_type_to_int(self.leg_types.TUBE), enum_type_to_int(self.leg_types.WHEELS)):  # two
                 vsk.translate(leg_x_gain * self.body_width, 0)
                 vsk.sketch(leg_sketch)
                 vsk.translate(-2 * leg_x_gain * self.body_width, 0)
+                vsk.scale(-1, 1)
                 vsk.sketch(leg_sketch)
             else:
                 vsk.sketch(leg_sketch)
@@ -606,9 +637,9 @@ class RobotsSketch(vsketch.SketchClass):
         if arm_choice != enum_type_to_int(self.arm_types.NONE):            
             arm_y = 0.0
             if self.body_choice == enum_type_to_int(self.body_types.BULLET):
-                arm_y = self.body_lower_height * np.random.uniform(0, self.arm_y_gain_max)
+                arm_y = self.body_lower_height * np.random.uniform(0, self.arm_bullet_y_gain_max)
             elif self.body_choice == enum_type_to_int(self.body_types.RECT):
-                arm_y = self.body_height * (np.random.uniform(0, self.arm_y_gain_max) - 0.5 * self.arm_y_gain_max)
+                arm_y = self.body_height * np.random.uniform(self.arm_rect_y_gain_min, self.arm_rect_y_gain_max)
                 
             if arm_choice == enum_type_to_int(self.arm_types.TUBE) or arm_choice == enum_type_to_int(self.arm_types.TUBE_CURVE):
                 arm_width = np.random.uniform(self.arm_tube_width_min, self.arm_tube_width_max)
@@ -755,7 +786,7 @@ class RobotsSketch(vsketch.SketchClass):
                                         self.eye_circle_single_prob, self.eye_circle_empty_prob])
         self.arm_type_probs = np.array([self.arm_none_prob, self.arm_tube_prob, self.arm_tube_curve_prob, self.arm_stick_prob])
         self.hand_type_probs = np.array([self.hand_none_prob, self.hand_claw_prob])
-        self.leg_type_probs = np.array([self.leg_tube_prob, self.leg_omni_prob])
+        self.leg_type_probs = np.array([self.leg_tube_prob, self.leg_omni_prob, self.leg_wheels_prob])
         self.foot_type_probs = np.array([self.foot_rect_prob, self.foot_arc_prob])
         
         # test_bezier(vsk)
