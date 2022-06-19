@@ -132,7 +132,7 @@ def generate_arm_stick_sketch(link_length_1, alpha_1, link_length_2, alpha_2, wi
         arm_sketch.translate(link_length_1, 0)
         arm_sketch.rotate(alpha_2 - alpha_1)
         arm_sketch.rect(0.5 * link_length_2, 0, link_length_2, width, mode="center")
-        arm_sketch.circle(0, 0, joint_radius)
+        arm_sketch.circle(0, 0, radius=joint_radius)
         if joint_point: arm_sketch.circle(0, 0, 1e-2)
         if debug:
             arm_sketch.stroke(2)
@@ -270,9 +270,9 @@ class RobotsSketch(vsketch.SketchClass):
     
     # Body parameters:
     body_types = Enum('BodyType', 'RECT CIRCLE BULLET')
-    body_rect_prob = vsketch.Param(0.4, min_value=0, max_value=1)
-    body_circle_prob = vsketch.Param(0.25, min_value=0, max_value=1)
-    body_bullet_prob = vsketch.Param(0.35, min_value=0, max_value=1)
+    body_rect_prob = vsketch.Param(0.5, min_value=0, max_value=1)
+    body_circle_prob = vsketch.Param(0.0, min_value=0, max_value=1)
+    body_bullet_prob = vsketch.Param(0.5, min_value=0, max_value=1)
     
     body_rect_width_min = vsketch.Param(1.5, min_value=0)
     body_rect_width_max = vsketch.Param(3.5, min_value=0)
@@ -371,8 +371,8 @@ class RobotsSketch(vsketch.SketchClass):
     
     arm_y_gain_max = vsketch.Param(0.4, min_value=0)
     
-    arm_tube_width_min = vsketch.Param(0.05, min_value=0)
-    arm_tube_width_max = vsketch.Param(0.20, min_value=0)
+    arm_tube_width_min = vsketch.Param(0.15, min_value=0)
+    arm_tube_width_max = vsketch.Param(0.40, min_value=0)
     arm_tube_angle_min = vsketch.Param(-60)
     arm_tube_angle_max = vsketch.Param(60)
     arm_tube_length_min = vsketch.Param(0.5, min_value=0)
@@ -380,8 +380,21 @@ class RobotsSketch(vsketch.SketchClass):
     arm_tube_N_lines_min =  vsketch.Param(5, min_value=0)
     arm_tube_N_lines_max =  vsketch.Param(20, min_value=0)
     
-    arm_stick_width_min = vsketch.Param(0.04, min_value=0)
-    arm_stick_width_max = vsketch.Param(0.20, min_value=0)
+    arm_tube_curve_x_end_min = vsketch.Param(0.5, min_value=0)
+    arm_tube_curve_x_end_max = vsketch.Param(1.0, min_value=0)
+    arm_tube_curve_y_end_min = vsketch.Param(0.5, min_value=0)
+    arm_tube_curve_y_end_max = vsketch.Param(1.0, min_value=0)
+    arm_tube_curve_x_c1_min = vsketch.Param(0.3, min_value=0)
+    arm_tube_curve_x_c1_max = vsketch.Param(0.7, min_value=0)
+    arm_tube_curve_x_c2_min = vsketch.Param(0.3, min_value=0)
+    arm_tube_curve_x_c2_max = vsketch.Param(0.7, min_value=0)
+    arm_tube_curve_y_c2_min = vsketch.Param(-0.3, min_value=0)
+    arm_tube_curve_y_c2_max = vsketch.Param(0.3, min_value=0)
+    arm_tube_curve_up_prob = vsketch.Param(0.5, min_value=0)
+    arm_tube_curve_flip_prob = vsketch.Param(0.2, min_value=0)
+    
+    arm_stick_width_min = vsketch.Param(0.06, min_value=0)
+    arm_stick_width_max = vsketch.Param(0.25, min_value=0)
     arm_stick_length_1_min = vsketch.Param(0.4, min_value=0)
     arm_stick_length_1_max = vsketch.Param(0.8, min_value=0)
     arm_stick_length_2_min = vsketch.Param(0.4, min_value=0)
@@ -390,8 +403,8 @@ class RobotsSketch(vsketch.SketchClass):
     arm_stick_angle_1_max = vsketch.Param(60)
     arm_stick_angle_2_min = vsketch.Param(-80)
     arm_stick_angle_2_max = vsketch.Param(80)
-    arm_stick_joint_radius_min = vsketch.Param(0.15, min_value=0)
-    arm_stick_joint_radius_max = vsketch.Param(0.25, min_value=0)
+    arm_stick_joint_radius_min = vsketch.Param(0.075, min_value=0)
+    arm_stick_joint_radius_max = vsketch.Param(0.15, min_value=0)
     arm_stick_joint_point_prob = vsketch.Param(0.3, min_value=0)
     
     # Shoulder parameters:
@@ -650,7 +663,14 @@ class RobotsSketch(vsketch.SketchClass):
         
             # Draw arm and hands:                    
             if arm_choice == enum_type_to_int(self.arm_types.TUBE_CURVE):
-                arm_sketch = generate_arm_tube_curve_sketch(1.0, -0.75, 0.8, 0.0, 1.0, -0.1, width=arm_width,
+                x_end = np.random.uniform(self.arm_tube_curve_x_end_min, self.arm_tube_curve_x_end_max)
+                y_end = np.random.uniform(self.arm_tube_curve_y_end_min, self.arm_tube_curve_y_end_max)
+                x_c1 = np.random.uniform(self.arm_tube_curve_x_c1_min, self.arm_tube_curve_x_c1_max)
+                x_c2 = np.random.uniform(self.arm_tube_curve_x_c2_min, self.arm_tube_curve_x_c2_max)
+                y_c2 = np.random.uniform(self.arm_tube_curve_y_c2_min, self.arm_tube_curve_y_c2_max)
+                if np.random.random_sample() < self.arm_tube_curve_up_prob:
+                    y_end *= -1
+                arm_sketch = generate_arm_tube_curve_sketch(x_end, y_end, x_c1, 0.0, x_c2, y_c2, width=arm_width,
                                                             N_lines=20, shoulder_sketch=shoulder_sketch, shoulder_width=shoulder_width,
                                                             hand_sketch=hand_sketch, debug=debug)
             elif arm_choice == enum_type_to_int(self.arm_types.TUBE):
@@ -666,6 +686,8 @@ class RobotsSketch(vsketch.SketchClass):
                 vsk.sketch(arm_sketch)
                 vsk.translate(-self.body_width + 2 * arm_offset, 0)
                 vsk.scale(-1, 1)
+                if arm_choice == enum_type_to_int(self.arm_types.TUBE_CURVE) and \
+                    np.random.random_sample() < self.arm_tube_curve_flip_prob: vsk.scale(1, -1)
                 vsk.sketch(arm_sketch)
                 
         
