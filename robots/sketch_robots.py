@@ -194,7 +194,17 @@ def generate_leg_tube_sketch(length, width, N_lines=8, detail="0.01", debug=Fals
     leg_sketch.detail(detail)
     draw_line_thick(leg_sketch, np.array([0.0, 0.0]), np.array([0, -length]), width=width, N_lines=N_lines, debug=debug)
     return leg_sketch
-    
+
+def generate_leg_omni_sketch(width, trapezoid_width, height, radius, radius_inner, detail="0.01"):
+    width_lower = trapezoid_width
+    leg_sketch = vsketch.Vsketch()
+    leg_sketch.detail(detail)
+    leg_sketch.circle(0, -radius, radius=radius)
+    leg_sketch.circle(0, -radius, radius=radius_inner)
+    leg_sketch.translate(0, -radius)
+    leg_sketch.polygon([(0.5 * width_lower, 0), (0.5 * width, -height), (-0.5 * width, -height), (-0.5 * width_lower, 0)], close=True)
+    return leg_sketch
+
 
 def generate_antenna_sketch(base_width, base_height, antenna_width, antenna_height, antenna_radius, detail="0.01"):
     antenna_sketch = vsketch.Vsketch()
@@ -414,9 +424,9 @@ class RobotsSketch(vsketch.SketchClass):
     hand_claw_pointy_prob = vsketch.Param(0.3, min_value=0)
 
     # Leg parameters:
-    leg_types = Enum('LegType', 'TUBE TUBE_CURVE')
+    leg_types = Enum('LegType', 'TUBE OMNI')
     leg_tube_prob = vsketch.Param(0.5, min_value=0)
-    leg_tube_curve_prob = vsketch.Param(0.5, min_value=0)
+    leg_omni_prob = vsketch.Param(0.5, min_value=0)
     
     leg_x_gain_max = vsketch.Param(0.40, min_value=0)
     leg_x_gain_min = vsketch.Param(0.15, min_value=0)
@@ -427,6 +437,17 @@ class RobotsSketch(vsketch.SketchClass):
     leg_tube_length_max = vsketch.Param(1.75, min_value=0)
     leg_tube_N_lines_min =  vsketch.Param(0, min_value=0)
     leg_tube_N_lines_max =  vsketch.Param(20, min_value=0)
+    
+    leg_omni_width_gain_min = vsketch.Param(0.5, min_value=0, max_value=1)
+    leg_omni_width_gain_max = vsketch.Param(0.9, min_value=0, max_value=1)
+    leg_omni_trapezoid_width_gain_min = vsketch.Param(0.5, min_value=0, max_value=1)
+    leg_omni_trapezoid_width_gain_max = vsketch.Param(0.7, min_value=0, max_value=1)
+    leg_omni_height_gain_min = vsketch.Param(0.15, min_value=0, max_value=1)
+    leg_omni_height_gain_max = vsketch.Param(0.4, min_value=0, max_value=1)
+    leg_omni_radius_gain_min = vsketch.Param(0.1, min_value=0, max_value=1)
+    leg_omni_radius_gain_max = vsketch.Param(0.5, min_value=0, max_value=1)
+    leg_omni_inner_radius_min = vsketch.Param(0.05, min_value=0, max_value=1)
+    leg_omni_inner_radius_max = vsketch.Param(0.1, min_value=0, max_value=1)
     
     # Foot parameters:
     foot_types = Enum('FootType', 'RECT ARC')
@@ -531,23 +552,39 @@ class RobotsSketch(vsketch.SketchClass):
         
         # Legs: 
         leg_choice = pick_random_element(self.leg_types, self.leg_type_probs)
-        leg_x_gain = np.random.uniform(self.leg_x_gain_min, self.leg_x_gain_max)
         
-        if leg_choice == enum_type_to_int(self.leg_types.TUBE) or leg_choice == enum_type_to_int(self.leg_types.TUBE_CURVE):
+        if leg_choice == enum_type_to_int(self.leg_types.TUBE):  # two
+            leg_x_gain = np.random.uniform(self.leg_x_gain_min, self.leg_x_gain_max)
+        else:  # one
+            pass
+        
+        if leg_choice == enum_type_to_int(self.leg_types.TUBE):
             leg_length = np.random.uniform(self.leg_tube_length_min, self.leg_tube_length_max)
             leg_width = np.random.uniform(self.leg_tube_width_min, self.leg_tube_width_max)
             leg_N_lines = np.random.randint(self.leg_tube_N_lines_min, self.leg_tube_N_lines_max + 1)
             leg_sketch = generate_leg_tube_sketch(leg_length, leg_width, N_lines=leg_N_lines, debug=debug)
-        
+        elif leg_choice == enum_type_to_int(self.leg_types.OMNI):
+            leg_omni_width = np.random.uniform(self.leg_omni_width_gain_min, self.leg_omni_width_gain_max) * self.body_width
+            leg_omni_trapezoid_width = np.random.uniform(self.leg_omni_trapezoid_width_gain_min, self.leg_omni_trapezoid_width_gain_max) * leg_omni_width
+            leg_omni_height = np.random.uniform(self.leg_omni_height_gain_min, self.leg_omni_height_gain_max) * leg_omni_width
+            leg_omni_radius = np.random.uniform(self.leg_omni_radius_gain_min, self.leg_omni_radius_gain_max) * leg_omni_trapezoid_width
+            leg_omni_inner_radius = np.random.uniform(self.leg_omni_inner_radius_min, self.leg_omni_inner_radius_max)
+            
+            leg_length = leg_omni_radius + leg_omni_height
+            leg_sketch = generate_leg_omni_sketch(leg_omni_width, leg_omni_trapezoid_width, leg_omni_height, leg_omni_radius, leg_omni_inner_radius)
         
         # Foot:
-        leg_sketch.arc(0, 0, 0.5, 0.4, 0, np.pi, close="chord")
+        if leg_choice == enum_type_to_int(self.leg_types.TUBE):
+            leg_sketch.arc(0, 0, 0.5, 0.4, 0, np.pi, close="chord")
             
         with vsk.pushMatrix():
-            vsk.translate(leg_x_gain * self.body_width, 0)
-            vsk.sketch(leg_sketch)
-            vsk.translate(-2 * leg_x_gain * self.body_width, 0)
-            vsk.sketch(leg_sketch)
+            if leg_choice == enum_type_to_int(self.leg_types.TUBE):  # two
+                vsk.translate(leg_x_gain * self.body_width, 0)
+                vsk.sketch(leg_sketch)
+                vsk.translate(-2 * leg_x_gain * self.body_width, 0)
+                vsk.sketch(leg_sketch)
+            else:
+                vsk.sketch(leg_sketch)
         vsk.translate(0, -self.body_lower_height - leg_length)
         
                
@@ -696,7 +733,7 @@ class RobotsSketch(vsketch.SketchClass):
                                         self.eye_circle_single_prob, self.eye_circle_empty_prob])
         self.arm_type_probs = np.array([self.arm_none_prob, self.arm_tube_prob, self.arm_tube_curve_prob, self.arm_stick_prob])
         self.hand_type_probs = np.array([self.hand_none_prob, self.hand_claw_prob])
-        self.leg_type_probs = np.array([self.leg_tube_prob, self.leg_tube_curve_prob])
+        self.leg_type_probs = np.array([self.leg_tube_prob, self.leg_omni_prob])
         self.foot_type_probs = np.array([self.foot_rect_prob, self.foot_arc_prob])
         
         # test_bezier(vsk)
