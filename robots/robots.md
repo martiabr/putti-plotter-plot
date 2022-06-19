@@ -7,7 +7,9 @@
 - Body control panel type things
 - Claws (x)
 - Sawblade
-- Shoulders
+- Shoulders on all arm types
+- Leg sockets like shoulders
+- More feet
 
 ### TODO randomize:
 - Arm placement (x)
