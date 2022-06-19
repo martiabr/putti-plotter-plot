@@ -205,12 +205,16 @@ def generate_leg_omni_sketch(width, trapezoid_width, height, radius, radius_inne
     leg_sketch.polygon([(0.5 * width_lower, 0), (0.5 * width, -height), (-0.5 * width, -height), (-0.5 * width_lower, 0)], close=True)
     return leg_sketch
 
-def generate_leg_wheels_sketch(width, height, nut_height, nut_width, N_lines, detail="0.01", debug=False):
+def generate_leg_wheels_sketch(width, height, nut_height=None, nut_width=None, N_lines=0, nuts_both_sides=False, detail="0.01", debug=False):
     leg_sketch = vsketch.Vsketch()
     leg_sketch.detail(detail)
     
     draw_line_thick(leg_sketch, np.array([0.0, 0.0]), np.array([0, -height]), width=width, N_lines=N_lines, debug=debug)
-    leg_sketch.rect(0.5 * (width + nut_height), -0.5 * height, nut_height, nut_width, mode="center")
+    
+    if nut_height is not None and nut_width is not None:
+        leg_sketch.rect(0.5 * (width + nut_height), -0.5 * height, nut_height, nut_width, mode="center")
+        if nuts_both_sides:
+            leg_sketch.rect(-0.5 * (width + nut_height), -0.5 * height, nut_height, nut_width, mode="center")
     
     return leg_sketch
 
@@ -464,10 +468,11 @@ class RobotsSketch(vsketch.SketchClass):
     hand_claw_pointy_prob = vsketch.Param(0.3, min_value=0)
 
     # Leg parameters:
-    leg_types = Enum('LegType', 'TUBE OMNI WHEELS')
-    leg_tube_prob = vsketch.Param(0.4, min_value=0)
-    leg_omni_prob = vsketch.Param(0.3, min_value=0)
+    leg_types = Enum('LegType', 'TUBE OMNI WHEELS WHEEL')
+    leg_tube_prob = vsketch.Param(0.3, min_value=0)
+    leg_omni_prob = vsketch.Param(0.2, min_value=0)
     leg_wheels_prob = vsketch.Param(0.3, min_value=0)
+    leg_wheel_prob = vsketch.Param(0.2, min_value=0)
     
     leg_x_gain_max = vsketch.Param(0.40, min_value=0)
     leg_x_gain_min = vsketch.Param(0.15, min_value=0)
@@ -500,6 +505,17 @@ class RobotsSketch(vsketch.SketchClass):
     leg_wheels_nut_width_gain_max = vsketch.Param(0.9, min_value=0)
     leg_wheels_N_lines_min = vsketch.Param(5, min_value=0)
     leg_wheels_N_lines_max = vsketch.Param(10, min_value=0)
+    
+    leg_wheel_height_min = vsketch.Param(1.0, min_value=0)
+    leg_wheel_height_max = vsketch.Param(2.0, min_value=0)
+    leg_wheel_width_gain_min = vsketch.Param(0.4, min_value=0)
+    leg_wheel_width_gain_max = vsketch.Param(0.6, min_value=0)
+    leg_wheel_nut_height_min = vsketch.Param(0.2, min_value=0)
+    leg_wheel_nut_height_max = vsketch.Param(0.5, min_value=0)
+    leg_wheel_nut_width_gain_min = vsketch.Param(0.5, min_value=0)
+    leg_wheel_nut_width_gain_max = vsketch.Param(0.9, min_value=0)
+    leg_wheel_N_lines_min = vsketch.Param(5, min_value=0)
+    leg_wheel_N_lines_max = vsketch.Param(15, min_value=0)
     
     # Foot parameters:
     foot_types = Enum('FootType', 'RECT ARC')
@@ -631,13 +647,22 @@ class RobotsSketch(vsketch.SketchClass):
             leg_wheels_N_lines = np.random.randint(self.leg_wheels_N_lines_min, self.leg_wheels_N_lines_max + 1)
             leg_length = 0.5 * leg_wheels_height
             leg_sketch = generate_leg_wheels_sketch(leg_wheels_width, leg_wheels_height, leg_wheels_nut_width, leg_wheels_nut_height, leg_wheels_N_lines)
+        elif leg_choice == enum_type_to_int(self.leg_types.WHEEL):
+            leg_wheel_height = np.random.uniform(self.leg_wheel_height_min, self.leg_wheel_height_max)
+            leg_wheel_width = np.random.uniform(self.leg_wheel_width_gain_min, self.leg_wheel_width_gain_max) * leg_wheel_height
+            leg_wheel_nut_height = np.random.uniform(self.leg_wheel_nut_height_min, self.leg_wheel_nut_height_max)
+            leg_wheel_nut_width = np.random.uniform(self.leg_wheel_nut_width_gain_min, self.leg_wheel_nut_width_gain_max) * leg_wheel_nut_height
+            leg_wheel_N_lines = np.random.randint(self.leg_wheel_N_lines_min, self.leg_wheel_N_lines_max + 1)
+            leg_length = 0.5 * leg_wheel_height
+            leg_sketch = generate_leg_wheels_sketch(leg_wheel_width, leg_wheel_height, leg_wheel_nut_width, leg_wheel_nut_height,
+                                                    leg_wheel_N_lines, nuts_both_sides=True)
         
         # Foot:
         if leg_choice == enum_type_to_int(self.leg_types.TUBE):
             leg_sketch.arc(0, 0, 0.5, 0.4, 0, np.pi, close="chord")
             
         with vsk.pushMatrix():
-            if leg_choice in (enum_type_to_int(self.leg_types.TUBE), enum_type_to_int(self.leg_types.WHEELS)):  # two
+            if leg_choice in (enum_type_to_int(self.leg_types.TUBE), enum_type_to_int(self.leg_types.WHEELS)):  # two sketches
                 vsk.translate(leg_x_gain * self.body_width, 0)
                 vsk.sketch(leg_sketch)
                 vsk.translate(-2 * leg_x_gain * self.body_width, 0)
@@ -814,7 +839,7 @@ class RobotsSketch(vsketch.SketchClass):
                                         self.eye_circle_single_prob, self.eye_circle_empty_prob])
         self.arm_type_probs = np.array([self.arm_none_prob, self.arm_tube_prob, self.arm_tube_curve_prob, self.arm_stick_prob])
         self.hand_type_probs = np.array([self.hand_none_prob, self.hand_claw_prob])
-        self.leg_type_probs = np.array([self.leg_tube_prob, self.leg_omni_prob, self.leg_wheels_prob])
+        self.leg_type_probs = np.array([self.leg_tube_prob, self.leg_omni_prob, self.leg_wheels_prob, self.leg_wheel_prob])
         self.foot_type_probs = np.array([self.foot_rect_prob, self.foot_arc_prob])
         
         # test_bezier(vsk)
