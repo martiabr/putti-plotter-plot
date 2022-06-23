@@ -51,11 +51,13 @@ def generate_point_eye_sketch(detail="0.01"):
     eye_sketch.circle(0, 0, 1e-2)
     return eye_sketch
 
-def generate_ellipse_point_eye_sketch(detail="0.01"):
+def generate_ellipse_point_eye_sketch(width, frac=1.0, line_width=0.02, detail="0.01"):
     eye_sketch = vsketch.Vsketch()
     eye_sketch.fill(1)
     eye_sketch.detail(detail)
-    eye_sketch.ellipse(0, 0, 0.05, 0.075)
+    N = int(width/line_width)
+    for w in np.linspace(width, 0, N):
+        eye_sketch.ellipse(0, 0, w, frac * w)
     eye_sketch.noFill()
     return eye_sketch
 
@@ -363,6 +365,11 @@ class RobotsSketch(vsketch.SketchClass):
     
     eye_circle_x_pupil_gain_max = vsketch.Param(0.2, min_value=0)
     
+    eye_ellipse_width_min = vsketch.Param(0.04, min_value=0)
+    eye_ellipse_width_max = vsketch.Param(0.10, min_value=0)
+    eye_ellipse_frac_min = vsketch.Param(1.25, min_value=0)
+    eye_ellipse_frac_max = vsketch.Param(2.0, min_value=0)
+    
     eye_x_gain_min = vsketch.Param(0.1, min_value=0)
     eye_x_gain_max = vsketch.Param(0.6, min_value=0)
     
@@ -534,7 +541,9 @@ class RobotsSketch(vsketch.SketchClass):
         if self.eye_choice == enum_type_to_int(self.eye_types.POINT):
             eye_sketch = generate_point_eye_sketch()
         elif self.eye_choice == enum_type_to_int(self.eye_types.ELLIPSE_POINT):
-            eye_sketch = generate_ellipse_point_eye_sketch()
+            self.eye_radius = np.random.uniform(self.eye_ellipse_width_min, self.eye_ellipse_width_max)
+            eye_frac = np.random.uniform(self.eye_ellipse_frac_min, self.eye_ellipse_frac_max)
+            eye_sketch = generate_ellipse_point_eye_sketch(self.eye_radius, eye_frac)
         elif self.eye_choice == enum_type_to_int(self.eye_types.CIRCLE):
             self.eye_radius = np.random.uniform(self.eye_circle_radius_gain_min, self.eye_circle_radius_gain_max) * self.body_width
             pupil_x_gain = np.random.uniform(-self.eye_circle_x_pupil_gain_max, self.eye_circle_x_pupil_gain_max)
@@ -545,7 +554,7 @@ class RobotsSketch(vsketch.SketchClass):
             eye_sketch = generate_circle_eye_sketch(self.eye_radius, pupil_x_gain)
         elif self.eye_choice == enum_type_to_int(self.eye_types.CIRCLE_EMPTY):
             self.eye_radius = np.random.uniform(self.eye_circle_empty_radius_gain_min, self.eye_circle_empty_radius_gain_max) * self.body_width
-            eye_sketch = generate_circle_eye_sketch(self.eye_radius)
+            eye_sketch = generate_ellipse_point_eye_sketch(self.eye_radius)
             
         
         if self.eye_choice == enum_type_to_int(self.eye_types.SINGLE_CIRCLE):
@@ -836,16 +845,17 @@ class RobotsSketch(vsketch.SketchClass):
         else:
             # Draw antennas:
             if draw_antenna:
-                vsk.translate(0, -self.body_upper_height)
-                if self.body_choice == enum_type_to_int(self.body_types.BULLET) or np.random.random_sample() < self.antenna_single_prob:
-                    vsk.sketch(antenna_sketch)
-                else:
-                    antenna_x_gain = np.random.uniform(self.antenna_x_gain_min, self.antenna_x_gain_max)
-                    antenna_x = np.min((np.max((antenna_x_gain * self.body_width, 0.5 * antenna_base_width)), 0.5 * (self.body_width - antenna_base_width)))
-                    vsk.translate(antenna_x, 0)
-                    vsk.sketch(antenna_sketch)
-                    vsk.translate(-2 * antenna_x, 0)
-                    vsk.sketch(antenna_sketch)
+                with vsk.pushMatrix():
+                    vsk.translate(0, -self.body_upper_height)
+                    if self.body_choice == enum_type_to_int(self.body_types.BULLET) or np.random.random_sample() < self.antenna_single_prob:
+                        vsk.sketch(antenna_sketch)
+                    else:
+                        antenna_x_gain = np.random.uniform(self.antenna_x_gain_min, self.antenna_x_gain_max)
+                        antenna_x = np.min((np.max((antenna_x_gain * self.body_width, 0.5 * antenna_base_width)), 0.5 * (self.body_width - antenna_base_width)))
+                        vsk.translate(antenna_x, 0)
+                        vsk.sketch(antenna_sketch)
+                        vsk.translate(-2 * antenna_x, 0)
+                        vsk.sketch(antenna_sketch)
             
             
         vsk.translate(0, self.body_lower_height + leg_length)  # reset position
