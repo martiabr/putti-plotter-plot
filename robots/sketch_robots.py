@@ -358,15 +358,17 @@ class RobotsSketch(vsketch.SketchClass):
     
     eye_circle_radius_gain_min = vsketch.Param(0.06, min_value=0)
     eye_circle_radius_gain_max = vsketch.Param(0.1, min_value=0)
+    
     eye_single_circle_radius_gain_min = vsketch.Param(0.08, min_value=0)
     eye_single_circle_radius_gain_max = vsketch.Param(0.15, min_value=0)
-    eye_circle_empty_radius_gain_min = vsketch.Param(0.01, min_value=0)
-    eye_circle_empty_radius_gain_max = vsketch.Param(0.03, min_value=0)
+    
+    eye_circle_empty_radius_gain_min = vsketch.Param(0.02, min_value=0)
+    eye_circle_empty_radius_gain_max = vsketch.Param(0.06, min_value=0)
     
     eye_circle_x_pupil_gain_max = vsketch.Param(0.2, min_value=0)
     
-    eye_ellipse_width_min = vsketch.Param(0.04, min_value=0)
-    eye_ellipse_width_max = vsketch.Param(0.10, min_value=0)
+    eye_ellipse_width_min = vsketch.Param(0.02, min_value=0)
+    eye_ellipse_width_max = vsketch.Param(0.06, min_value=0)
     eye_ellipse_frac_min = vsketch.Param(1.25, min_value=0)
     eye_ellipse_frac_max = vsketch.Param(2.0, min_value=0)
     
@@ -374,10 +376,11 @@ class RobotsSketch(vsketch.SketchClass):
     eye_x_gain_max = vsketch.Param(0.6, min_value=0)
     
     # Mouth parameters:
-    mouth_types = Enum('MouthType', 'NONE SMILE GRILL')
-    mouth_none_prob = vsketch.Param(0.3, min_value=0)
-    mouth_smile_prob = vsketch.Param(0.3, min_value=0)
+    mouth_types = Enum('MouthType', 'NONE SMILE GRILL LINE')
+    mouth_none_prob = vsketch.Param(0.1, min_value=0)
+    mouth_smile_prob = vsketch.Param(0.25, min_value=0)
     mouth_grill_prob = vsketch.Param(0.4, min_value=0)
+    mouth_line_prob = vsketch.Param(0.25, min_value=0)
     
     mouth_grill_width_gain_min = vsketch.Param(0.3, min_value=0)
     mouth_grill_width_gain_max = vsketch.Param(0.8, min_value=0)
@@ -386,6 +389,9 @@ class RobotsSketch(vsketch.SketchClass):
     mouth_grill_N_lines_min = vsketch.Param(3, min_value=0)
     mouth_grill_N_lines_max = vsketch.Param(8, min_value=0)
     
+    mouth_line_width_gain_min = vsketch.Param(0.3, min_value=0)
+    mouth_line_width_gain_max = vsketch.Param(0.6, min_value=0)
+
     # Antenna parameters:
     antenna_prob = vsketch.Param(0.4, min_value=0)
     antenna_single_prob = vsketch.Param(0.4, min_value=0)
@@ -583,6 +589,9 @@ class RobotsSketch(vsketch.SketchClass):
                 mouth_N_lines = np.random.randint(self.mouth_grill_N_lines_min, self.mouth_grill_N_lines_max + 1)
                 vsk.translate(0, 0.5 * mouth_height)
                 draw_grill_mouth(vsk, mouth_width, mouth_height, mouth_N_lines, debug=debug)
+            elif mouth_choice == enum_type_to_int(self.mouth_types.LINE):
+                mouth_width_gain = np.random.uniform(self.mouth_line_width_gain_min, self.mouth_line_width_gain_max)
+                vsk.line(-0.5 * face_width * mouth_width_gain, 0, 0.5 * face_width * mouth_width_gain, 0)
 
     
     def draw_body(self, vsk, draw_face=False, debug=False):
@@ -868,7 +877,7 @@ class RobotsSketch(vsketch.SketchClass):
         
         self.body_type_probs = np.array([self.body_rect_prob, self.body_circle_prob, self.body_bullet_prob])
         self.head_type_probs = np.array([self.head_rect_prob, self.head_bullet_prob, self.head_trapezoid_prob])
-        self.mouth_type_probs = np.array([self.mouth_none_prob, self.mouth_smile_prob, self.mouth_grill_prob])
+        self.mouth_type_probs = np.array([self.mouth_none_prob, self.mouth_smile_prob, self.mouth_grill_prob, self.mouth_line_prob])
         self.eye_type_probs = np.array([self.eye_point_prob, self.eye_ellipse_point_prob, self.eye_circle_prob,
                                         self.eye_circle_single_prob, self.eye_circle_empty_prob])
         self.arm_type_probs = np.array([self.arm_none_prob, self.arm_tube_prob, self.arm_tube_curve_prob, self.arm_stick_prob])
@@ -886,7 +895,6 @@ class RobotsSketch(vsketch.SketchClass):
         # blade_lean_over = 0.3
         # sawblade_radius = 1.0
         # blade_height = 0.17
-        
         
         # def pol2cart(radius, angle):
         #     x = radius * np.cos(angle)
