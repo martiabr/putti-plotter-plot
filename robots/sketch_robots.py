@@ -219,11 +219,15 @@ def generate_leg_wheels_sketch(width, height, nut_height=None, nut_width=None, N
     return leg_sketch
 
 
-def generate_antenna_sketch(base_width, base_height, antenna_width, antenna_height, antenna_radius, detail="0.01"):
+def generate_antenna_sketch(base_width, base_height, antenna_width, antenna_height, antenna_radius, rect=True, detail="0.01"):
     antenna_sketch = vsketch.Vsketch()
     antenna_sketch.detail(detail)
-    antenna_sketch.rect(0, 0, base_width, base_height, mode="center")
-    antenna_sketch.translate(0, -0.5 * (base_height + antenna_height))
+    antenna_sketch.translate(0, -base_height)
+    if rect:
+        antenna_sketch.rect(0, 0.5 * base_height, base_width, base_height, mode="center")
+    else:
+        antenna_sketch.arc(0, base_height, base_width, 2*base_height, 0, np.pi, close="chord")
+    antenna_sketch.translate(0, -0.5 * (antenna_height))
     antenna_sketch.rect(0, 0, antenna_width, antenna_height, mode="center")
     antenna_sketch.translate(0, -0.5 * (antenna_height + antenna_radius))
     antenna_sketch.circle(0, 0, antenna_radius)
@@ -378,6 +382,7 @@ class RobotsSketch(vsketch.SketchClass):
     # Antenna parameters:
     antenna_prob = vsketch.Param(0.4, min_value=0)
     antenna_single_prob = vsketch.Param(0.4, min_value=0)
+    antenna_rect_base_prob = vsketch.Param(0.5, min_value=0)
     antenna_base_width_min = vsketch.Param(0.2, min_value=0)
     antenna_base_width_max = vsketch.Param(0.3, min_value=0)
     antenna_base_height_min = vsketch.Param(0.1, min_value=0)
@@ -447,7 +452,7 @@ class RobotsSketch(vsketch.SketchClass):
     arm_shoulder_angle_max = vsketch.Param(20, min_value=0)  # +- outside this deg angle we will not draw shoulders bause it will look weird
     
     # Hand parameters:
-    hand_types = Enum('FootType', 'NONE CLAW')
+    hand_types = Enum('HandType', 'NONE CLAW')
     hand_none_prob = vsketch.Param(0.5, min_value=0)
     hand_claw_prob = vsketch.Param(0.5, min_value=0)
     
@@ -767,6 +772,17 @@ class RobotsSketch(vsketch.SketchClass):
         
         self.draw_body(vsk, not self.draw_head, debug)
         
+        draw_antenna = np.random.random_sample() < self.antenna_prob
+        if draw_antenna:
+            antenna_base_rect = np.random.random_sample() < self.antenna_rect_base_prob
+            antenna_base_width = np.random.uniform(self.antenna_base_width_min, self.antenna_base_width_max)
+            antenna_base_height = np.random.uniform(self.antenna_base_height_min, self.antenna_base_height_max)
+            antenna_width = np.random.uniform(self.antenna_width_min, self.antenna_width_max)
+            antenna_height = np.random.uniform(self.antenna_height_min, self.antenna_height_max)
+            antenna_radius = np.random.uniform(self.antenna_radius_min, self.antenna_radius_max)
+            antenna_sketch = generate_antenna_sketch(antenna_base_width, antenna_base_height, antenna_width, antenna_height,
+                                                     antenna_radius, rect=antenna_base_rect)
+        
         if self.draw_head:
             with vsk.pushMatrix():
                 vsk.translate(0, -self.body_upper_height)
@@ -805,14 +821,8 @@ class RobotsSketch(vsketch.SketchClass):
                 self.draw_mouth(vsk, head_width, head_lower_height)
                     
                 # Draw antennas:
-                antenna_base_width = np.random.uniform(self.antenna_base_width_min, self.antenna_base_width_max)
-                antenna_base_height = np.random.uniform(self.antenna_base_height_min, self.antenna_base_height_max)
-                antenna_width = np.random.uniform(self.antenna_width_min, self.antenna_width_max)
-                antenna_height = np.random.uniform(self.antenna_height_min, self.antenna_height_max)
-                antenna_radius = np.random.uniform(self.antenna_radius_min, self.antenna_radius_max)
-                antenna_sketch = generate_antenna_sketch(antenna_base_width, antenna_base_height, antenna_width, antenna_height, antenna_radius)
-                with vsk.pushMatrix():
-                    vsk.translate(0, -head_upper_height - 0.5 * antenna_base_height)
+                if draw_antenna:
+                    vsk.translate(0, -head_upper_height)
                     if head_choice in (enum_type_to_int(self.head_types.BULLET), enum_type_to_int(self.head_types.TRAPEZOID)) \
                         or np.random.random_sample() < self.antenna_single_prob:
                         vsk.sketch(antenna_sketch)
@@ -823,7 +833,21 @@ class RobotsSketch(vsketch.SketchClass):
                         vsk.sketch(antenna_sketch)
                         vsk.translate(-2 * antenna_x, 0)
                         vsk.sketch(antenna_sketch)
-        
+        else:
+            # Draw antennas:
+            if draw_antenna:
+                vsk.translate(0, -self.body_upper_height)
+                if self.body_choice == enum_type_to_int(self.body_types.BULLET) or np.random.random_sample() < self.antenna_single_prob:
+                    vsk.sketch(antenna_sketch)
+                else:
+                    antenna_x_gain = np.random.uniform(self.antenna_x_gain_min, self.antenna_x_gain_max)
+                    antenna_x = np.min((np.max((antenna_x_gain * self.body_width, 0.5 * antenna_base_width)), 0.5 * (self.body_width - antenna_base_width)))
+                    vsk.translate(antenna_x, 0)
+                    vsk.sketch(antenna_sketch)
+                    vsk.translate(-2 * antenna_x, 0)
+                    vsk.sketch(antenna_sketch)
+            
+            
         vsk.translate(0, self.body_lower_height + leg_length)  # reset position
         
     
@@ -844,6 +868,35 @@ class RobotsSketch(vsketch.SketchClass):
         
         # test_bezier(vsk)
         # test_line_thick(vsk)
+        
+        # n_blades = 13
+        # d_theta = 2 * np.pi / n_blades
+        # flat_section = 0.3
+        # blade_rise_section = 0.5
+        # blade_lean_over = 0.3
+        # sawblade_radius = 1.0
+        # blade_height = 0.17
+        
+        
+        # def pol2cart(radius, angle):
+        #     x = radius * np.cos(angle)
+        #     y = radius * np.sin(angle)
+        #     return np.array([x, y])
+        
+        # points = np.zeros((n_blades * 5, 2))
+        # for i, theta in enumerate(np.linspace(d_theta, 2 * np.pi, n_blades)):
+        #     points[5*i] = pol2cart(sawblade_radius, theta)
+        #     points[5*i + 1] = pol2cart(sawblade_radius, theta + flat_section * d_theta)
+        #     points[5*i + 2] = pol2cart(sawblade_radius + blade_height, theta + (flat_section + blade_rise_section) * d_theta)
+        #     points[5*i + 3] = pol2cart(sawblade_radius + blade_height, theta + (1.0 + blade_lean_over) * d_theta)
+        #     points[5*i + 4] = pol2cart(sawblade_radius, theta + d_theta)
+        # vsk.polygon(points[:,0], points[:,1], close=True)
+        
+        # # Additional details:
+        # vsk.circle(0, 0, radius=0.9*sawblade_radius)
+        # vsk.circle(0, 0, radius=0.5)
+        # vsk.circle(0, 0, radius=0.2)
+        
         
         for y in range(self.n_y):
             with vsk.pushMatrix():
