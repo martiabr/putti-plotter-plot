@@ -1,13 +1,11 @@
 ### TODO parts:
 - Rounded grill mouth
 - Ears
-- Body control panel type things
-- Sawblade
+- **Body control panel type things**
+- **Sawblade**
 - Leg sockets like shoulders
 - Side antennas
 - More feet
-- **Magnet claws**
-- Bullet joint claws
 
 ### TODO randomize:
 - **Eye placement**
