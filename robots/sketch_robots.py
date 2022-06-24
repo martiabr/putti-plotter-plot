@@ -209,9 +209,13 @@ def generate_shoulder_sketch(width, height, detail="0.01"):
     shoulder_sketch = vsketch.Vsketch()
     shoulder_sketch.detail(detail)
     shoulder_sketch.rect(0.5 * width, 0, width, height, mode="center")  
-    shoulder_sketch.translate(width, 0)
     return shoulder_sketch
 
+def generate_shoulder_circle_sketch(radius, detail="0.01"):
+    shoulder_sketch = vsketch.Vsketch()
+    shoulder_sketch.detail(detail)
+    shoulder_sketch.circle(0, 0, radius=radius)  
+    return shoulder_sketch
 
 def generate_arm_stick_sketch(link_length_1, alpha_1, link_length_2, alpha_2, width, joint_radius,
                               joint_point=False, shoulder_sketch=None, shoulder_width=None, hand_sketch=None,
@@ -221,33 +225,36 @@ def generate_arm_stick_sketch(link_length_1, alpha_1, link_length_2, alpha_2, wi
     
     with arm_sketch.pushMatrix():
         arm_sketch.rotate(alpha_1)
+        with arm_sketch.pushMatrix():
+            if shoulder_sketch is not None and shoulder_width is not None:
+                arm_sketch.translate(shoulder_width, 0)
+                
+            arm_sketch.rect(0.5 * link_length_1, 0, link_length_1, width, mode="center")
+            if debug:
+                arm_sketch.stroke(2)
+                arm_sketch.circle(0, 0, radius=debug_radius)
+                arm_sketch.circle(link_length_1, 0, radius=debug_radius)
+                arm_sketch.line(0, 0, link_length_1, 0)
+                arm_sketch.stroke(1)
+                
+            arm_sketch.translate(link_length_1, 0)
+            arm_sketch.rotate(alpha_2 - alpha_1)
+            arm_sketch.rect(0.5 * link_length_2, 0, link_length_2, width, mode="center")
+            arm_sketch.circle(0, 0, radius=joint_radius)
+            if joint_point: arm_sketch.circle(0, 0, 1e-2)
+            if debug:
+                arm_sketch.stroke(2)
+                arm_sketch.circle(0, 0, radius=debug_radius)
+                arm_sketch.circle(link_length_2, 0, radius=debug_radius)
+                arm_sketch.line(0, 0, link_length_2, 0)
+                arm_sketch.stroke(1)
+            
+            if hand_sketch is not None:
+                arm_sketch.translate(link_length_2, 0)
+                arm_sketch.sketch(hand_sketch)
+            
         if shoulder_sketch is not None and shoulder_width is not None:
             arm_sketch.sketch(shoulder_sketch)
-            arm_sketch.translate(shoulder_width, 0)
-            
-        arm_sketch.rect(0.5 * link_length_1, 0, link_length_1, width, mode="center")
-        if debug:
-            arm_sketch.stroke(2)
-            arm_sketch.circle(0, 0, radius=debug_radius)
-            arm_sketch.circle(link_length_1, 0, radius=debug_radius)
-            arm_sketch.line(0, 0, link_length_1, 0)
-            arm_sketch.stroke(1)
-            
-        arm_sketch.translate(link_length_1, 0)
-        arm_sketch.rotate(alpha_2 - alpha_1)
-        arm_sketch.rect(0.5 * link_length_2, 0, link_length_2, width, mode="center")
-        arm_sketch.circle(0, 0, radius=joint_radius)
-        if joint_point: arm_sketch.circle(0, 0, 1e-2)
-        if debug:
-            arm_sketch.stroke(2)
-            arm_sketch.circle(0, 0, radius=debug_radius)
-            arm_sketch.circle(link_length_2, 0, radius=debug_radius)
-            arm_sketch.line(0, 0, link_length_2, 0)
-            arm_sketch.stroke(1)
-        
-        if hand_sketch is not None:
-            arm_sketch.translate(link_length_2, 0)
-            arm_sketch.sketch(hand_sketch)
         
     return arm_sketch
 
@@ -259,15 +266,18 @@ def generate_arm_tube_sketch(length, alpha, width, N_lines=20, shoulder_sketch=N
     
     with arm_sketch.pushMatrix():
         arm_sketch.rotate(alpha)
+        with arm_sketch.pushMatrix():
+            if shoulder_sketch is not None and shoulder_width is not None:
+                arm_sketch.translate(shoulder_width, 0)
+            
+            draw_line_thick(arm_sketch, np.array([0, 0]), np.array([length, 0]), width, N_lines=N_lines, debug=debug)
+        
+            if hand_sketch is not None:
+                arm_sketch.translate(length, 0)
+                arm_sketch.sketch(hand_sketch)
+                
         if shoulder_sketch is not None and shoulder_width is not None:
             arm_sketch.sketch(shoulder_sketch)
-            arm_sketch.translate(shoulder_width, 0)
-        
-        draw_line_thick(arm_sketch, np.array([0, 0]), np.array([length, 0]), width, N_lines=N_lines, debug=debug)
-    
-        if hand_sketch is not None:
-            arm_sketch.translate(length, 0)
-            arm_sketch.sketch(hand_sketch)
             
     return arm_sketch
     
@@ -277,18 +287,21 @@ def generate_arm_tube_curve_sketch(x_end, y_end, x_c1, y_c1, x_c2, y_c2, width, 
     arm_sketch = vsketch.Vsketch()
     arm_sketch.detail(detail)
     
+    with arm_sketch.pushMatrix():
+        if shoulder_sketch is not None and shoulder_width is not None:
+            arm_sketch.translate(shoulder_width, 0)
+            
+        draw_bezier_thick(arm_sketch, np.array([0.0, 0.0]), np.array([x_end, y_end]), np.array([x_c1, y_c1]),
+                            np.array([x_c2, y_c2]), width=width, width_end=width_end, N_segments=40, N_lines=N_lines, debug=debug)
+        
+        if hand_sketch is not None:
+            angle = np.arctan2(y_end - y_c2, x_end - x_c2)
+            arm_sketch.translate(x_end, y_end)
+            arm_sketch.rotate(angle)
+            arm_sketch.sketch(hand_sketch)
+    
     if shoulder_sketch is not None and shoulder_width is not None:
         arm_sketch.sketch(shoulder_sketch)
-        arm_sketch.translate(shoulder_width, 0)
-        
-    draw_bezier_thick(arm_sketch, np.array([0.0, 0.0]), np.array([x_end, y_end]), np.array([x_c1, y_c1]),
-                        np.array([x_c2, y_c2]), width=width, width_end=width_end, N_segments=40, N_lines=N_lines, debug=debug)
-    
-    if hand_sketch is not None:
-        angle = np.arctan2(y_end - y_c2, x_end - x_c2)
-        arm_sketch.translate(x_end, y_end)
-        arm_sketch.rotate(angle)
-        arm_sketch.sketch(hand_sketch)
             
     return arm_sketch
 
@@ -559,12 +572,19 @@ class RobotsSketch(vsketch.SketchClass):
     arm_stick_joint_point_prob = vsketch.Param(0.3, min_value=0)
     
     # Shoulder parameters:
-    arm_shoulder_prob = vsketch.Param(0.5, min_value=0, max_value=1)
+    shoulder_types = Enum('ShoulderType', 'NONE RECT CIRCLE')
+    shoulder_none_prob = vsketch.Param(0.5, min_value=0, max_value=1)
+    shoulder_rect_prob = vsketch.Param(0.25, min_value=0, max_value=1)
+    shoulder_circle_prob = vsketch.Param(0.25, min_value=0, max_value=1)
     arm_shoulder_width_min = vsketch.Param(0.20, min_value=0)
     arm_shoulder_width_max = vsketch.Param(0.5, min_value=0)
+    arm_shoulder_width_to_arm_width_gain_min = vsketch.Param(1.3, min_value=0)
     arm_shoulder_height_min = vsketch.Param(0.20, min_value=0)
     arm_shoulder_height_max = vsketch.Param(0.6, min_value=0)
+    arm_shoulder_radius_min = vsketch.Param(0.15, min_value=0)
+    arm_shoulder_radius_max = vsketch.Param(0.3, min_value=0)
     arm_shoulder_angle_max = vsketch.Param(20, min_value=0)  # +- outside this deg angle we will not draw shoulders bause it will look weird
+    shoulder_width_gain = vsketch.Param(0.8, min_value=0)
     
     # Hand parameters:
     hand_types = Enum('HandType', 'NONE CLAW HORSE_SHOE')
@@ -840,15 +860,21 @@ class RobotsSketch(vsketch.SketchClass):
                 arm_joint_radius = np.max((0.5 * arm_width, np.random.uniform(self.arm_stick_joint_radius_min, self.arm_stick_joint_radius_max)))
                 use_arm_joint_point =  np.random.random_sample() < self.arm_stick_joint_point_prob
             
-            use_shoulder = np.random.random_sample() < self.arm_shoulder_prob and np.abs(arm_angle) < np.deg2rad(self.arm_shoulder_angle_max)
-            if use_shoulder:
-                shoulder_width = np.random.uniform(self.arm_shoulder_width_min, self.arm_shoulder_width_max)
-                shoulder_height = np.random.uniform(self.arm_shoulder_height_min, self.arm_shoulder_height_max)
-                shoulder_sketch = generate_shoulder_sketch(shoulder_width, shoulder_height)
-                arm_offset = 0.5 * shoulder_height * np.abs(np.sin(arm_angle))
+            shoulder_type = pick_random_element(self.shoulder_types, self.shoulder_type_probs)
+            if np.abs(arm_angle) < np.deg2rad(self.arm_shoulder_angle_max) and shoulder_type != enum_type_to_int(self.shoulder_types.NONE):
+                if shoulder_type == enum_type_to_int(self.shoulder_types.RECT):
+                    shoulder_width = np.max((np.random.uniform(self.arm_shoulder_width_min, self.arm_shoulder_width_max), self.arm_shoulder_width_to_arm_width_gain_min*arm_width))
+                    shoulder_height = np.random.uniform(self.arm_shoulder_height_min, self.arm_shoulder_height_max)
+                    shoulder_sketch = generate_shoulder_sketch(shoulder_width, shoulder_height)
+                    arm_offset = 0.5 * shoulder_height * np.abs(np.sin(arm_angle))
+                elif shoulder_type == enum_type_to_int(self.shoulder_types.CIRCLE):
+                    shoulder_radius = np.max((np.random.uniform(self.arm_shoulder_radius_min, self.arm_shoulder_radius_max), 0.5*1.3*arm_width))
+                    shoulder_width = shoulder_radius
+                    shoulder_height = shoulder_radius
+                    shoulder_sketch = generate_shoulder_circle_sketch(shoulder_radius)
             else:
                 arm_offset = 0.5 * arm_width * np.abs(np.sin(arm_angle))
-                shoulder_width, shoulder_height, shoulder_sketch = None, None, None
+                shoulder_width, shoulder_height, shoulder_sketch = 0, 0, None
             
             # Hands:
             hand_choice = pick_random_element(self.hand_types, self.hand_type_probs)
@@ -893,14 +919,14 @@ class RobotsSketch(vsketch.SketchClass):
                 if np.random.random_sample() < self.arm_tube_curve_up_prob:
                     y_end *= -1
                 arm_sketch = generate_arm_tube_curve_sketch(x_end, y_end, x_c1, 0.0, x_c2, y_c2, width=arm_width,
-                                                            N_lines=20, shoulder_sketch=shoulder_sketch, shoulder_width=shoulder_width,
+                                                            N_lines=20, shoulder_sketch=shoulder_sketch, shoulder_width=self.shoulder_width_gain*shoulder_width,
                                                             hand_sketch=hand_sketch, debug=debug)
             elif arm_choice == enum_type_to_int(self.arm_types.TUBE):
                 arm_sketch = generate_arm_tube_sketch(arm_length, arm_angle, arm_width, N_lines=arm_N_lines, shoulder_sketch=shoulder_sketch,
-                                                      shoulder_width=shoulder_width, hand_sketch=hand_sketch, debug=debug)
+                                                      shoulder_width=self.shoulder_width_gain*shoulder_width, hand_sketch=hand_sketch, debug=debug)
             elif arm_choice == enum_type_to_int(self.arm_types.STICK):
                 arm_sketch = generate_arm_stick_sketch(arm_length_1, arm_angle, arm_length_2, arm_angle_2, arm_width, arm_joint_radius,
-                                                       joint_point=use_arm_joint_point, shoulder_sketch=shoulder_sketch, shoulder_width=shoulder_width,
+                                                       joint_point=use_arm_joint_point, shoulder_sketch=shoulder_sketch, shoulder_width=self.shoulder_width_gain*shoulder_width,
                                                        hand_sketch=hand_sketch, debug=debug)
                 
             with vsk.pushMatrix():
@@ -1008,6 +1034,7 @@ class RobotsSketch(vsketch.SketchClass):
         self.eye_type_probs = np.array([self.eye_point_prob, self.eye_ellipse_point_prob, self.eye_circle_prob,
                                         self.eye_circle_single_prob, self.eye_circle_empty_prob])
         self.arm_type_probs = np.array([self.arm_none_prob, self.arm_tube_prob, self.arm_tube_curve_prob, self.arm_stick_prob])
+        self.shoulder_type_probs = np.array([self.shoulder_none_prob, self.shoulder_rect_prob, self.shoulder_circle_prob])
         self.hand_type_probs = np.array([self.hand_none_prob, self.hand_claw_prob, self.hand_horse_shoe_prob])
         self.leg_type_probs = np.array([self.leg_tube_prob, self.leg_omni_prob, self.leg_wheels_prob, self.leg_wheel_prob])
         self.foot_type_probs = np.array([self.foot_rect_prob, self.foot_arc_prob])
