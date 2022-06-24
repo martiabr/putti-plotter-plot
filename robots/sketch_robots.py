@@ -8,6 +8,89 @@ from curve_utils import draw_bezier, draw_line_thick, draw_bezier_thick
 #   To have an overview.
 # - Maybe have two scripts - robot editor, and random robot grid generator 
 
+class Node:
+    def __init__(self, type, draw_type, x, y, width, height, layer):
+        self.type = type
+        self.draw_type = draw_type
+        self.x, self.y = x, y
+        self.width, self.height = width, height
+        self.layer = layer
+        self._children = []
+    
+    def add_child(self, node):
+        self._children.append(node)
+    
+    def draw(self, vsk):
+        if self.draw_type == "RECT":
+            vsk.rect(self.x, self.y, self.width, self.height, mode="center")
+        elif self.draw_type == "CIRCLE":
+            vsk.circle(self.x, self.y, np.min((self.width, self.height)))
+
+    def __iter__(self):
+        return iter(self._children)
+
+    def breadth_first(self):
+        q = [self]
+        while q:
+            n = q.pop(0)
+            yield n
+            for c in n._children:
+                q.append(c)
+
+class QuadTree:
+    def __init__(self, width, height, outer_padding, inner_padding, layers=2):
+        self.outer_padding = outer_padding
+        self.inner_padding = inner_padding
+        self.width = width
+        self.height = height
+        self.layers = layers
+        
+        # ...
+        
+        self.root = self.generate_tree(self.layers)
+    
+    def generate_children(self, node, layers):
+        child_width = 0.5 * node.width - 2 * self.inner_padding
+        child_height = 0.5 * node.height - 2 * self.inner_padding
+        for x in 0.25 * node.width * np.array([-1, 1]):
+            for y in 0.25 * node.height * np.array([-1, 1]):
+                bottom = np.random.random_sample() < 0.5 or node.layer == layers - 1
+                if bottom:
+                    draw_type="CIRCLE"
+                else:
+                    draw_type="RECT"
+                child = Node("...", draw_type, x=node.x+x, y=node.y+y, width=child_width,
+                             height=child_height, layer=node.layer+1)
+                if not bottom:
+                    self.generate_children(child, layers)
+                node.add_child(child)
+    
+    
+    def generate_tree(self, layers):
+        inner_width = self.width - self.outer_padding
+        inner_height = self.height - self.outer_padding
+        
+        root = Node("root", "RECT", x=0, y=0, width=inner_width, height=inner_height, layer=0)
+        
+        self.generate_children(root, layers)
+        
+        # child_width = 0.5 * inner_width - 2 * self.inner_padding
+        # child_height = 0.5 * inner_height - 2 * self.inner_padding
+        # for x in 0.25 * inner_width * np.array([-1, 1]):
+        #     for y in 0.25 * inner_height * np.array([-1, 1]):
+        #         print(x, y)
+        #         root.add_child(Node(type, "RECT", x=x, y=y, width=child_width, height=child_height, layer=1))
+        
+        return root
+    
+    
+    def draw(self, vsk):
+        for node in self.root.breadth_first():
+            print(node)
+            node.draw(vsk)
+            
+                
+    
 
 def test_bezier(vsk):
     x_start = np.array([0.0, 0.0])
@@ -68,7 +151,7 @@ def generate_circle_eye_sketch(radius, x_pupil_gain=None, detail="0.01"):
     if x_pupil_gain is not None: eye_sketch.circle(x_pupil_gain * radius, 0, 1e-2)
     return eye_sketch
 
-def generate_claw_sketch(base_width, claw_width, length_1, length_2, angle_1, angle_2, joint_radius=None,
+def generate_claw_sketch(base_width, claw_width, length_1, length_2, angle_1, angle_2, joint_radius=None, joint_bullet_length=False,
                          joint_point=False, use_pointy=False, detail="0.01"):
     hand_sketch = vsketch.Vsketch()
     hand_sketch.detail(detail)
@@ -95,13 +178,32 @@ def generate_claw_sketch(base_width, claw_width, length_1, length_2, angle_1, an
     hand_sketch.shape(claw_shape)
     
     if joint_radius is not None:
-        hand_sketch.circle(0, 0, radius=joint_radius)
+        if joint_bullet_length is not None:
+            bullet_shape = hand_sketch.createShape()
+            bullet_shape.arc(0, 0, 2*joint_radius, 2*joint_radius, -0.5*np.pi, 0.5*np.pi, close="chord", mode="center")  # Note: 1.01 factor is there for shapes to connect
+            bullet_shape.rect(-0.4999 * joint_bullet_length, 0, joint_bullet_length, 2*joint_radius, mode="center")
+            hand_sketch.shape(bullet_shape)
+        else:
+            hand_sketch.circle(0, 0, radius=joint_radius)
         if joint_point:
             hand_sketch.circle(0, 0, 1e-2)
-            
     
     return hand_sketch
 
+def generate_horse_shoe_sketch(width, upper_height, radius, detail="0.01"):
+    hand_sketch = vsketch.Vsketch()
+    hand_sketch.detail(detail)
+    
+    hand_shape = hand_sketch.createShape()
+    hand_shape.arc(0, 0, 2*radius, 2*radius, 0.5 * np.pi, 1.5*np.pi, close="chord")
+    hand_shape.rect(0.5*upper_height - 1e-6, 0, upper_height, 2*radius, mode="center")
+    hand_shape.rect(0.5*upper_height - 1e-6, 0, upper_height, 2*(radius - width), mode="center", op="difference")
+    hand_shape.arc(0, 0, 2*(radius - width), 2*(radius - width), 0.5 * np.pi, 1.5*np.pi, close="chord", op="difference")
+    
+    hand_sketch.translate(radius - 0.5 * width, 0)
+    hand_sketch.shape(hand_shape)
+    
+    return hand_sketch
 
 def generate_shoulder_sketch(width, height, detail="0.01"):
     shoulder_sketch = vsketch.Vsketch()
@@ -465,9 +567,10 @@ class RobotsSketch(vsketch.SketchClass):
     arm_shoulder_angle_max = vsketch.Param(20, min_value=0)  # +- outside this deg angle we will not draw shoulders bause it will look weird
     
     # Hand parameters:
-    hand_types = Enum('HandType', 'NONE CLAW')
-    hand_none_prob = vsketch.Param(0.5, min_value=0)
+    hand_types = Enum('HandType', 'NONE CLAW HORSE_SHOE')
+    hand_none_prob = vsketch.Param(0.2, min_value=0)
     hand_claw_prob = vsketch.Param(0.5, min_value=0)
+    hand_horse_shoe_prob = vsketch.Param(0.3, min_value=0)
     
     hand_claw_length_1_min = vsketch.Param(0.3, min_value=0)
     hand_claw_length_1_max = vsketch.Param(0.6, min_value=0)
@@ -479,11 +582,23 @@ class RobotsSketch(vsketch.SketchClass):
     hand_claw_angle_2_max = vsketch.Param(0.7, min_value=0)
     hand_claw_width_min = vsketch.Param(0.1, min_value=0)
     hand_claw_width_max = vsketch.Param(0.2, min_value=0)
-    hand_claw_circle_prob = vsketch.Param(0.5, min_value=0)
+    hand_claw_joint_prob = vsketch.Param(0.5, min_value=0)
+    hand_claw_bullet_prob = vsketch.Param(0.5, min_value=0)
     hand_claw_circle_point_prob = vsketch.Param(0.5, min_value=0)
     hand_claw_circle_radius_min = vsketch.Param(0.075, min_value=0)
     hand_claw_circle_radius_max = vsketch.Param(0.15, min_value=0)
+    hand_claw_circle_radius_arm_width_gain_min = vsketch.Param(0.7, min_value=0)
+    hand_claw_bullet_length_min = vsketch.Param(0.05, min_value=0)
+    hand_claw_bullet_length_max = vsketch.Param(0.2, min_value=0)
     hand_claw_pointy_prob = vsketch.Param(0.3, min_value=0)
+
+    hand_horse_shoe_width_min = vsketch.Param(0.1, min_value=0)
+    hand_horse_shoe_width_max = vsketch.Param(0.3, min_value=0)
+    hand_horse_shoe_upper_height_min = vsketch.Param(0.2, min_value=0)
+    hand_horse_shoe_upper_height_max = vsketch.Param(0.3, min_value=0)
+    hand_horse_shoe_radius_min = vsketch.Param(0.2, min_value=0)
+    hand_horse_shoe_radius_max = vsketch.Param(0.35, min_value=0)
+    hand_horse_shoe_radius_to_width_gain = vsketch.Param(0.7, min_value=0)
 
     # Leg parameters:
     leg_types = Enum('LegType', 'TUBE OMNI WHEELS WHEEL')
@@ -744,17 +859,29 @@ class RobotsSketch(vsketch.SketchClass):
                 claw_angle_1 = np.random.uniform(self.hand_claw_angle_1_min, self.hand_claw_angle_1_max)
                 claw_angle_2 = np.min((np.random.uniform(self.hand_claw_angle_2_min, self.hand_claw_angle_2_max), 0.5 * np.pi - claw_angle_1))
                 claw_width = np.random.uniform(self.hand_claw_width_min, self.hand_claw_width_max)
-                use_claw_circle = np.random.random_sample() < self.hand_claw_circle_prob
+                
+                use_claw_circle = np.random.random_sample() < self.hand_claw_joint_prob
                 claw_circle_radius = None
+                claw_bullet_length = None
                 if use_claw_circle:
-                    claw_circle_radius = np.max((np.random.uniform(self.hand_claw_circle_radius_min, self.hand_claw_circle_radius_max), 0.5 * arm_width))
+                    claw_circle_radius = np.max((np.random.uniform(self.hand_claw_circle_radius_min, self.hand_claw_circle_radius_max), self.hand_claw_circle_radius_arm_width_gain_min * arm_width))
+                    use_claw_bullet = np.random.random_sample() < self.hand_claw_bullet_prob
+                    if use_claw_bullet:
+                        claw_bullet_length = np.random.uniform(self.hand_claw_bullet_length_min, self.hand_claw_bullet_length_max)
+                        
                 use_claw_circle_point = np.random.random_sample() < self.hand_claw_pointy_prob
                     
                 use_claw_pointy = np.random.random_sample() < self.hand_claw_pointy_prob
                 
                 # TODO: make sure angles are not more than 90 deg, circle radius is large enough, angles do not make claw collide
                 hand_sketch = generate_claw_sketch(arm_width, claw_width, claw_length_1, claw_length_2, claw_angle_1,
-                                                   claw_angle_2, claw_circle_radius, use_claw_circle_point, use_claw_pointy)
+                                                   claw_angle_2, claw_circle_radius, claw_bullet_length, use_claw_circle_point, use_claw_pointy)
+            elif hand_choice == enum_type_to_int(self.hand_types.HORSE_SHOE):
+                claw_radius = np.random.uniform(self.hand_horse_shoe_radius_min, self.hand_horse_shoe_radius_max)
+                claw_width = np.min((np.random.uniform(self.hand_horse_shoe_width_min, self.hand_horse_shoe_width_max), self.hand_horse_shoe_radius_to_width_gain*claw_radius))
+                claw_upper_height = np.random.uniform(self.hand_horse_shoe_upper_height_min, self.hand_horse_shoe_upper_height_max)
+                hand_sketch = generate_horse_shoe_sketch(claw_width, claw_upper_height, claw_radius)
+            
         
             # Draw arm and hands:                    
             if arm_choice == enum_type_to_int(self.arm_types.TUBE_CURVE):
@@ -881,7 +1008,7 @@ class RobotsSketch(vsketch.SketchClass):
         self.eye_type_probs = np.array([self.eye_point_prob, self.eye_ellipse_point_prob, self.eye_circle_prob,
                                         self.eye_circle_single_prob, self.eye_circle_empty_prob])
         self.arm_type_probs = np.array([self.arm_none_prob, self.arm_tube_prob, self.arm_tube_curve_prob, self.arm_stick_prob])
-        self.hand_type_probs = np.array([self.hand_none_prob, self.hand_claw_prob])
+        self.hand_type_probs = np.array([self.hand_none_prob, self.hand_claw_prob, self.hand_horse_shoe_prob])
         self.leg_type_probs = np.array([self.leg_tube_prob, self.leg_omni_prob, self.leg_wheels_prob, self.leg_wheel_prob])
         self.foot_type_probs = np.array([self.foot_rect_prob, self.foot_arc_prob])
         
@@ -915,6 +1042,16 @@ class RobotsSketch(vsketch.SketchClass):
         # vsk.circle(0, 0, radius=0.5)
         # vsk.circle(0, 0, radius=0.2)
         
+        # tree = QuadTree(4.0, 5.0, 0.1, 0.075)
+        # tree.draw(vsk)
+        
+        # sketch = vsketch.Vsketch()
+        # sketch.detail("0.01")
+        # sketch2 = vsketch.Vsketch()
+        # sketch2.detail("0.01")
+        # sketch2.arc(0, 0, 1.0, 1.0, 0, np.pi, close="pie")
+        # sketch.sketch(sketch2)
+        # vsk.sketch(sketch)
         
         for y in range(self.n_y):
             with vsk.pushMatrix():
