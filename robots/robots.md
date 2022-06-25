@@ -6,6 +6,7 @@
 - Leg sockets like shoulders
 - Side antennas
 - More feet
+- 2 dof arms center line
 
 ### TODO randomize:
 - **Eye placement**

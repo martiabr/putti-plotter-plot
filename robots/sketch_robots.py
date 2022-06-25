@@ -131,7 +131,7 @@ def enum_type_to_int(enum_type):
 def generate_point_eye_sketch(detail="0.01"):
     eye_sketch = vsketch.Vsketch()
     eye_sketch.detail(detail)
-    eye_sketch.circle(0, 0, 1e-2)
+    eye_sketch.circle(0, 0, 4e-2)
     return eye_sketch
 
 def generate_ellipse_point_eye_sketch(width, frac=1.0, line_width=0.02, detail="0.01"):
@@ -148,7 +148,7 @@ def generate_circle_eye_sketch(radius, x_pupil_gain=None, detail="0.01"):
     eye_sketch = vsketch.Vsketch()
     eye_sketch.detail(detail)
     eye_sketch.circle(0, 0, radius=radius)
-    if x_pupil_gain is not None: eye_sketch.circle(x_pupil_gain * radius, 0, 1e-2)
+    if x_pupil_gain is not None: eye_sketch.circle(x_pupil_gain * radius, 0, 4e-2)
     return eye_sketch
 
 def generate_claw_sketch(base_width, claw_width, length_1, length_2, angle_1, angle_2, joint_radius=None, joint_bullet_length=False,
@@ -202,6 +202,48 @@ def generate_horse_shoe_sketch(width, upper_height, radius, detail="0.01"):
     
     hand_sketch.translate(radius - 0.5 * width, 0)
     hand_sketch.shape(hand_shape)
+    
+    return hand_sketch
+
+def pol2cart(radius, angle):
+    x = radius * np.cos(angle)
+    y = radius * np.sin(angle)
+    return np.array([x, y])
+        
+def generate_sawblade_sketch(N_blades, radius, flat_angle, rise_angle, lean_angle, blade_height_gain,
+                             outer_ring_radius_gain=None, inner_ring_radius_gain=None, hole_ring_radius_gain=None,
+                             sawblade_rod_width_gain=None, hole_points=False, rod_center_line=False, detail="0.01"):
+    hand_sketch = vsketch.Vsketch()
+    hand_sketch.detail(detail)
+    
+    d_theta = 2 * np.pi / N_blades
+    rod_length = radius * (1 + blade_height_gain + 0.4)
+        
+    hand_sketch.translate(rod_length, 0)
+        
+    points = np.zeros((N_blades * 5, 2))
+    for i, theta in enumerate(np.linspace(d_theta, 2 * np.pi, N_blades)):
+        points[5*i] = pol2cart(radius, theta)
+        points[5*i + 1] = pol2cart(radius, theta + flat_angle * d_theta)
+        points[5*i + 2] = pol2cart(radius * (1 + blade_height_gain), theta + (flat_angle + rise_angle) * d_theta)
+        points[5*i + 3] = pol2cart(radius * (1 + blade_height_gain), theta + (1.0 + lean_angle) * d_theta)
+        points[5*i + 4] = pol2cart(radius, theta + d_theta)
+    hand_sketch.polygon(points[:,0], points[:,1], close=True)
+    
+    # Additional details:
+    if outer_ring_radius_gain is not None:
+        hand_sketch.circle(0, 0, radius=outer_ring_radius_gain * radius)
+    if inner_ring_radius_gain is not None:
+        hand_sketch.circle(0, 0, radius=inner_ring_radius_gain * radius)
+        
+    
+    if hole_ring_radius_gain is not None:
+        hand_sketch.rect(-0.5 * rod_length, 0, rod_length, 2 * sawblade_rod_width_gain * hole_ring_radius_gain * radius, mode="center")    
+        if rod_center_line: hand_sketch.line(0, 0, -rod_length, 0)    
+        hand_sketch.circle(0, 0, radius=hole_ring_radius_gain * radius)
+        if hole_points: hand_sketch.circle(0, 0, 4e-2)
+        hand_sketch.circle(-rod_length, 0, radius=hole_ring_radius_gain * radius)
+        if hole_points: hand_sketch.circle(-rod_length, 0, 4e-2)
     
     return hand_sketch
 
@@ -587,10 +629,11 @@ class RobotsSketch(vsketch.SketchClass):
     shoulder_width_gain = vsketch.Param(0.8, min_value=0)
     
     # Hand parameters:
-    hand_types = Enum('HandType', 'NONE CLAW HORSE_SHOE')
-    hand_none_prob = vsketch.Param(0.2, min_value=0)
+    hand_types = Enum('HandType', 'NONE CLAW HORSE_SHOE SAWBLADE')
+    hand_none_prob = vsketch.Param(0.1, min_value=0)
     hand_claw_prob = vsketch.Param(0.5, min_value=0)
     hand_horse_shoe_prob = vsketch.Param(0.3, min_value=0)
+    hand_sawblade_prob = vsketch.Param(0.1, min_value=0)
     
     hand_claw_length_1_min = vsketch.Param(0.3, min_value=0)
     hand_claw_length_1_max = vsketch.Param(0.6, min_value=0)
@@ -620,6 +663,30 @@ class RobotsSketch(vsketch.SketchClass):
     hand_horse_shoe_radius_max = vsketch.Param(0.35, min_value=0)
     hand_horse_shoe_radius_to_width_gain = vsketch.Param(0.7, min_value=0)
 
+    hand_sawblade_N_blades_min = vsketch.Param(10, min_value=0)
+    hand_sawblade_N_blades_max = vsketch.Param(15, min_value=0)
+    hand_sawblade_flat_angle_min = vsketch.Param(0.2, min_value=0)
+    hand_sawblade_flat_angle_max = vsketch.Param(0.3, min_value=0)
+    hand_sawblade_rise_angle_min = vsketch.Param(0.4, min_value=0)
+    hand_sawblade_rise_angle_max = vsketch.Param(0.6, min_value=0)
+    hand_sawblade_lean_angle_min = vsketch.Param(0.2, min_value=0)
+    hand_sawblade_lean_angle_max = vsketch.Param(0.4, min_value=0)
+    hand_sawblade_radius_min = vsketch.Param(0.4, min_value=0)
+    hand_sawblade_radius_max = vsketch.Param(0.8, min_value=0)
+    hand_sawblade_height_gain_min = vsketch.Param(0.1, min_value=0)
+    hand_sawblade_height_gain_max = vsketch.Param(0.25, min_value=0)
+    hand_sawblade_outer_ring_prob = vsketch.Param(0.8, min_value=0)
+    hand_sawblade_inner_ring_prob = vsketch.Param(0.8, min_value=0)
+    hand_sawblade_outer_ring_radius_gain = vsketch.Param(0.9, min_value=0)
+    hand_sawblade_inner_ring_radius_gain_min = vsketch.Param(0.3, min_value=0)
+    hand_sawblade_inner_ring_radius_gain_max = vsketch.Param(0.7, min_value=0)
+    hand_sawblade_hole_radius_gain_min = vsketch.Param(0.2, min_value=0)
+    hand_sawblade_hole_radius_gain_max = vsketch.Param(0.3, min_value=0)
+    hand_sawblade_rod_width_gain_min = vsketch.Param(0.5, min_value=0)
+    hand_sawblade_rod_width_gain_max = vsketch.Param(1.0, min_value=0)
+    hand_sawblade_hole_points_prob = vsketch.Param(0.6, min_value=0)
+    hand_sawblade_rod_center_line_prob = vsketch.Param(0.6, min_value=0)
+    
     # Leg parameters:
     leg_types = Enum('LegType', 'TUBE OMNI WHEELS WHEEL')
     leg_tube_prob = vsketch.Param(0.3, min_value=0)
@@ -860,6 +927,7 @@ class RobotsSketch(vsketch.SketchClass):
                 arm_joint_radius = np.max((0.5 * arm_width, np.random.uniform(self.arm_stick_joint_radius_min, self.arm_stick_joint_radius_max)))
                 use_arm_joint_point =  np.random.random_sample() < self.arm_stick_joint_point_prob
             
+            # Shoulder:
             shoulder_type = pick_random_element(self.shoulder_types, self.shoulder_type_probs)
             if np.abs(arm_angle) < np.deg2rad(self.arm_shoulder_angle_max) and shoulder_type != enum_type_to_int(self.shoulder_types.NONE):
                 if shoulder_type == enum_type_to_int(self.shoulder_types.RECT):
@@ -868,8 +936,8 @@ class RobotsSketch(vsketch.SketchClass):
                     shoulder_sketch = generate_shoulder_sketch(shoulder_width, shoulder_height)
                     arm_offset = 0.5 * shoulder_height * np.abs(np.sin(arm_angle))
                 elif shoulder_type == enum_type_to_int(self.shoulder_types.CIRCLE):
-                    shoulder_radius = np.max((np.random.uniform(self.arm_shoulder_radius_min, self.arm_shoulder_radius_max), 0.5*1.3*arm_width))
-                    shoulder_width = shoulder_radius
+                    shoulder_radius = np.max((np.random.uniform(self.arm_shoulder_radius_min, self.arm_shoulder_radius_max), 0.5*self.arm_shoulder_width_to_arm_width_gain_min*arm_width))
+                    shoulder_width = self.shoulder_width_gain * shoulder_radius
                     shoulder_height = shoulder_radius
                     shoulder_sketch = generate_shoulder_circle_sketch(shoulder_radius)
             else:
@@ -904,10 +972,36 @@ class RobotsSketch(vsketch.SketchClass):
                                                    claw_angle_2, claw_circle_radius, claw_bullet_length, use_claw_circle_point, use_claw_pointy)
             elif hand_choice == enum_type_to_int(self.hand_types.HORSE_SHOE):
                 claw_radius = np.random.uniform(self.hand_horse_shoe_radius_min, self.hand_horse_shoe_radius_max)
-                claw_width = np.min((np.random.uniform(self.hand_horse_shoe_width_min, self.hand_horse_shoe_width_max), self.hand_horse_shoe_radius_to_width_gain*claw_radius))
+                claw_width = np.min((np.random.uniform(self.hand_horse_shoe_width_min, self.hand_horse_shoe_width_max),
+                                     self.hand_horse_shoe_radius_to_width_gain*claw_radius))
                 claw_upper_height = np.random.uniform(self.hand_horse_shoe_upper_height_min, self.hand_horse_shoe_upper_height_max)
                 hand_sketch = generate_horse_shoe_sketch(claw_width, claw_upper_height, claw_radius)
-            
+            elif hand_choice == enum_type_to_int(self.hand_types.SAWBLADE):
+                sawblade_N_blades = np.random.randint(self.hand_sawblade_N_blades_min, self.hand_sawblade_N_blades_max + 1)
+                sawblade_flat_angle = np.random.uniform(self.hand_sawblade_flat_angle_min, self.hand_sawblade_flat_angle_max)
+                sawblade_rise_angle = np.random.uniform(self.hand_sawblade_rise_angle_min, self.hand_sawblade_rise_angle_max)
+                sawblade_lean_angle = np.random.uniform(self.hand_sawblade_lean_angle_min, self.hand_sawblade_lean_angle_max)
+                sawblade_radius = np.random.uniform(self.hand_sawblade_radius_min, self.hand_sawblade_radius_max)
+                sawblade_height_gain = np.random.uniform(self.hand_sawblade_height_gain_min, self.hand_sawblade_height_gain_max)
+                
+                sawblade_outer_ring_radius_gain, sawblade_inner_ring_radius_gain = None, None
+                use_outer_ring = np.random.random_sample() < self.hand_sawblade_outer_ring_prob
+                if use_outer_ring:
+                    sawblade_outer_ring_radius_gain = self.hand_sawblade_outer_ring_radius_gain
+                    
+                use_inner_ring = np.random.random_sample() < self.hand_sawblade_inner_ring_prob
+                if use_inner_ring:
+                    sawblade_inner_ring_radius_gain = np.random.uniform(self.hand_sawblade_inner_ring_radius_gain_min,
+                                                                        self.hand_sawblade_inner_ring_radius_gain_max)
+                    
+                sawblade_use_rod_center_line = np.random.random_sample() < self.hand_sawblade_rod_center_line_prob
+                sawblade_use_hole_points = np.random.random_sample() < self.hand_sawblade_hole_points_prob
+                sawblade_hole_radius_gain = np.random.uniform(self.hand_sawblade_hole_radius_gain_min, self.hand_sawblade_hole_radius_gain_max)
+                sawblade_rod_width_gain = np.random.uniform(self.hand_sawblade_rod_width_gain_min, self.hand_sawblade_rod_width_gain_max)
+                hand_sketch = generate_sawblade_sketch(sawblade_N_blades, sawblade_radius, sawblade_flat_angle, sawblade_rise_angle,
+                                                       sawblade_lean_angle, sawblade_height_gain, sawblade_outer_ring_radius_gain,
+                                                       sawblade_inner_ring_radius_gain, sawblade_hole_radius_gain, sawblade_rod_width_gain,
+                                                       sawblade_use_hole_points, sawblade_use_rod_center_line)
         
             # Draw arm and hands:                    
             if arm_choice == enum_type_to_int(self.arm_types.TUBE_CURVE):
@@ -919,14 +1013,14 @@ class RobotsSketch(vsketch.SketchClass):
                 if np.random.random_sample() < self.arm_tube_curve_up_prob:
                     y_end *= -1
                 arm_sketch = generate_arm_tube_curve_sketch(x_end, y_end, x_c1, 0.0, x_c2, y_c2, width=arm_width,
-                                                            N_lines=20, shoulder_sketch=shoulder_sketch, shoulder_width=self.shoulder_width_gain*shoulder_width,
+                                                            N_lines=20, shoulder_sketch=shoulder_sketch, shoulder_width=shoulder_width,
                                                             hand_sketch=hand_sketch, debug=debug)
             elif arm_choice == enum_type_to_int(self.arm_types.TUBE):
                 arm_sketch = generate_arm_tube_sketch(arm_length, arm_angle, arm_width, N_lines=arm_N_lines, shoulder_sketch=shoulder_sketch,
-                                                      shoulder_width=self.shoulder_width_gain*shoulder_width, hand_sketch=hand_sketch, debug=debug)
+                                                      shoulder_width=shoulder_width, hand_sketch=hand_sketch, debug=debug)
             elif arm_choice == enum_type_to_int(self.arm_types.STICK):
                 arm_sketch = generate_arm_stick_sketch(arm_length_1, arm_angle, arm_length_2, arm_angle_2, arm_width, arm_joint_radius,
-                                                       joint_point=use_arm_joint_point, shoulder_sketch=shoulder_sketch, shoulder_width=self.shoulder_width_gain*shoulder_width,
+                                                       joint_point=use_arm_joint_point, shoulder_sketch=shoulder_sketch, shoulder_width=shoulder_width,
                                                        hand_sketch=hand_sketch, debug=debug)
                 
             with vsk.pushMatrix():
@@ -1035,7 +1129,7 @@ class RobotsSketch(vsketch.SketchClass):
                                         self.eye_circle_single_prob, self.eye_circle_empty_prob])
         self.arm_type_probs = np.array([self.arm_none_prob, self.arm_tube_prob, self.arm_tube_curve_prob, self.arm_stick_prob])
         self.shoulder_type_probs = np.array([self.shoulder_none_prob, self.shoulder_rect_prob, self.shoulder_circle_prob])
-        self.hand_type_probs = np.array([self.hand_none_prob, self.hand_claw_prob, self.hand_horse_shoe_prob])
+        self.hand_type_probs = np.array([self.hand_none_prob, self.hand_claw_prob, self.hand_horse_shoe_prob, self.hand_sawblade_prob])
         self.leg_type_probs = np.array([self.leg_tube_prob, self.leg_omni_prob, self.leg_wheels_prob, self.leg_wheel_prob])
         self.foot_type_probs = np.array([self.foot_rect_prob, self.foot_arc_prob])
         
@@ -1044,30 +1138,12 @@ class RobotsSketch(vsketch.SketchClass):
         
         # n_blades = 13
         # d_theta = 2 * np.pi / n_blades
-        # flat_section = 0.3
-        # blade_rise_section = 0.5
-        # blade_lean_over = 0.3
+        # flat_section_angle = 0.3
+        # rise_section_angle = 0.5
+        # lean_over_section_angle = 0.3
         # sawblade_radius = 1.0
-        # blade_height = 0.17
+        # blade_height_gain = 0.17
         
-        # def pol2cart(radius, angle):
-        #     x = radius * np.cos(angle)
-        #     y = radius * np.sin(angle)
-        #     return np.array([x, y])
-        
-        # points = np.zeros((n_blades * 5, 2))
-        # for i, theta in enumerate(np.linspace(d_theta, 2 * np.pi, n_blades)):
-        #     points[5*i] = pol2cart(sawblade_radius, theta)
-        #     points[5*i + 1] = pol2cart(sawblade_radius, theta + flat_section * d_theta)
-        #     points[5*i + 2] = pol2cart(sawblade_radius + blade_height, theta + (flat_section + blade_rise_section) * d_theta)
-        #     points[5*i + 3] = pol2cart(sawblade_radius + blade_height, theta + (1.0 + blade_lean_over) * d_theta)
-        #     points[5*i + 4] = pol2cart(sawblade_radius, theta + d_theta)
-        # vsk.polygon(points[:,0], points[:,1], close=True)
-        
-        # # Additional details:
-        # vsk.circle(0, 0, radius=0.9*sawblade_radius)
-        # vsk.circle(0, 0, radius=0.5)
-        # vsk.circle(0, 0, radius=0.2)
         
         # tree = QuadTree(4.0, 5.0, 0.1, 0.075)
         # tree.draw(vsk)
