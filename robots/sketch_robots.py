@@ -2,95 +2,33 @@ import vsketch
 import numpy as np
 from enum import Enum
 from curve_utils import draw_bezier, draw_line_thick, draw_bezier_thick
+from plotter_util import get_truncated_normal
 
 # - Should work such that I can call a series of functions and then draw any robot I want. 
 #   Allows to create a drawing of every type possible, e.g. show every possible mouth, eyes, arms...
 #   To have an overview.
 # - Maybe have two scripts - robot editor, and random robot grid generator 
 
-class Node:
-    def __init__(self, type, draw_type, x, y, width, height, layer):
-        self.type = type
-        self.draw_type = draw_type
-        self.x, self.y = x, y
-        self.width, self.height = width, height
-        self.layer = layer
-        self._children = []
-    
-    def add_child(self, node):
-        self._children.append(node)
-    
-    def draw(self, vsk):
-        if self.draw_type == "RECT":
-            vsk.rect(self.x, self.y, self.width, self.height, mode="center")
-        elif self.draw_type == "CIRCLE":
-            vsk.circle(self.x, self.y, np.min((self.width, self.height)))
+def draw_filled_circle(vsk, x, y, radius, line_width=0.02):
+    N = int(radius/line_width)
+    for r in np.linspace(radius, 0, N):
+        vsk.circle(x, y, radius=r)
 
-    def __iter__(self):
-        return iter(self._children)
+def draw_filled_rect(vsk, x, y, width, height, line_width=0.02):
+    N = int(0.5 * np.min((width, height)) / line_width)
+    for w, h in zip(np.linspace(width, width - 2 * N * line_width, N), np.linspace(height, height - 2 * N * line_width, N)):
+        vsk.rect(x, y, w, h, mode="center")
 
-    def breadth_first(self):
-        q = [self]
-        while q:
-            n = q.pop(0)
-            yield n
-            for c in n._children:
-                q.append(c)
+def draw_striped_circle(vsk, x, y, radius, N, horizontal=True):
+    vsk.circle(x, y, radius=radius)
+    for p in np.linspace(-radius, radius, N+2):
+        if horizontal:
+            dx = radius * np.cos(np.arcsin(p / radius))
+            vsk.line(x - dx, y + p, x + dx, y + p)
+        else:
+            dy = radius * np.sin(np.arccos(p / radius))
+            vsk.line(x + p, y - dy, x + p, y + dy)
 
-class QuadTree:
-    def __init__(self, width, height, outer_padding, inner_padding, layers=2):
-        self.outer_padding = outer_padding
-        self.inner_padding = inner_padding
-        self.width = width
-        self.height = height
-        self.layers = layers
-        
-        # ...
-        
-        self.root = self.generate_tree(self.layers)
-    
-    def generate_children(self, node, layers):
-        child_width = 0.5 * node.width - 2 * self.inner_padding
-        child_height = 0.5 * node.height - 2 * self.inner_padding
-        for x in 0.25 * node.width * np.array([-1, 1]):
-            for y in 0.25 * node.height * np.array([-1, 1]):
-                bottom = np.random.random_sample() < 0.5 or node.layer == layers - 1
-                if bottom:
-                    draw_type="CIRCLE"
-                else:
-                    draw_type="RECT"
-                child = Node("...", draw_type, x=node.x+x, y=node.y+y, width=child_width,
-                             height=child_height, layer=node.layer+1)
-                if not bottom:
-                    self.generate_children(child, layers)
-                node.add_child(child)
-    
-    
-    def generate_tree(self, layers):
-        inner_width = self.width - self.outer_padding
-        inner_height = self.height - self.outer_padding
-        
-        root = Node("root", "RECT", x=0, y=0, width=inner_width, height=inner_height, layer=0)
-        
-        self.generate_children(root, layers)
-        
-        # child_width = 0.5 * inner_width - 2 * self.inner_padding
-        # child_height = 0.5 * inner_height - 2 * self.inner_padding
-        # for x in 0.25 * inner_width * np.array([-1, 1]):
-        #     for y in 0.25 * inner_height * np.array([-1, 1]):
-        #         print(x, y)
-        #         root.add_child(Node(type, "RECT", x=x, y=y, width=child_width, height=child_height, layer=1))
-        
-        return root
-    
-    
-    def draw(self, vsk):
-        for node in self.root.breadth_first():
-            print(node)
-            node.draw(vsk)
-            
-                
-    
 
 def test_bezier(vsk):
     x_start = np.array([0.0, 0.0])
@@ -212,17 +150,20 @@ def pol2cart(radius, angle):
         
 def generate_sawblade_sketch(N_blades, radius, flat_angle, rise_angle, lean_angle, blade_height_gain,
                              outer_ring_radius_gain=None, inner_ring_radius_gain=None, hole_ring_radius_gain=None,
-                             sawblade_rod_width_gain=None, hole_points=False, rod_center_line=False, detail="0.01"):
+                             sawblade_rod_width_gain=None, hole_points=False, rod_center_line=False, flipped_blade=False, detail="0.01"):
     hand_sketch = vsketch.Vsketch()
     hand_sketch.detail(detail)
     
     d_theta = 2 * np.pi / N_blades
+    if flipped_blade: d_theta *= -1
+    
     rod_length = radius * (1 + blade_height_gain + 0.4)
-        
     hand_sketch.translate(rod_length, 0)
         
     points = np.zeros((N_blades * 5, 2))
-    for i, theta in enumerate(np.linspace(d_theta, 2 * np.pi, N_blades)):
+    theta_end = 2 * np.pi
+    if flipped_blade: theta_end *= -1
+    for i, theta in enumerate(np.linspace(d_theta, theta_end, N_blades)):
         points[5*i] = pol2cart(radius, theta)
         points[5*i + 1] = pol2cart(radius, theta + flat_angle * d_theta)
         points[5*i + 2] = pol2cart(radius * (1 + blade_height_gain), theta + (flat_angle + rise_angle) * d_theta)
@@ -235,7 +176,6 @@ def generate_sawblade_sketch(N_blades, radius, flat_angle, rise_angle, lean_angl
         hand_sketch.circle(0, 0, radius=outer_ring_radius_gain * radius)
     if inner_ring_radius_gain is not None:
         hand_sketch.circle(0, 0, radius=inner_ring_radius_gain * radius)
-        
     
     if hole_ring_radius_gain is not None:
         hand_sketch.rect(-0.5 * rod_length, 0, rod_length, 2 * sawblade_rod_width_gain * hole_ring_radius_gain * radius, mode="center")    
@@ -433,7 +373,6 @@ def draw_grill_mouth(vsk, width, height, N_lines, debug=False):
 
 
 class RobotsSketch(vsketch.SketchClass):
-    
     # Main parameters:
     n_x = vsketch.Param(3, min_value=1)
     n_y = vsketch.Param(4, min_value=1)
@@ -470,6 +409,57 @@ class RobotsSketch(vsketch.SketchClass):
     body_bullet_radius_max = vsketch.Param(1.5, min_value=0)
     body_bullet_lower_height_min = vsketch.Param(0.5, min_value=0)
     body_bullet_lower_height_max = vsketch.Param(2.0, min_value=0)
+    
+    # Panel parameters:
+    panel_prob = vsketch.Param(1.0, min_value=0, max_value=1)
+    panel_double_prob = vsketch.Param(0.7, min_value=0, max_value=1)
+    panel_two_doubles_prob = vsketch.Param(0.7, min_value=0, max_value=1)
+    panel_outer_padding_gain_min = vsketch.Param(0.15, min_value=0)
+    panel_outer_padding_gain_max = vsketch.Param(0.4, min_value=0)
+    panel_inner_padding_gain_min = vsketch.Param(0.04, min_value=0)
+    panel_inner_padding_gain_max = vsketch.Param(0.07, min_value=0)
+    
+    panel_frame_prob = vsketch.Param(0.9, min_value=0)
+    panel_min_size = vsketch.Param(0.2, min_value=0)
+    
+    panel_single_frame_prob = vsketch.Param(0.2, min_value=0)
+    
+    panel_double_frame_prob = vsketch.Param(0.2, min_value=0)
+    panel_double_N_min = vsketch.Param(1, min_value=0)
+    panel_double_N_max = vsketch.Param(4, min_value=0)
+    panel_double_pad_min = vsketch.Param(0.05, min_value=0)
+    panel_double_pad_max = vsketch.Param(0.3, min_value=0)
+    
+    panel_double_types = Enum('DoublePanelType', 'NONE, CIRCLE RECT LINE')
+    panel_double_none_prob = vsketch.Param(0.1, min_value=0)
+    panel_double_circle_prob = vsketch.Param(0.3, min_value=0)
+    panel_double_rect_prob = vsketch.Param(0.3, min_value=0)
+    panel_double_line_prob = vsketch.Param(0.3, min_value=0)
+    
+    panel_double_circle_types = Enum('DoublePanelCircleType', 'SINGLE FILLED STRIPED DOT')
+    panel_double_circle_single_prob = vsketch.Param(0.30, min_value=0)
+    panel_double_circle_filled_prob = vsketch.Param(0.15, min_value=0)
+    panel_double_circle_striped_prob = vsketch.Param(0.35, min_value=0)
+    panel_double_circle_dot_prob = vsketch.Param(0.2, min_value=0)
+    
+    panel_double_circle_N_lines_min = vsketch.Param(1, min_value=0)
+    panel_double_circle_N_lines_max = vsketch.Param(5, min_value=0)
+    panel_double_circle_striped_horizontal_prob = vsketch.Param(0.5, min_value=0)
+    panel_double_circle_radius_gain_std = vsketch.Param(0.4, min_value=0)
+    panel_double_circle_radius_gain_min = vsketch.Param(0.4, min_value=0)
+
+    panel_double_rect_types = Enum('DoublePanelRectType', 'SINGLE FILLED STRIPED')
+    panel_double_rect_single_prob = vsketch.Param(0.40, min_value=0)
+    panel_double_rect_filled_prob = vsketch.Param(0.10, min_value=0)
+    panel_double_rect_striped_prob = vsketch.Param(0.50, min_value=0)
+
+    panel_double_rect_N_lines_min = vsketch.Param(1, min_value=0)
+    panel_double_rect_N_lines_max = vsketch.Param(5, min_value=0)
+
+    panel_double_line_N_lines_min = vsketch.Param(1, min_value=0)
+    panel_double_line_N_lines_max = vsketch.Param(5, min_value=0)
+    # panel_double_line_pad_min = vsketch.Param(0.04, min_value=0)
+    # panel_double_line_pad_max = vsketch.Param(0.1, min_value=0)
     
     # Head parameters:
     head_prob = vsketch.Param(0.5, min_value=0, max_value=1)
@@ -615,9 +605,9 @@ class RobotsSketch(vsketch.SketchClass):
     
     # Shoulder parameters:
     shoulder_types = Enum('ShoulderType', 'NONE RECT CIRCLE')
-    shoulder_none_prob = vsketch.Param(0.5, min_value=0, max_value=1)
-    shoulder_rect_prob = vsketch.Param(0.25, min_value=0, max_value=1)
-    shoulder_circle_prob = vsketch.Param(0.25, min_value=0, max_value=1)
+    shoulder_none_prob = vsketch.Param(0.3, min_value=0, max_value=1)
+    shoulder_rect_prob = vsketch.Param(0.35, min_value=0, max_value=1)
+    shoulder_circle_prob = vsketch.Param(0.35, min_value=0, max_value=1)
     arm_shoulder_width_min = vsketch.Param(0.20, min_value=0)
     arm_shoulder_width_max = vsketch.Param(0.5, min_value=0)
     arm_shoulder_width_to_arm_width_gain_min = vsketch.Param(1.3, min_value=0)
@@ -742,6 +732,240 @@ class RobotsSketch(vsketch.SketchClass):
     foot_rect_prob = vsketch.Param(0.5, min_value=0)
     foot_arc_prob = vsketch.Param(0.5, min_value=0)
     
+    
+    class Node:
+        def __init__(self, drawing, type, draw_type, x, y, width, height, layer, bottom=False):
+            self.drawing = drawing
+            self.type = type
+            self.draw_type = draw_type
+            self.x, self.y = x, y
+            self.width, self.height = width, height
+            self.layer = layer
+            self.bottom = bottom
+            self._children = []
+        
+        def add_child(self, node):
+            self._children.append(node)
+        
+        def draw(self, vsk):
+            if self.width > 0 and self.height > 0:
+                if self.drawing.debug:
+                    vsk.stroke(2)
+                    vsk.rect(self.x, self.y, self.width, self.height, mode="center")
+                    vsk.stroke(1)
+                    
+                if self.draw_type == "RECT":
+                    if np.random.random_sample() < self.drawing.panel_frame_prob:
+                        vsk.rect(self.x, self.y, self.width, self.height, mode="center")
+                elif self.draw_type == "CIRCLE":
+                    if self.drawing.debug:
+                        vsk.stroke(4)
+                        vsk.rect(self.x, self.y, self.width, self.height, mode="center")
+                        vsk.stroke(1)
+                        
+                    if np.random.random_sample() < self.drawing.panel_single_frame_prob:
+                        vsk.rect(self.x, self.y, self.width, self.height, mode="center")
+                    # vsk.circle(self.x, self.y, np.min((self.width, self.height)))
+                elif self.draw_type == "DOUBLE":
+                    N = np.random.randint(self.drawing.panel_double_N_min, self.drawing.panel_double_N_max + 1)
+                    pad = np.random.uniform(self.drawing.panel_double_pad_min, self.drawing.panel_double_pad_max)
+                    
+                    if np.random.random_sample() < self.drawing.panel_double_frame_prob:
+                        vsk.rect(self.x, self.y, self.width, self.height, mode="center")
+
+                    if self.width > self.drawing.panel_min_size and self.height > self.drawing.panel_min_size:
+                        horizontal = self.width > self.height
+                        max_dim = np.max((self.width, self.height))
+                        min_dim = np.min((self.width, self.height))
+                        dp = max_dim / N
+                        
+                        for p in np.linspace(-0.5 * (max_dim - dp), 0.5 * (max_dim - dp), N):
+                            panel_choice = pick_random_element(self.drawing.panel_double_types, self.drawing.panel_double_type_probs)
+                            if panel_choice == enum_type_to_int(self.drawing.panel_double_types.CIRCLE):
+                                panel_subchoice = pick_random_element(self.drawing.panel_double_circle_types, self.drawing.panel_double_circle_type_probs)
+                            elif panel_choice == enum_type_to_int(self.drawing.panel_double_types.RECT):
+                                panel_subchoice = pick_random_element(self.drawing.panel_double_rect_types, self.drawing.panel_double_rect_type_probs)
+                            
+                            if horizontal:
+                                x_i = self.x + p
+                                y_i = self.y
+                            else:
+                                x_i = self.x
+                                y_i = self.y + p
+                            
+                            if self.drawing.debug:
+                                if panel_choice == enum_type_to_int(self.drawing.panel_double_types.CIRCLE):
+                                    vsk.stroke(5)
+                                elif panel_choice == enum_type_to_int(self.drawing.panel_double_types.RECT):
+                                    vsk.stroke(6)
+                                elif panel_choice == enum_type_to_int(self.drawing.panel_double_types.LINE):
+                                    vsk.stroke(7)
+                                if horizontal:
+                                    vsk.rect(x_i, y_i, dp, self.height, mode="center")
+                                else: 
+                                    vsk.rect(x_i, y_i, self.width, dp, mode="center")
+                                vsk.stroke(1)
+                
+                            if panel_choice == enum_type_to_int(self.drawing.panel_double_types.CIRCLE):
+                                radius_max = np.min((0.5 * (dp - pad), 0.5 * (min_dim - pad)))
+                                radius_gain = get_truncated_normal(1.0, self.drawing.panel_double_circle_radius_gain_std, upper=1.0, lower=self.drawing.panel_double_circle_radius_gain_min)
+                                radius = radius_gain * radius_max
+                                if radius > 0:
+                                    if panel_subchoice in (enum_type_to_int(self.drawing.panel_double_circle_types.SINGLE),
+                                                        enum_type_to_int(self.drawing.panel_double_circle_types.DOT)):
+                                        vsk.circle(x_i, y_i, radius=radius)
+                                        if panel_subchoice == enum_type_to_int(self.drawing.panel_double_circle_types.DOT):
+                                            vsk.circle(x_i, y_i, 4e-2)
+                                    elif panel_subchoice == enum_type_to_int(self.drawing.panel_double_circle_types.FILLED):
+                                        draw_filled_circle(vsk, x_i, y_i, radius)
+                                    elif panel_subchoice == enum_type_to_int(self.drawing.panel_double_circle_types.STRIPED):
+                                        N_lines = np.random.randint(self.drawing.panel_double_circle_N_lines_min, self.drawing.panel_double_circle_N_lines_max + 1)
+                                        use_horizontal_stripes = np.random.random_sample() < self.drawing.panel_double_circle_striped_horizontal_prob
+                                        draw_striped_circle(vsk, x_i, y_i, radius, N=N_lines, horizontal=use_horizontal_stripes)
+                            elif panel_choice == enum_type_to_int(self.drawing.panel_double_types.RECT):
+                                if horizontal:
+                                    rect_width = dp - pad
+                                    rect_height = self.height - pad
+                                else:
+                                    rect_height = dp - pad
+                                    rect_width = self.width - pad  # TODO: randomize more with trunc normal
+                                if rect_height > 0 and rect_width > 0:
+                                    if panel_subchoice == enum_type_to_int(self.drawing.panel_double_rect_types.SINGLE):
+                                        vsk.rect(x_i, y_i, rect_width, rect_height, mode="center")
+                                    elif panel_subchoice == enum_type_to_int(self.drawing.panel_double_rect_types.FILLED):
+                                        draw_filled_rect(vsk, x_i, y_i, rect_width, rect_height)
+                                    elif panel_subchoice == enum_type_to_int(self.drawing.panel_double_rect_types.STRIPED):
+                                        N_lines = np.random.randint(self.drawing.panel_double_rect_N_lines_min, self.drawing.panel_double_rect_N_lines_max + 1)
+                                        if horizontal:
+                                            draw_line_thick(vsk, np.array([x_i, y_i - 0.5 * rect_height]),
+                                                            np.array([x_i, y_i + 0.5 * rect_height]), rect_width, N_lines=N_lines)
+                                        else:
+                                            draw_line_thick(vsk, np.array([x_i - 0.5 * rect_width, y_i]),
+                                                            np.array([x_i + 0.5 * rect_width, y_i]), rect_height, N_lines=N_lines)
+                            elif panel_choice == enum_type_to_int(self.drawing.panel_double_types.LINE):
+                                horizontal_lines = (horizontal and (dp - pad) > (self.height - pad)) or (not horizontal and (dp - pad) < (self.width - pad))
+                                N_lines = np.random.randint(self.drawing.panel_double_line_N_lines_min, self.drawing.panel_double_line_N_lines_max + 1)
+                                # line_pad = np.random.uniform(self.drawing.panel_double_line_pad_min, self.drawing.panel_double_line_pad_max)
+                                if horizontal_lines:  # TODO: this whole ifelse structure is horrible
+                                    if horizontal:
+                                        for r in np.linspace(-0.5 * (min_dim - pad), 0.5 * (min_dim - pad), N_lines):
+                                            if N_lines == 1: r = 0
+                                            vsk.line(x_i - 0.5 * (dp - pad), y_i + r, x_i + 0.5 * (dp - pad), y_i + r)
+                                    else:
+                                        for r in np.linspace(-0.5 * (dp - pad), 0.5 * (dp - pad), N_lines):
+                                            if N_lines == 1: r = 0
+                                            vsk.line(x_i - 0.5 * (self.width - pad), y_i + r, x_i + 0.5 * (self.width - pad), y_i + r)
+                                else:
+                                    if horizontal:
+                                        for r in np.linspace(-0.5 * (dp - pad), 0.5 * (dp - pad), N_lines):
+                                            if N_lines == 1: r = 0
+                                            vsk.line(x_i + r, y_i - 0.5 * (self.height - pad), x_i + r, y_i + 0.5 * (self.height - pad))
+                                    else:
+                                        for r in np.linspace(-0.5 * (min_dim - pad), 0.5 * (min_dim - pad), N_lines):
+                                            if N_lines == 1: r = 0
+                                            vsk.line(x_i + r, y_i - 0.5 * (dp - pad), x_i + r, y_i + 0.5 * (dp - pad))
+                                
+
+        def __iter__(self):
+            return iter(self._children)
+
+        def breadth_first(self):
+            q = [self]
+            while q:
+                n = q.pop(0)
+                yield n
+                for c in n._children:
+                    q.append(c)
+
+
+    class QuadTree:
+        def __init__(self, drawing, width, height, outer_padding, inner_padding, x=0.0, y=0.0, layers=2):
+            self.drawing = drawing
+            self.outer_padding = outer_padding
+            self.inner_padding = inner_padding
+            self.width = width
+            self.height = height
+            self.x = x
+            self.y = y
+            self.layers = layers
+            
+            self.root = self.generate_tree(self.layers)
+        
+        def generate_children(self, node, layers):
+            picks = []
+            
+            pick_double = np.random.random_sample() < self.drawing.panel_double_prob
+            if pick_double:
+                double_sections = [[-1,0], [1,0], [0,-1], [0,1]]
+                pick = double_sections[np.random.randint(len(double_sections))]
+                x, y = pick
+                picks.append(pick)
+                pick_two_doubles = pick_double and np.random.random_sample() < self.drawing.panel_two_doubles_prob
+                if pick_two_doubles:
+                    picks.append([-x, -y])
+                else:
+                    if x != 0:
+                        picks.append([-x, 1])
+                        picks.append([-x, -1])
+                    else:
+                        picks.append([1, -y])
+                        picks.append([-1, -y]) 
+            else:
+                picks += [[-1,-1], [-1,1], [1,-1], [1,1]]
+                
+            for pick in picks:
+                is_double = (pick[0] == 0) or (pick[1] == 0)
+                x = 0.25 * node.width * pick[0]
+                y = 0.25 * node.height * pick[1]
+                
+                if pick[0] == 0:
+                    child_width = node.width - 2 * self.inner_padding
+                else:
+                    child_width = 0.5 * node.width - 2 * self.inner_padding
+                if pick[1] == 0:
+                    child_height = node.height - 2 * self.inner_padding
+                else:
+                    child_height = 0.5 * node.height - 2 * self.inner_padding
+                
+                if child_height > 1e-2 and child_width > 1e-2:
+                    stop_prob = 0.5
+                    do_stop = (np.random.random_sample() < stop_prob) or (node.layer == layers - 1)
+                    bottom = do_stop or is_double
+                    
+                    if is_double:
+                        draw_type="DOUBLE"
+                    elif do_stop:
+                        draw_type="CIRCLE"
+                    else:
+                        draw_type="RECT"
+                        
+                        
+                    child = self.drawing.Node(self.drawing, "...", draw_type, x=node.x+x, y=node.y+y, width=child_width,
+                                height=child_height, layer=node.layer+1, bottom=bottom)
+                    if not bottom:
+                        self.generate_children(child, layers)
+                    node.add_child(child)
+        
+        
+        def generate_tree(self, layers):
+            inner_width = self.width - self.outer_padding
+            inner_height = self.height - self.outer_padding
+            
+            root = self.drawing.Node(self.drawing, "root", "RECT", x=0, y=0, width=inner_width, height=inner_height, layer=0)
+            
+            self.generate_children(root, layers)
+            
+            return root
+        
+        
+        def draw(self, vsk):
+            with vsk.pushMatrix():
+                vsk.translate(self.x, self.y)
+                for node in self.root.breadth_first():
+                    node.draw(vsk)
+            
+                
+    
     def draw_eyes(self, vsk, face_width):
         self.eye_choice = pick_random_element(self.eye_types, self.eye_type_probs)
         self.eye_radius = 0.0
@@ -764,7 +988,6 @@ class RobotsSketch(vsketch.SketchClass):
             self.eye_radius = np.random.uniform(self.eye_circle_empty_radius_gain_min, self.eye_circle_empty_radius_gain_max) * self.body_width
             eye_sketch = generate_ellipse_point_eye_sketch(self.eye_radius)
             
-        
         if self.eye_choice == enum_type_to_int(self.eye_types.SINGLE_CIRCLE):
             vsk.sketch(eye_sketch)
         else:
@@ -820,8 +1043,16 @@ class RobotsSketch(vsketch.SketchClass):
             self.draw_eyes(vsk, self.body_width)
             self.draw_mouth(vsk, self.body_width, self.body_lower_height)
         else:
-            # TODO: Add control panels and fun flurishes here!
-            pass
+            if np.random.random_sample() < self.panel_prob:
+                panel_outer_padding = np.random.uniform(self.panel_outer_padding_gain_min, self.panel_outer_padding_gain_max) * self.body_width
+                panel_inner_padding = np.random.uniform(self.panel_inner_padding_gain_min, self.panel_inner_padding_gain_max) * self.body_width
+                if self.body_choice == enum_type_to_int(self.body_types.RECT):
+                    tree = self.QuadTree(self, self.body_width, self.body_height, panel_outer_padding, panel_inner_padding)
+                    tree.draw(vsk)
+                elif self.body_choice == enum_type_to_int(self.body_types.BULLET):
+                    tree = self.QuadTree(self, self.body_width, self.body_lower_height, panel_outer_padding,
+                                         panel_inner_padding, y=0.5*self.body_lower_height)
+                    tree.draw(vsk)
 
     def draw_robot(self, vsk, debug=False):
         self.body_choice = pick_random_element(self.body_types, self.body_type_probs)
@@ -925,7 +1156,7 @@ class RobotsSketch(vsketch.SketchClass):
                 arm_angle_2 = np.deg2rad(np.random.uniform(self.arm_stick_angle_2_min, self.arm_stick_angle_2_max))
                 arm_width = np.random.uniform(self.arm_stick_width_min, self.arm_stick_width_max)
                 arm_joint_radius = np.max((0.5 * arm_width, np.random.uniform(self.arm_stick_joint_radius_min, self.arm_stick_joint_radius_max)))
-                use_arm_joint_point =  np.random.random_sample() < self.arm_stick_joint_point_prob
+                use_arm_joint_point = np.random.random_sample() < self.arm_stick_joint_point_prob
             
             # Shoulder:
             shoulder_type = pick_random_element(self.shoulder_types, self.shoulder_type_probs)
@@ -998,10 +1229,11 @@ class RobotsSketch(vsketch.SketchClass):
                 sawblade_use_hole_points = np.random.random_sample() < self.hand_sawblade_hole_points_prob
                 sawblade_hole_radius_gain = np.random.uniform(self.hand_sawblade_hole_radius_gain_min, self.hand_sawblade_hole_radius_gain_max)
                 sawblade_rod_width_gain = np.random.uniform(self.hand_sawblade_rod_width_gain_min, self.hand_sawblade_rod_width_gain_max)
+                sawblade_flipped = np.random.random_sample() < 0.5
                 hand_sketch = generate_sawblade_sketch(sawblade_N_blades, sawblade_radius, sawblade_flat_angle, sawblade_rise_angle,
                                                        sawblade_lean_angle, sawblade_height_gain, sawblade_outer_ring_radius_gain,
                                                        sawblade_inner_ring_radius_gain, sawblade_hole_radius_gain, sawblade_rod_width_gain,
-                                                       sawblade_use_hole_points, sawblade_use_rod_center_line)
+                                                       sawblade_use_hole_points, sawblade_use_rod_center_line, sawblade_flipped)
         
             # Draw arm and hands:                    
             if arm_choice == enum_type_to_int(self.arm_types.TUBE_CURVE):
@@ -1132,30 +1364,17 @@ class RobotsSketch(vsketch.SketchClass):
         self.hand_type_probs = np.array([self.hand_none_prob, self.hand_claw_prob, self.hand_horse_shoe_prob, self.hand_sawblade_prob])
         self.leg_type_probs = np.array([self.leg_tube_prob, self.leg_omni_prob, self.leg_wheels_prob, self.leg_wheel_prob])
         self.foot_type_probs = np.array([self.foot_rect_prob, self.foot_arc_prob])
+        self.panel_double_type_probs = np.array([self.panel_double_none_prob, self.panel_double_circle_prob, self.panel_double_rect_prob, self.panel_double_line_prob])
+        self.panel_double_circle_type_probs = np.array([self.panel_double_circle_single_prob, self.panel_double_circle_filled_prob,
+                                                   self.panel_double_circle_striped_prob, self.panel_double_circle_dot_prob])
+        self.panel_double_rect_type_probs = np.array([self.panel_double_rect_single_prob, self.panel_double_rect_filled_prob, self.panel_double_rect_striped_prob])
         
         # test_bezier(vsk)
         # test_line_thick(vsk)
         
-        # n_blades = 13
-        # d_theta = 2 * np.pi / n_blades
-        # flat_section_angle = 0.3
-        # rise_section_angle = 0.5
-        # lean_over_section_angle = 0.3
-        # sawblade_radius = 1.0
-        # blade_height_gain = 0.17
-        
-        
         # tree = QuadTree(4.0, 5.0, 0.1, 0.075)
         # tree.draw(vsk)
-        
-        # sketch = vsketch.Vsketch()
-        # sketch.detail("0.01")
-        # sketch2 = vsketch.Vsketch()
-        # sketch2.detail("0.01")
-        # sketch2.arc(0, 0, 1.0, 1.0, 0, np.pi, close="pie")
-        # sketch.sketch(sketch2)
-        # vsk.sketch(sketch)
-        
+
         for y in range(self.n_y):
             with vsk.pushMatrix():
                 for x in range(self.n_x):
@@ -1178,3 +1397,4 @@ class RobotsSketch(vsketch.SketchClass):
 
 if __name__ == "__main__":
     RobotsSketch.display()
+    

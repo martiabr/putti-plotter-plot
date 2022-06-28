@@ -24,12 +24,14 @@
 - Path from overlapping circles. Either with or without occlusion (x)
 - Play with new shapes feature
 - Write code for shading shapes. Combined with occult and multiple layers this could create cool effect of random shapes on top of eachother. Would also be cool in black.
+- Wace function collapse + truchet tiles
 
 - Map library with geotif. Autoscaling to fit a4. Crop function to fit a4. More easily prototype with low resolution then go to real. 
 - DNT map series - add cabins and paths and stuff somehow? Investigate if UT has API of some sorts. Series of different national parks.
 - **MASSIV map series. Either just map or also line and dots to show path somehow.**
 - Experiment with curves/paths of thick lines by shading or filling somehow. Polygon or set of lines. Noise on thickness for cool effect. Inspiration: Broken Record podcast logo.
 - Add line simplification to map library
+- 
 
 ### TODO:
 - librarify iso
