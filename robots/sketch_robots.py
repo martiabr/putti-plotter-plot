@@ -200,18 +200,26 @@ def generate_shoulder_circle_sketch(radius, detail="0.01"):
     return shoulder_sketch
 
 def generate_arm_stick_sketch(link_length_1, alpha_1, link_length_2, alpha_2, width, joint_radius,
-                              joint_point=False, shoulder_sketch=None, shoulder_width=None, hand_sketch=None,
+                              joint_point=False, centerline=False, tube_line_width=None, shoulder_sketch=None, shoulder_width=None, hand_sketch=None,
                               detail="0.01", debug=False, debug_radius=0.05):
     arm_sketch = vsketch.Vsketch()
     arm_sketch.detail(detail)
+    
+    if tube_line_width is not None:
+        N_1 = int(link_length_1 / tube_line_width)
+        N_2 = int(link_length_2 / tube_line_width)
     
     with arm_sketch.pushMatrix():
         arm_sketch.rotate(alpha_1)
         with arm_sketch.pushMatrix():
             if shoulder_sketch is not None and shoulder_width is not None:
                 arm_sketch.translate(shoulder_width, 0)
-                
-            arm_sketch.rect(0.5 * link_length_1, 0, link_length_1, width, mode="center")
+            
+            if tube_line_width is not None and not centerline:
+                draw_line_thick(arm_sketch, np.array([0, 0]), np.array([link_length_1, 0]), width, N_lines=N_1, debug=debug)
+            else:
+                arm_sketch.rect(0.5 * link_length_1, 0, link_length_1, width, mode="center")
+            if centerline: arm_sketch.line(0, 0, link_length_1, 0)
             if debug:
                 arm_sketch.stroke(2)
                 arm_sketch.circle(0, 0, radius=debug_radius)
@@ -221,7 +229,11 @@ def generate_arm_stick_sketch(link_length_1, alpha_1, link_length_2, alpha_2, wi
                 
             arm_sketch.translate(link_length_1, 0)
             arm_sketch.rotate(alpha_2 - alpha_1)
-            arm_sketch.rect(0.5 * link_length_2, 0, link_length_2, width, mode="center")
+            if tube_line_width is not None and not centerline:
+                draw_line_thick(arm_sketch, np.array([0, 0]), np.array([link_length_2, 0]), width, N_lines=N_2, debug=debug)
+            else:
+                arm_sketch.rect(0.5 * link_length_2, 0, link_length_2, width, mode="center")
+            if centerline: arm_sketch.line(0, 0, link_length_2, 0)
             arm_sketch.circle(0, 0, radius=joint_radius)
             if joint_point: arm_sketch.circle(0, 0, 1e-2)
             if debug:
@@ -602,6 +614,10 @@ class RobotsSketch(vsketch.SketchClass):
     arm_stick_joint_radius_min = vsketch.Param(0.075, min_value=0)
     arm_stick_joint_radius_max = vsketch.Param(0.15, min_value=0)
     arm_stick_joint_point_prob = vsketch.Param(0.3, min_value=0)
+    arm_stick_centerline_prob = vsketch.Param(0.25, min_value=0)
+    arm_stick_tube_prob = vsketch.Param(0.4, min_value=0)
+    arm_stick_tube_line_width_min = vsketch.Param(0.02, min_value=0)
+    arm_stick_tube_line_width_max = vsketch.Param(0.3, min_value=0)
     
     # Shoulder parameters:
     shoulder_types = Enum('ShoulderType', 'NONE RECT CIRCLE')
@@ -1157,6 +1173,10 @@ class RobotsSketch(vsketch.SketchClass):
                 arm_width = np.random.uniform(self.arm_stick_width_min, self.arm_stick_width_max)
                 arm_joint_radius = np.max((0.5 * arm_width, np.random.uniform(self.arm_stick_joint_radius_min, self.arm_stick_joint_radius_max)))
                 use_arm_joint_point = np.random.random_sample() < self.arm_stick_joint_point_prob
+                use_arm_centerline = np.random.random_sample() < self.arm_stick_centerline_prob
+                use_arm_tube = np.random.random_sample() < self.arm_stick_tube_prob
+                arm_line_width = None
+                if use_arm_tube: arm_line_width = np.random.uniform(self.arm_stick_tube_line_width_min, self.arm_stick_tube_line_width_max)
             
             # Shoulder:
             shoulder_type = pick_random_element(self.shoulder_types, self.shoulder_type_probs)
@@ -1252,7 +1272,8 @@ class RobotsSketch(vsketch.SketchClass):
                                                       shoulder_width=shoulder_width, hand_sketch=hand_sketch, debug=debug)
             elif arm_choice == enum_type_to_int(self.arm_types.STICK):
                 arm_sketch = generate_arm_stick_sketch(arm_length_1, arm_angle, arm_length_2, arm_angle_2, arm_width, arm_joint_radius,
-                                                       joint_point=use_arm_joint_point, shoulder_sketch=shoulder_sketch, shoulder_width=shoulder_width,
+                                                       joint_point=use_arm_joint_point, centerline=use_arm_centerline, tube_line_width=arm_line_width,
+                                                       shoulder_sketch=shoulder_sketch, shoulder_width=shoulder_width,
                                                        hand_sketch=hand_sketch, debug=debug)
                 
             with vsk.pushMatrix():

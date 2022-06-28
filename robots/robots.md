@@ -2,7 +2,6 @@
 - Rounded grill mouth
 - Ears
 - **Body control panel type things**
-- **Sawblade**
 - Leg sockets like shoulders
 - Side antennas - outwards or upwards
 - More feet
