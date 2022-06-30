@@ -19,3 +19,4 @@
 - Better neck and arm transitions for bullet/circle bodies
 - Remove the frame thing now?
 - More shading - omni wheel, sawblade, ...
+- tqdm
