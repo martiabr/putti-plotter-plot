@@ -423,24 +423,26 @@ class RobotsSketch(vsketch.SketchClass):
     body_bullet_lower_height_max = vsketch.Param(2.0, min_value=0)
     
     # Panel parameters:
-    panel_prob = vsketch.Param(1.0, min_value=0, max_value=1)
-    panel_double_prob = vsketch.Param(0.7, min_value=0, max_value=1)
-    panel_two_doubles_prob = vsketch.Param(0.7, min_value=0, max_value=1)
+    panel_prob = vsketch.Param(0.7, min_value=0, max_value=1)
+    panel_double_prob = vsketch.Param(0.6, min_value=0, max_value=1)
+    panel_two_doubles_prob = vsketch.Param(0.6, min_value=0, max_value=1)
     panel_outer_padding_gain_min = vsketch.Param(0.15, min_value=0)
-    panel_outer_padding_gain_max = vsketch.Param(0.4, min_value=0)
-    panel_inner_padding_gain_min = vsketch.Param(0.04, min_value=0)
-    panel_inner_padding_gain_max = vsketch.Param(0.07, min_value=0)
+    panel_outer_padding_gain_max = vsketch.Param(0.6, min_value=0)
+    panel_inner_padding_gain_min = vsketch.Param(0.05, min_value=0)
+    panel_inner_padding_gain_max = vsketch.Param(0.1, min_value=0)
     
     panel_frame_prob = vsketch.Param(0.9, min_value=0)
-    panel_min_size = vsketch.Param(0.2, min_value=0)
+    panel_min_size = vsketch.Param(0.1, min_value=0)
     
-    panel_single_frame_prob = vsketch.Param(0.2, min_value=0)
+    panel_single_frame_prob = vsketch.Param(0.3, min_value=0)
+    panel_single_N_min = vsketch.Param(1, min_value=0)
+    panel_single_N_max = vsketch.Param(3, min_value=0)
     
-    panel_double_frame_prob = vsketch.Param(0.2, min_value=0)
+    panel_double_frame_prob = vsketch.Param(0.3, min_value=0)
     panel_double_N_min = vsketch.Param(1, min_value=0)
-    panel_double_N_max = vsketch.Param(4, min_value=0)
-    panel_double_pad_min = vsketch.Param(0.05, min_value=0)
-    panel_double_pad_max = vsketch.Param(0.3, min_value=0)
+    panel_double_N_max = vsketch.Param(5, min_value=0)
+    panel_double_pad_min = vsketch.Param(0.08, min_value=0)
+    panel_double_pad_max = vsketch.Param(0.2, min_value=0)
     
     panel_double_types = Enum('DoublePanelType', 'NONE, CIRCLE RECT LINE')
     panel_double_none_prob = vsketch.Param(0.1, min_value=0)
@@ -770,20 +772,26 @@ class RobotsSketch(vsketch.SketchClass):
                     vsk.rect(self.x, self.y, self.width, self.height, mode="center")
                     vsk.stroke(1)
                     
-                if self.draw_type == "RECT":
+                if self.draw_type == "OUTER":
                     if np.random.random_sample() < self.drawing.panel_frame_prob:
                         vsk.rect(self.x, self.y, self.width, self.height, mode="center")
-                elif self.draw_type == "CIRCLE":
-                    if self.drawing.debug:
-                        vsk.stroke(4)
-                        vsk.rect(self.x, self.y, self.width, self.height, mode="center")
-                        vsk.stroke(1)
+                # elif self.draw_type == "SINGLE":
+                #     if self.drawing.debug:
+                #         vsk.stroke(4)
+                #         vsk.rect(self.x, self.y, self.width, self.height, mode="center")
+                #         vsk.stroke(1)
                         
-                    if np.random.random_sample() < self.drawing.panel_single_frame_prob:
-                        vsk.rect(self.x, self.y, self.width, self.height, mode="center")
-                    # vsk.circle(self.x, self.y, np.min((self.width, self.height)))
-                elif self.draw_type == "DOUBLE":
-                    N = np.random.randint(self.drawing.panel_double_N_min, self.drawing.panel_double_N_max + 1)
+                #     if np.random.random_sample() < self.drawing.panel_single_frame_prob:
+                #         vsk.rect(self.x, self.y, self.width, self.height, mode="center")
+                    
+                #     pad = np.random.uniform(self.drawing.panel_double_pad_min, self.drawing.panel_double_pad_max)
+                        
+                #     # vsk.circle(self.x, self.y, np.min((self.width, self.height)))
+                elif self.draw_type == "SINGLE" or self.draw_type == "DOUBLE":
+                    if self.draw_type == "SINGLE":
+                        N = np.random.randint(self.drawing.panel_single_N_min, self.drawing.panel_single_N_max + 1)
+                    elif self.draw_type == "DOUBLE":
+                        N = np.random.randint(self.drawing.panel_double_N_min, self.drawing.panel_double_N_max + 1)
                     pad = np.random.uniform(self.drawing.panel_double_pad_min, self.drawing.panel_double_pad_max)
                     
                     if np.random.random_sample() < self.drawing.panel_double_frame_prob:
@@ -881,7 +889,6 @@ class RobotsSketch(vsketch.SketchClass):
                                             if N_lines == 1: r = 0
                                             vsk.line(x_i + r, y_i - 0.5 * (dp - pad), x_i + r, y_i + 0.5 * (dp - pad))
                                 
-
         def __iter__(self):
             return iter(self._children)
 
@@ -951,9 +958,9 @@ class RobotsSketch(vsketch.SketchClass):
                     if is_double:
                         draw_type="DOUBLE"
                     elif do_stop:
-                        draw_type="CIRCLE"
+                        draw_type="SINGLE"
                     else:
-                        draw_type="RECT"
+                        draw_type="OUTER"
                         
                         
                     child = self.drawing.Node(self.drawing, "...", draw_type, x=node.x+x, y=node.y+y, width=child_width,
@@ -967,7 +974,7 @@ class RobotsSketch(vsketch.SketchClass):
             inner_width = self.width - self.outer_padding
             inner_height = self.height - self.outer_padding
             
-            root = self.drawing.Node(self.drawing, "root", "RECT", x=0, y=0, width=inner_width, height=inner_height, layer=0)
+            root = self.drawing.Node(self.drawing, "root", "OUTER", x=0, y=0, width=inner_width, height=inner_height, layer=0)
             
             self.generate_children(root, layers)
             
