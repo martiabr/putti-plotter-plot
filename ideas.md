@@ -25,6 +25,7 @@
 - Play with new shapes feature
 - Write code for shading shapes. Combined with occult and multiple layers this could create cool effect of random shapes on top of eachother. Would also be cool in black.
 - Wace function collapse + truchet tiles
+- Simple idea: transform grid lines by some nonlinear transform - conformal mapping type stuff. Little code and quick to draw but could look cool.
 
 - Map library with geotif. Autoscaling to fit a4. Crop function to fit a4. More easily prototype with low resolution then go to real. 
 - DNT map series - add cabins and paths and stuff somehow? Investigate if UT has API of some sorts. Series of different national parks.
