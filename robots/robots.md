@@ -1,17 +1,14 @@
 ### TODO parts:
-- Rounded grill mouth
 - Ears
 - **Body control panel type things**
 - Leg sockets like shoulders
 - Side antennas - outwards or upwards
-- More feet
 - Single front facing wheel legs
 - If face in body --> add frame around face with probability
 - New foot parts
 
 ### TODO randomize:
 - **Eye placement**
-- **Mouth placement**
 - Foot params
 
 ### TODO other:

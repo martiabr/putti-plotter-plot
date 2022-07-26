@@ -563,6 +563,7 @@ class RobotsSketch(vsketch.SketchClass):
     
     eye_x_gain_min = vsketch.Param(0.1, min_value=0)
     eye_x_gain_max = vsketch.Param(0.6, min_value=0)
+    eye_y_gain_max = vsketch.Param(0.1)
     
     # Mouth parameters:
     mouth_types = Enum('MouthType', 'NONE SMILE GRILL LINE')
@@ -1028,7 +1029,7 @@ class RobotsSketch(vsketch.SketchClass):
                     node.draw(vsk)
             
     
-    def draw_eyes(self, vsk, face_width):
+    def draw_eyes(self, vsk, face_width, face_height):
         self.eye_choice = pick_random_element(self.eye_types, self.eye_type_probs)
         self.eye_radius = 0.0
         
@@ -1054,9 +1055,10 @@ class RobotsSketch(vsketch.SketchClass):
             vsk.sketch(eye_sketch)
         else:
             eye_x_gain = np.random.uniform(self.eye_x_gain_min, self.eye_x_gain_max)
+            x_eye = np.max((eye_x_gain * 0.5 * face_width, 1.2 * self.eye_radius))
+            y_eye = np.random.uniform(0.0, self.eye_y_gain_max) * face_height
             with vsk.pushMatrix():
-                x_eye = np.max((eye_x_gain * 0.5 * face_width, 1.2 * self.eye_radius))
-                vsk.translate(x_eye, 0)
+                vsk.translate(x_eye, -y_eye)
                 vsk.sketch(eye_sketch)
                 vsk.translate(-2 * x_eye, 0)
                 if np.random.random_sample() < 0.5: vsk.scale(-1, 1)
@@ -1111,7 +1113,7 @@ class RobotsSketch(vsketch.SketchClass):
             draw_bullet_body(vsk, self.body_width, self.body_width, self.body_lower_height)
             
         if draw_face:
-            self.draw_eyes(vsk, self.body_width)
+            self.draw_eyes(vsk, self.body_width, self.body_height)
             self.draw_mouth(vsk, self.body_width, self.body_lower_height, debug=debug)
         else:
             if np.random.random_sample() < self.panel_prob:
@@ -1143,7 +1145,7 @@ class RobotsSketch(vsketch.SketchClass):
             self.body_lower_height = np.random.uniform(self.body_bullet_lower_height_min, self.body_bullet_lower_height_max)
             # self.body_upper_height = arc_height
             self.body_upper_height = 0.5 * self.body_width
-        
+            self.body_height = self.body_lower_height + self.body_upper_height
         
         # Legs: 
         leg_choice = pick_random_element(self.leg_types, self.leg_type_probs)
@@ -1383,6 +1385,7 @@ class RobotsSketch(vsketch.SketchClass):
                     head_width = 2 * np.random.uniform(self.head_bullet_radius_min, self.head_bullet_radius_max)
                     head_lower_height = np.random.uniform(self.head_bullet_lower_height_min, self.head_bullet_lower_height_max)
                     head_upper_height = 0.5 * head_width
+                    head_height = head_lower_height + head_upper_height
                     draw_bullet_body(vsk, head_width, head_width, head_lower_height, y=-head_lower_height)
                 elif head_choice == enum_type_to_int(self.head_types.TRAPEZOID):
                     head_width = np.random.uniform(self.head_trapezoid_width_min, self.head_trapezoid_width_max)
@@ -1393,7 +1396,7 @@ class RobotsSketch(vsketch.SketchClass):
                     draw_trapezoid_head(vsk, head_width, head_upper_width_gain, head_height, y=-head_lower_height)
                 vsk.translate(0, -head_lower_height)
                 
-                self.draw_eyes(vsk, head_width)
+                self.draw_eyes(vsk, head_width, head_height)
                 self.draw_mouth(vsk, head_width, head_lower_height, debug=debug)
                     
                 # Draw antennas:
