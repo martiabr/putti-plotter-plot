@@ -306,12 +306,18 @@ def generate_leg_tube_sketch(length, width, N_lines=8, detail="0.01", debug=Fals
     draw_line_thick(leg_sketch, np.array([0.0, 0.0]), np.array([0, -length]), width=width, N_lines=N_lines, debug=debug)
     return leg_sketch
 
-def generate_leg_omni_sketch(width, trapezoid_width, height, radius, radius_inner, detail="0.01"):
+def generate_leg_omni_sketch(width, trapezoid_width, height, radius, radius_inner, N_shading=None, detail="0.01"):
     width_lower = trapezoid_width
     leg_sketch = vsketch.Vsketch()
     leg_sketch.detail(detail)
-    leg_sketch.circle(0, -radius, radius=radius)
-    leg_sketch.circle(0, -radius, radius=radius_inner)
+    with leg_sketch.pushMatrix():
+        leg_sketch.translate(0, -radius)
+        leg_sketch.circle(0, 0, radius=radius)
+        if N_shading is not None:
+            for angle in np.linspace(0, np.pi, N_shading):
+                x, y = pol2cart(radius, angle)
+                leg_sketch.line(x, y, 0, 0)
+        leg_sketch.circle(0, 0, radius=radius_inner)
     leg_sketch.translate(0, -radius)
     leg_sketch.polygon([(0.5 * width_lower, 0), (0.5 * width, -height), (-0.5 * width, -height), (-0.5 * width_lower, 0)], close=True)
     return leg_sketch
@@ -722,6 +728,9 @@ class RobotsSketch(vsketch.SketchClass):
     leg_omni_radius_gain_max = vsketch.Param(0.5, min_value=0)
     leg_omni_inner_radius_min = vsketch.Param(0.05, min_value=0)
     leg_omni_inner_radius_max = vsketch.Param(0.1, min_value=0)
+    leg_omni_shading_prob = vsketch.Param(0.3, min_value=0)
+    leg_omni_N_shading_min = vsketch.Param(4, min_value=0)
+    leg_omni_N_shading_max = vsketch.Param(12, min_value=0)
 
     leg_wheels_height_min = vsketch.Param(0.6, min_value=0)
     leg_wheels_height_max = vsketch.Param(1.2, min_value=0)
@@ -987,7 +996,6 @@ class RobotsSketch(vsketch.SketchClass):
                 for node in self.root.breadth_first():
                     node.draw(vsk)
             
-                
     
     def draw_eyes(self, vsk, face_width):
         self.eye_choice = pick_random_element(self.eye_types, self.eye_type_probs)
@@ -1116,8 +1124,11 @@ class RobotsSketch(vsketch.SketchClass):
             leg_omni_height = np.random.uniform(self.leg_omni_height_gain_min, self.leg_omni_height_gain_max) * leg_omni_width
             leg_omni_radius = np.random.uniform(self.leg_omni_radius_gain_min, self.leg_omni_radius_gain_max) * leg_omni_trapezoid_width
             leg_omni_inner_radius = np.random.uniform(self.leg_omni_inner_radius_min, self.leg_omni_inner_radius_max)
+            leg_omni_do_shading = np.random.random_sample() < self.leg_omni_shading_prob
+            N_leg_omni_shading = None
+            if leg_omni_do_shading: N_leg_omni_shading = np.random.randint(self.leg_omni_N_shading_min, self.leg_omni_N_shading_max + 1)
             leg_length = leg_omni_radius + leg_omni_height
-            leg_sketch = generate_leg_omni_sketch(leg_omni_width, leg_omni_trapezoid_width, leg_omni_height, leg_omni_radius, leg_omni_inner_radius)
+            leg_sketch = generate_leg_omni_sketch(leg_omni_width, leg_omni_trapezoid_width, leg_omni_height, leg_omni_radius, leg_omni_inner_radius, N_shading=N_leg_omni_shading)
         elif leg_choice == enum_type_to_int(self.leg_types.WHEELS):
             leg_wheels_height = np.random.uniform(self.leg_wheels_height_min, self.leg_wheels_height_max)
             leg_wheels_width = np.random.uniform(self.leg_wheels_width_gain_min, self.leg_wheels_width_gain_max) * leg_wheels_height
