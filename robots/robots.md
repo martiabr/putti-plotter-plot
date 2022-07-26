@@ -12,7 +12,6 @@
 ### TODO randomize:
 - **Eye placement**
 - **Mouth placement**
-- **Mouth smile curve**
 - Foot params
 
 ### TODO other:

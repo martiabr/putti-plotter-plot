@@ -386,8 +386,30 @@ def draw_trapezoid_head(vsk, width, upper_width_gain, height, x=0, y=0):
     
 ### Mouths:
 
-def draw_grill_mouth(vsk, width, height, N_lines, debug=False):
-    draw_line_thick(vsk, np.array([-0.5 * width, 0]), np.array([0.5 * width, 0]), height, N_lines=N_lines, debug=debug)
+def draw_smile_mouth(vsk, width, height, debug=False):
+    draw_bezier(vsk, np.array([-0.5 * width, 0]), np.array([0.5 * width, 0]), np.array([-0.5 * width, height]), np.array([0.5 * width, height]), debug=debug)
+
+def draw_grill_mouth(vsk, width, height, N_lines, rounded=True, debug=False):
+    if rounded:
+        mouth_shape = vsk.createShape()
+        radius = 0.5 * height
+        if width > 2 * radius:
+            mouth_shape.rect(0, 0, width - 2 * radius, height, mode="center")
+        mouth_shape.circle(0.5 * width - radius, 0, radius=radius)
+        mouth_shape.circle(-0.5 * width + radius, 0, radius=radius)
+        vsk.shape(mouth_shape)
+        
+        dx = width / (N_lines + 1)
+        for x in np.linspace(dx, width - dx, N_lines):
+            if x < radius:
+                y = np.sqrt(radius**2 - (x - radius)**2)
+            elif x > width - radius:
+                y = np.sqrt(radius**2 - (x - width + radius)**2)
+            else:
+                y = 0.5 * height
+            vsk.line(x - 0.5 * width, -y, x - 0.5 * width, y)
+    else:
+        draw_line_thick(vsk, np.array([-0.5 * width, 0]), np.array([0.5 * width, 0]), height, N_lines=N_lines, debug=debug)
 
 
 class RobotsSketch(vsketch.SketchClass):
@@ -549,15 +571,24 @@ class RobotsSketch(vsketch.SketchClass):
     mouth_grill_prob = vsketch.Param(0.4, min_value=0)
     mouth_line_prob = vsketch.Param(0.25, min_value=0)
     
+    mouth_smile_width_gain_min = vsketch.Param(0.05, min_value=0)
+    mouth_smile_width_gain_max = vsketch.Param(0.3, min_value=0)
+    mouth_smile_height_gain_min = vsketch.Param(0.1, min_value=0)
+    mouth_smile_height_gain_max = vsketch.Param(0.3, min_value=0)
+    
     mouth_grill_width_gain_min = vsketch.Param(0.3, min_value=0)
     mouth_grill_width_gain_max = vsketch.Param(0.8, min_value=0)
-    mouth_grill_height_min = vsketch.Param(0.075, min_value=0)
-    mouth_grill_height_max = vsketch.Param(0.5, min_value=0)
+    mouth_grill_height_gain_min = vsketch.Param(0.075, min_value=0)
+    mouth_grill_height_gain_max = vsketch.Param(0.5, min_value=0)
     mouth_grill_N_lines_min = vsketch.Param(3, min_value=0)
     mouth_grill_N_lines_max = vsketch.Param(8, min_value=0)
+    mouth_grill_rounded_prob = vsketch.Param(0.5, min_value=0)
     
     mouth_line_width_gain_min = vsketch.Param(0.3, min_value=0)
     mouth_line_width_gain_max = vsketch.Param(0.6, min_value=0)
+    
+    mouth_y_gain_min = vsketch.Param(0.05, min_value=0)
+    mouth_y_gain_max = vsketch.Param(0.3, min_value=0)
 
     # Antenna parameters:
     antenna_prob = vsketch.Param(0.4, min_value=0)
@@ -1035,19 +1066,28 @@ class RobotsSketch(vsketch.SketchClass):
     def draw_mouth(self, vsk, face_width, face_lower_height, debug=False):
         mouth_choice = pick_random_element(self.mouth_types, self.mouth_type_probs)
         with vsk.pushMatrix():
-            vsk.translate(0, 0.2 * face_lower_height + self.eye_radius)
             
+            mouth_width, mouth_height = 0, 0
             if mouth_choice == enum_type_to_int(self.mouth_types.SMILE):
-                draw_bezier(vsk, np.array([-0.1, 0]), np.array([0.1, 0]), np.array([-0.1, 0.2]), np.array([0.1, 0.2]), debug=debug)  # TODO: function of this
+                mouth_width = np.random.uniform(self.mouth_smile_width_gain_min, self.mouth_smile_width_gain_max) * face_width
+                mouth_height = np.random.uniform(self.mouth_smile_height_gain_min, self.mouth_smile_height_gain_max) * face_lower_height
             elif mouth_choice == enum_type_to_int(self.mouth_types.GRILL):
                 mouth_width = np.random.uniform(self.mouth_grill_width_gain_min, self.mouth_grill_width_gain_max) * face_width
-                mouth_height = np.random.uniform(self.mouth_grill_height_min, self.mouth_grill_height_max)
+                mouth_height = np.random.uniform(self.mouth_grill_height_gain_min, self.mouth_grill_height_gain_max) * face_lower_height
                 mouth_N_lines = np.random.randint(self.mouth_grill_N_lines_min, self.mouth_grill_N_lines_max + 1)
-                vsk.translate(0, 0.5 * mouth_height)
-                draw_grill_mouth(vsk, mouth_width, mouth_height, mouth_N_lines, debug=debug)
+                mouth_rounded = np.random.random_sample() < self.mouth_grill_rounded_prob
             elif mouth_choice == enum_type_to_int(self.mouth_types.LINE):
-                mouth_width_gain = np.random.uniform(self.mouth_line_width_gain_min, self.mouth_line_width_gain_max)
-                vsk.line(-0.5 * face_width * mouth_width_gain, 0, 0.5 * face_width * mouth_width_gain, 0)
+                mouth_width = np.random.uniform(self.mouth_line_width_gain_min, self.mouth_line_width_gain_max) * face_width
+            
+            y_gain = np.random.uniform(self.mouth_y_gain_min, self.mouth_y_gain_max)
+            vsk.translate(0, y_gain * face_lower_height + self.eye_radius + 0.5 * mouth_height)
+            
+            if mouth_choice == enum_type_to_int(self.mouth_types.SMILE):
+                draw_smile_mouth(vsk, mouth_width, mouth_height, debug=debug)
+            elif mouth_choice == enum_type_to_int(self.mouth_types.GRILL):
+                draw_grill_mouth(vsk, mouth_width, mouth_height, mouth_N_lines, rounded=mouth_rounded, debug=debug)
+            elif mouth_choice == enum_type_to_int(self.mouth_types.LINE):
+                vsk.line(-0.5 * mouth_width, 0, 0.5 * mouth_width, 0)
 
     
     def draw_body(self, vsk, draw_face=False, debug=False):
@@ -1072,7 +1112,7 @@ class RobotsSketch(vsketch.SketchClass):
             
         if draw_face:
             self.draw_eyes(vsk, self.body_width)
-            self.draw_mouth(vsk, self.body_width, self.body_lower_height)
+            self.draw_mouth(vsk, self.body_width, self.body_lower_height, debug=debug)
         else:
             if np.random.random_sample() < self.panel_prob:
                 panel_outer_padding = np.random.uniform(self.panel_outer_padding_gain_min, self.panel_outer_padding_gain_max) * self.body_width
@@ -1354,7 +1394,7 @@ class RobotsSketch(vsketch.SketchClass):
                 vsk.translate(0, -head_lower_height)
                 
                 self.draw_eyes(vsk, head_width)
-                self.draw_mouth(vsk, head_width, head_lower_height)
+                self.draw_mouth(vsk, head_width, head_lower_height, debug=debug)
                     
                 # Draw antennas:
                 if draw_antenna:
@@ -1413,7 +1453,7 @@ class RobotsSketch(vsketch.SketchClass):
         
         # tree = QuadTree(4.0, 5.0, 0.1, 0.075)
         # tree.draw(vsk)
-
+        
         for y in range(self.n_y):
             with vsk.pushMatrix():
                 for x in range(self.n_x):
