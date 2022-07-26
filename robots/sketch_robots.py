@@ -470,8 +470,8 @@ class RobotsSketch(vsketch.SketchClass):
     
     body_bullet_radius_min = vsketch.Param(0.75, min_value=0)
     body_bullet_radius_max = vsketch.Param(1.5, min_value=0)
-    body_bullet_lower_height_min = vsketch.Param(0.5, min_value=0)
-    body_bullet_lower_height_max = vsketch.Param(2.0, min_value=0)
+    body_bullet_lower_height_gain_min = vsketch.Param(0.5, min_value=0)
+    body_bullet_lower_height_gain_max = vsketch.Param(1.0, min_value=0)
     
     body_face_frame_prob = vsketch.Param(0.45, min_value=0, max_value=1)
     body_face_frame_pad_gain_min = vsketch.Param(0.04, min_value=0)
@@ -646,8 +646,10 @@ class RobotsSketch(vsketch.SketchClass):
     arm_tube_curve_prob = vsketch.Param(0.3, min_value=0)
     arm_stick_prob = vsketch.Param(0.5, min_value=0)
     
-    arm_rect_y_gain_min = vsketch.Param(-0.3)
-    arm_rect_y_gain_max = vsketch.Param(0.1)
+    arm_rect_y_gain_min = vsketch.Param(-0.4)
+    arm_rect_y_gain_max = vsketch.Param(0.0)
+    arm_rect_y_gain_no_head_min = vsketch.Param(-0.1)
+    arm_rect_y_gain_no_head_max = vsketch.Param(0.3)
     arm_bullet_y_gain_max = vsketch.Param(0.4, min_value=0)
     
     arm_tube_width_min = vsketch.Param(0.15, min_value=0)
@@ -1197,10 +1199,12 @@ class RobotsSketch(vsketch.SketchClass):
         elif self.body_choice == enum_type_to_int(self.body_types.BULLET):
             self.body_width = 2 * np.random.uniform(self.body_bullet_radius_min, self.body_bullet_radius_max)
             # arc_height = np.random.uniform(self.body_bullet_radius_min, self.body_bullet_radius_max)
-            self.body_lower_height = np.random.uniform(self.body_bullet_lower_height_min, self.body_bullet_lower_height_max)
+            self.body_lower_height = np.random.uniform(self.body_bullet_lower_height_gain_min, self.body_bullet_lower_height_gain_max) * self.body_width
             # self.body_upper_height = arc_height
             self.body_upper_height = 0.5 * self.body_width
             self.body_height = self.body_lower_height + self.body_upper_height
+        
+        self.draw_head = np.random.random_sample() < self.head_prob
         
         # Legs: 
         leg_choice = pick_random_element(self.leg_types, self.leg_type_probs)
@@ -1277,7 +1281,10 @@ class RobotsSketch(vsketch.SketchClass):
             if self.body_choice == enum_type_to_int(self.body_types.BULLET):
                 arm_y = self.body_lower_height * np.random.uniform(0, self.arm_bullet_y_gain_max)
             elif self.body_choice == enum_type_to_int(self.body_types.RECT):
-                arm_y = self.body_height * np.random.uniform(self.arm_rect_y_gain_min, self.arm_rect_y_gain_max)
+                if self.draw_head:
+                    arm_y = self.body_height * np.random.uniform(self.arm_rect_y_gain_min, self.arm_rect_y_gain_max)
+                else:
+                    arm_y = self.body_height * np.random.uniform(self.arm_rect_y_gain_no_head_min, self.arm_rect_y_gain_no_head_max)
                 
             if arm_choice == enum_type_to_int(self.arm_types.TUBE) or arm_choice == enum_type_to_int(self.arm_types.TUBE_CURVE):
                 arm_width = np.random.uniform(self.arm_tube_width_min, self.arm_tube_width_max)
@@ -1410,9 +1417,7 @@ class RobotsSketch(vsketch.SketchClass):
                     np.random.random_sample() < self.arm_tube_curve_flip_prob: vsk.scale(1, -1)
                 vsk.sketch(arm_sketch)
                 
-        
-        self.draw_head = np.random.random_sample() < self.head_prob
-        
+                
         self.draw_body(vsk, not self.draw_head, debug)
         
         draw_antenna = np.random.random_sample() < self.antenna_prob
