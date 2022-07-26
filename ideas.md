@@ -17,21 +17,21 @@
 - Truchet tiles (circles, knots, ...) (x)
 - 3D "potential fields" lines (think Currents artwork)
 - Experiment with markers/colored pens/multiple layers
-- **Isometric occult tests:** 1. simplex noise to generate cubic terrain, houses on land (randomly placed or somehow find nice places to place buildings algorithmically. 2. city generator - roads and skyscrapers/towers (possibly using wave collapse algorithm (https://marian42.de/article/wfc/) or something else)
+- Isometric occult tests: 1. simplex noise to generate cubic terrain, houses on land (randomly placed or somehow find nice places to place buildings algorithmically. 2. city generator - roads and skyscrapers/towers (possibly using wave collapse algorithm (https://marian42.de/article/wfc/) or something else)
 - Bauhaus - random shapes, (parallel) lines, multi-color, ... Possibly based on randomly generated quadtree looking grid?
 - Single line plot (x)
   - Multi color random walk (x)
 - Path from overlapping circles. Either with or without occlusion (x)
 - Play with new shapes feature
-- Write code for shading shapes. Combined with occult and multiple layers this could create cool effect of random shapes on top of eachother. Would also be cool in black.
-- Wace function collapse + truchet tiles
+- **Write code for shading shapes. Combined with occult and multiple layers this could create cool effect of random shapes on top of eachother. Would also be cool in black.**
+- **Wace function collapse + truchet tiles**
+- **Simple idea: transform grid lines by some nonlinear transform - conformal mapping type stuff. Little code and quick to draw but could look cool.**
+- **Experiment with curves/paths of thick lines by shading or filling somehow. Polygon or set of lines. Noise on thickness for cool effect. Inspiration: Broken Record podcast logo.**
 
 - Map library with geotif. Autoscaling to fit a4. Crop function to fit a4. More easily prototype with low resolution then go to real. 
 - DNT map series - add cabins and paths and stuff somehow? Investigate if UT has API of some sorts. Series of different national parks.
-- **MASSIV map series. Either just map or also line and dots to show path somehow.**
-- Experiment with curves/paths of thick lines by shading or filling somehow. Polygon or set of lines. Noise on thickness for cool effect. Inspiration: Broken Record podcast logo.
+- MASSIV map series. Either just map or also line and dots to show path somehow.
 - Add line simplification to map library
-- 
 
 ### TODO:
 - librarify iso
