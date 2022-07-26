@@ -6,6 +6,8 @@
 - Single front facing wheel legs
 - If face in body --> add frame around face with probability
 - New foot parts
+- Square eyes
+- Not too high arm placement if face in body
 
 ### TODO randomize:
 - **Eye placement**

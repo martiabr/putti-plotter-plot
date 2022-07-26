@@ -387,7 +387,7 @@ def draw_trapezoid_head(vsk, width, upper_width_gain, height, x=0, y=0):
 ### Mouths:
 
 def draw_smile_mouth(vsk, width, height, debug=False):
-    draw_bezier(vsk, np.array([-0.5 * width, 0]), np.array([0.5 * width, 0]), np.array([-0.5 * width, height]), np.array([0.5 * width, height]), debug=debug)
+    draw_bezier(vsk, np.array([-0.5 * width, -0.5 * height]), np.array([0.5 * width, -0.5 * height]), np.array([-0.5 * width, 0.5 * height]), np.array([0.5 * width, 0.5 * height]), debug=debug)
 
 def draw_grill_mouth(vsk, width, height, N_lines, rounded=True, debug=False):
     if rounded:
@@ -441,7 +441,7 @@ class RobotsSketch(vsketch.SketchClass):
     body_circle_radius_min = vsketch.Param(1.2, min_value=0)
     body_circle_radius_max = vsketch.Param(2.5, min_value=0)
     
-    inner_circle_prob = vsketch.Param(0.3, min_value=0, max_value=1)
+    body_inner_circle_prob = vsketch.Param(1.0, min_value=0, max_value=1)
     body_circle_inner_padding_min = vsketch.Param(0.2)
     body_circle_inner_padding_max = vsketch.Param(0.5)
     
@@ -449,6 +449,10 @@ class RobotsSketch(vsketch.SketchClass):
     body_bullet_radius_max = vsketch.Param(1.5, min_value=0)
     body_bullet_lower_height_min = vsketch.Param(0.5, min_value=0)
     body_bullet_lower_height_max = vsketch.Param(2.0, min_value=0)
+    
+    body_face_frame_prob = vsketch.Param(0.45, min_value=0, max_value=1)
+    body_face_frame_pad_gain_min = vsketch.Param(0.04, min_value=0)
+    body_face_frame_pad_gain_max = vsketch.Param(0.1, min_value=0)
     
     # Panel parameters:
     panel_prob = vsketch.Param(0.7, min_value=0, max_value=1)
@@ -761,7 +765,7 @@ class RobotsSketch(vsketch.SketchClass):
     leg_omni_inner_radius_min = vsketch.Param(0.05, min_value=0)
     leg_omni_inner_radius_max = vsketch.Param(0.1, min_value=0)
     leg_omni_shading_prob = vsketch.Param(0.3, min_value=0)
-    leg_omni_N_shading_min = vsketch.Param(4, min_value=0)
+    leg_omni_N_shading_min = vsketch.Param(6, min_value=0)
     leg_omni_N_shading_max = vsketch.Param(12, min_value=0)
 
     leg_wheels_height_min = vsketch.Param(0.6, min_value=0)
@@ -1051,16 +1055,19 @@ class RobotsSketch(vsketch.SketchClass):
             self.eye_radius = np.random.uniform(self.eye_circle_empty_radius_gain_min, self.eye_circle_empty_radius_gain_max) * self.body_width
             eye_sketch = generate_ellipse_point_eye_sketch(self.eye_radius)
             
+        self.eye_y = np.random.uniform(0.0, self.eye_y_gain_max) * face_height
+        self.eye_x = 0.0
         if self.eye_choice == enum_type_to_int(self.eye_types.SINGLE_CIRCLE):
-            vsk.sketch(eye_sketch)
+            with vsk.pushMatrix():
+                vsk.translate(0, -self.eye_y)
+                vsk.sketch(eye_sketch)
         else:
             eye_x_gain = np.random.uniform(self.eye_x_gain_min, self.eye_x_gain_max)
-            x_eye = np.max((eye_x_gain * 0.5 * face_width, 1.2 * self.eye_radius))
-            y_eye = np.random.uniform(0.0, self.eye_y_gain_max) * face_height
+            self.eye_x = np.max((eye_x_gain * 0.5 * face_width, 1.2 * self.eye_radius))
             with vsk.pushMatrix():
-                vsk.translate(x_eye, -y_eye)
+                vsk.translate(self.eye_x, -self.eye_y)
                 vsk.sketch(eye_sketch)
-                vsk.translate(-2 * x_eye, 0)
+                vsk.translate(-2 * self.eye_x, 0)
                 if np.random.random_sample() < 0.5: vsk.scale(-1, 1)
                 vsk.sketch(eye_sketch)
                 
@@ -1069,27 +1076,28 @@ class RobotsSketch(vsketch.SketchClass):
         mouth_choice = pick_random_element(self.mouth_types, self.mouth_type_probs)
         with vsk.pushMatrix():
             
-            mouth_width, mouth_height = 0, 0
+            self.mouth_width, self.mouth_height = 0, 0
             if mouth_choice == enum_type_to_int(self.mouth_types.SMILE):
-                mouth_width = np.random.uniform(self.mouth_smile_width_gain_min, self.mouth_smile_width_gain_max) * face_width
-                mouth_height = np.random.uniform(self.mouth_smile_height_gain_min, self.mouth_smile_height_gain_max) * face_lower_height
+                self.mouth_width = np.random.uniform(self.mouth_smile_width_gain_min, self.mouth_smile_width_gain_max) * face_width
+                self.mouth_height = np.random.uniform(self.mouth_smile_height_gain_min, self.mouth_smile_height_gain_max) * face_lower_height
             elif mouth_choice == enum_type_to_int(self.mouth_types.GRILL):
-                mouth_width = np.random.uniform(self.mouth_grill_width_gain_min, self.mouth_grill_width_gain_max) * face_width
-                mouth_height = np.random.uniform(self.mouth_grill_height_gain_min, self.mouth_grill_height_gain_max) * face_lower_height
+                self.mouth_width = np.random.uniform(self.mouth_grill_width_gain_min, self.mouth_grill_width_gain_max) * face_width
+                self.mouth_height = np.random.uniform(self.mouth_grill_height_gain_min, self.mouth_grill_height_gain_max) * face_lower_height
                 mouth_N_lines = np.random.randint(self.mouth_grill_N_lines_min, self.mouth_grill_N_lines_max + 1)
                 mouth_rounded = np.random.random_sample() < self.mouth_grill_rounded_prob
             elif mouth_choice == enum_type_to_int(self.mouth_types.LINE):
-                mouth_width = np.random.uniform(self.mouth_line_width_gain_min, self.mouth_line_width_gain_max) * face_width
+                self.mouth_width = np.random.uniform(self.mouth_line_width_gain_min, self.mouth_line_width_gain_max) * face_width
             
             y_gain = np.random.uniform(self.mouth_y_gain_min, self.mouth_y_gain_max)
-            vsk.translate(0, y_gain * face_lower_height + self.eye_radius + 0.5 * mouth_height)
+            self.mouth_y_offset = y_gain * face_lower_height
+            vsk.translate(0, self.mouth_y_offset + self.eye_radius + 0.5 * self.mouth_height)
             
             if mouth_choice == enum_type_to_int(self.mouth_types.SMILE):
-                draw_smile_mouth(vsk, mouth_width, mouth_height, debug=debug)
+                draw_smile_mouth(vsk, self.mouth_width, self.mouth_height, debug=debug)
             elif mouth_choice == enum_type_to_int(self.mouth_types.GRILL):
-                draw_grill_mouth(vsk, mouth_width, mouth_height, mouth_N_lines, rounded=mouth_rounded, debug=debug)
+                draw_grill_mouth(vsk, self.mouth_width, self.mouth_height, mouth_N_lines, rounded=mouth_rounded, debug=debug)
             elif mouth_choice == enum_type_to_int(self.mouth_types.LINE):
-                vsk.line(-0.5 * mouth_width, 0, 0.5 * mouth_width, 0)
+                vsk.line(-0.5 * self.mouth_width, 0, 0.5 * self.mouth_width, 0)
 
     
     def draw_body(self, vsk, draw_face=False, debug=False):
@@ -1102,7 +1110,7 @@ class RobotsSketch(vsketch.SketchClass):
                 
             draw_rect_body(vsk, self.body_width, self.body_height, draw_inner_rect=use_inner_rect, inner_padding=body_inner_padding)
         elif self.body_choice == enum_type_to_int(self.body_types.CIRCLE):
-            use_inner_circle = np.random.random_sample() < self.inner_circle_prob
+            use_inner_circle = np.random.random_sample() < self.body_inner_circle_prob
             if use_inner_circle:
                 body_inner_padding = np.random.uniform(self.body_circle_inner_padding_min, self.body_circle_inner_padding_max)
             else:
@@ -1115,6 +1123,13 @@ class RobotsSketch(vsketch.SketchClass):
         if draw_face:
             self.draw_eyes(vsk, self.body_width, self.body_height)
             self.draw_mouth(vsk, self.body_width, self.body_lower_height, debug=debug)
+            if np.random.random_sample() < self.body_face_frame_prob and self.body_choice == enum_type_to_int(self.body_types.RECT) and not use_inner_rect:
+                pad = np.random.uniform(self.body_face_frame_pad_gain_min, self.body_face_frame_pad_gain_max) * np.min((self.body_width, self.body_height))
+                width = np.max((self.mouth_width, 2 * (self.eye_x + self.eye_radius)))
+                vsk.line(-0.5 * width - pad, -self.eye_y - self.eye_radius - pad, 0.5 * width + pad, -self.eye_y - self.eye_radius - pad)
+                vsk.line(-0.5 * width - pad, self.mouth_y_offset + self.mouth_height + self.eye_radius + pad, 0.5 * width + pad, self.mouth_y_offset + self.mouth_height + self.eye_radius + pad)
+                vsk.line(-0.5 * width - pad, -self.eye_y - self.eye_radius - pad, -0.5 * width - pad, self.mouth_y_offset + self.mouth_height + self.eye_radius + pad)
+                vsk.line(0.5 * width + pad, -self.eye_y - self.eye_radius - pad, 0.5 * width + pad, self.mouth_y_offset + self.mouth_height + self.eye_radius + pad)
         else:
             if np.random.random_sample() < self.panel_prob:
                 panel_outer_padding = np.random.uniform(self.panel_outer_padding_gain_min, self.panel_outer_padding_gain_max) * self.body_width
