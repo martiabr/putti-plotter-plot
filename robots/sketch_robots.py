@@ -89,6 +89,13 @@ def generate_circle_eye_sketch(radius, x_pupil_gain=None, detail="0.01"):
     if x_pupil_gain is not None: eye_sketch.circle(x_pupil_gain * radius, 0, 4e-2)
     return eye_sketch
 
+def generate_rect_eye_sketch(width, x_pupil_gain, detail="0.01"):
+    eye_sketch = vsketch.Vsketch()
+    eye_sketch.detail(detail)
+    eye_sketch.rect(0, 0, width, width, mode="center")
+    eye_sketch.circle(x_pupil_gain * width, 0, 4e-2)
+    return eye_sketch
+
 def generate_claw_sketch(base_width, claw_width, length_1, length_2, angle_1, angle_2, joint_radius=None, joint_bullet_length=False,
                          joint_point=False, use_pointy=False, detail="0.01"):
     hand_sketch = vsketch.Vsketch()
@@ -542,15 +549,19 @@ class RobotsSketch(vsketch.SketchClass):
     neck_N_lines_max =  vsketch.Param(6, min_value=0)
     
     # Eye parameters:
-    eye_types = Enum('EyeType', 'POINT ELLIPSE_POINT CIRCLE SINGLE_CIRCLE CIRCLE_EMPTY')
-    eye_point_prob = vsketch.Param(0.2, min_value=0, max_value=1)
-    eye_ellipse_point_prob = vsketch.Param(0.2, min_value=0, max_value=1)
-    eye_circle_prob = vsketch.Param(0.2, min_value=0, max_value=1)
+    eye_types = Enum('EyeType', 'POINT ELLIPSE_POINT CIRCLE RECT SINGLE_CIRCLE CIRCLE_EMPTY')
+    eye_point_prob = vsketch.Param(0.15, min_value=0, max_value=1)
+    eye_ellipse_point_prob = vsketch.Param(0.1, min_value=0, max_value=1)
+    eye_circle_prob = vsketch.Param(0.25, min_value=0, max_value=1)
+    eye_rect_prob = vsketch.Param(0.1, min_value=0, max_value=1)
     eye_circle_single_prob = vsketch.Param(0.2, min_value=0, max_value=1)
     eye_circle_empty_prob = vsketch.Param(0.2, min_value=0, max_value=1)
     
     eye_circle_radius_gain_min = vsketch.Param(0.06, min_value=0)
     eye_circle_radius_gain_max = vsketch.Param(0.1, min_value=0)
+    
+    eye_rect_width_gain_min = vsketch.Param(0.08, min_value=0)
+    eye_rect_width_gain_max = vsketch.Param(0.18, min_value=0)
     
     eye_single_circle_radius_gain_min = vsketch.Param(0.08, min_value=0)
     eye_single_circle_radius_gain_max = vsketch.Param(0.15, min_value=0)
@@ -1047,6 +1058,10 @@ class RobotsSketch(vsketch.SketchClass):
             self.eye_radius = np.random.uniform(self.eye_circle_radius_gain_min, self.eye_circle_radius_gain_max) * self.body_width
             pupil_x_gain = np.random.uniform(-self.eye_circle_x_pupil_gain_max, self.eye_circle_x_pupil_gain_max)
             eye_sketch = generate_circle_eye_sketch(self.eye_radius, pupil_x_gain)
+        elif self.eye_choice == enum_type_to_int(self.eye_types.RECT):
+            self.eye_radius = 0.5 * np.random.uniform(self.eye_rect_width_gain_min, self.eye_rect_width_gain_max) * self.body_width
+            pupil_x_gain = np.random.uniform(-self.eye_circle_x_pupil_gain_max, self.eye_circle_x_pupil_gain_max)
+            eye_sketch = generate_rect_eye_sketch(2 * self.eye_radius, pupil_x_gain)
         elif self.eye_choice == enum_type_to_int(self.eye_types.SINGLE_CIRCLE):
             self.eye_radius = np.random.uniform(self.eye_single_circle_radius_gain_min, self.eye_single_circle_radius_gain_max) * self.body_width
             pupil_x_gain = np.random.uniform(-self.eye_circle_x_pupil_gain_max, self.eye_circle_x_pupil_gain_max)
@@ -1454,7 +1469,7 @@ class RobotsSketch(vsketch.SketchClass):
         self.body_type_probs = np.array([self.body_rect_prob, self.body_circle_prob, self.body_bullet_prob])
         self.head_type_probs = np.array([self.head_rect_prob, self.head_bullet_prob, self.head_trapezoid_prob])
         self.mouth_type_probs = np.array([self.mouth_none_prob, self.mouth_smile_prob, self.mouth_grill_prob, self.mouth_line_prob])
-        self.eye_type_probs = np.array([self.eye_point_prob, self.eye_ellipse_point_prob, self.eye_circle_prob,
+        self.eye_type_probs = np.array([self.eye_point_prob, self.eye_ellipse_point_prob, self.eye_circle_prob, self.eye_rect_prob,
                                         self.eye_circle_single_prob, self.eye_circle_empty_prob])
         self.arm_type_probs = np.array([self.arm_none_prob, self.arm_tube_prob, self.arm_tube_curve_prob, self.arm_stick_prob])
         self.shoulder_type_probs = np.array([self.shoulder_none_prob, self.shoulder_rect_prob, self.shoulder_circle_prob])
