@@ -343,6 +343,22 @@ def generate_leg_wheels_sketch(width, height, nut_height=None, nut_width=None, N
     return leg_sketch
 
 
+def generate_foot_arc_sketch(width, height, detail="0.01", debug=False):
+    foot_sketch = vsketch.Vsketch()
+    foot_sketch.detail(detail)
+    foot_sketch.arc(0, 0, width, height, 0, np.pi, close="chord")
+    return foot_sketch
+    
+def generate_foot_shoe_sketch(width, height, detail="0.01", debug=False):
+    foot_sketch = vsketch.Vsketch()
+    foot_sketch.detail(detail)
+    
+    hand_shape = foot_sketch.createShape()
+    hand_shape.rect(0, -0.5 * height, width - height, height, mode="center")
+    hand_shape.arc(0.5 * (width - height), 0, 2 * height, 2 * height, 0, np.pi, close="chord")
+    foot_sketch.shape(hand_shape)
+    return foot_sketch
+
 def generate_antenna_sketch(base_width, base_height, antenna_width, antenna_height, antenna_radius, rect=True, detail="0.01"):
     antenna_sketch = vsketch.Vsketch()
     antenna_sketch.detail(detail)
@@ -802,9 +818,18 @@ class RobotsSketch(vsketch.SketchClass):
     leg_wheel_N_lines_max = vsketch.Param(15, min_value=0)
     
     # Foot parameters:
-    foot_types = Enum('FootType', 'RECT ARC')
-    foot_rect_prob = vsketch.Param(0.5, min_value=0)
+    foot_types = Enum('FootType', 'SHOE ARC')
+    foot_shoe_prob = vsketch.Param(0.5, min_value=0)
     foot_arc_prob = vsketch.Param(0.5, min_value=0)
+    
+    foot_width_min = vsketch.Param(0.3, min_value=0)
+    foot_width_max = vsketch.Param(0.8, min_value=0)
+    
+    foot_arc_height_gain_min = vsketch.Param(0.5, min_value=0)
+    foot_arc_height_gain_max = vsketch.Param(1.0, min_value=0)
+    
+    foot_shoe_height_gain_min = vsketch.Param(0.3, min_value=0)
+    foot_shoe_height_gain_max = vsketch.Param(0.5, min_value=0)
     
     
     class Node:
@@ -1221,8 +1246,18 @@ class RobotsSketch(vsketch.SketchClass):
         
         # Foot:
         if leg_choice == enum_type_to_int(self.leg_types.TUBE):
-            leg_sketch.arc(0, 0, 0.5, 0.4, 0, np.pi, close="chord")
-            
+            foot_choice = pick_random_element(self.foot_types, self.foot_type_probs)
+            foot_width = np.max((np.random.uniform(self.foot_width_min, self.foot_width_max), 1.1 * leg_width))
+            if foot_choice == enum_type_to_int(self.foot_types.ARC):
+                foot_height = np.random.uniform(self.foot_arc_height_gain_min, self.foot_arc_height_gain_max) * foot_width
+                foot_sketch = generate_foot_arc_sketch(foot_width, foot_height)
+            elif foot_choice == enum_type_to_int(self.foot_types.SHOE):
+                foot_height = np.random.uniform(self.foot_shoe_height_gain_min, self.foot_shoe_height_gain_max) * foot_width
+                if foot_width - foot_height < 1.1 * leg_width:
+                    foot_width = 1.1 * leg_width + foot_height
+                foot_sketch = generate_foot_shoe_sketch(foot_width, foot_height)
+            leg_sketch.sketch(foot_sketch)
+                
         with vsk.pushMatrix():
             if leg_choice in (enum_type_to_int(self.leg_types.TUBE), enum_type_to_int(self.leg_types.WHEELS)):  # two sketches
                 vsk.translate(leg_x_gain * self.body_width, 0)
@@ -1475,7 +1510,7 @@ class RobotsSketch(vsketch.SketchClass):
         self.shoulder_type_probs = np.array([self.shoulder_none_prob, self.shoulder_rect_prob, self.shoulder_circle_prob])
         self.hand_type_probs = np.array([self.hand_none_prob, self.hand_claw_prob, self.hand_horse_shoe_prob, self.hand_sawblade_prob])
         self.leg_type_probs = np.array([self.leg_tube_prob, self.leg_omni_prob, self.leg_wheels_prob, self.leg_wheel_prob])
-        self.foot_type_probs = np.array([self.foot_rect_prob, self.foot_arc_prob])
+        self.foot_type_probs = np.array([self.foot_shoe_prob, self.foot_arc_prob])
         self.panel_double_type_probs = np.array([self.panel_double_none_prob, self.panel_double_circle_prob, self.panel_double_rect_prob, self.panel_double_line_prob])
         self.panel_double_circle_type_probs = np.array([self.panel_double_circle_single_prob, self.panel_double_circle_filled_prob,
                                                    self.panel_double_circle_striped_prob, self.panel_double_circle_dot_prob])
