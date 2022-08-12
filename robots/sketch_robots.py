@@ -359,20 +359,34 @@ def generate_foot_shoe_sketch(width, height, detail="0.01", debug=False):
     foot_sketch.shape(hand_shape)
     return foot_sketch
 
-def generate_antenna_sketch(base_width, base_height, antenna_width, antenna_height, antenna_radius, rect=True, detail="0.01"):
+def generate_upper_antenna_sketch(base_width, base_height, antenna_width, antenna_height, antenna_radius, rect=True, detail="0.01"):
     antenna_sketch = vsketch.Vsketch()
     antenna_sketch.detail(detail)
     antenna_sketch.translate(0, -base_height)
     if rect:
         antenna_sketch.rect(0, 0.5 * base_height, base_width, base_height, mode="center")
     else:
-        antenna_sketch.arc(0, base_height, base_width, 2*base_height, 0, np.pi, close="chord")
+        antenna_sketch.arc(0, base_height, base_width, 2 * base_height, 0, np.pi, close="chord")
     antenna_sketch.translate(0, -0.5 * (antenna_height))
     antenna_sketch.rect(0, 0, antenna_width, antenna_height, mode="center")
     antenna_sketch.translate(0, -0.5 * (antenna_height + antenna_radius))
-    antenna_sketch.circle(0, 0, antenna_radius)
+    antenna_sketch.circle(0, 0, radius=antenna_radius)
     return antenna_sketch
 
+def generate_side_antenna_sketch(base_width, base_height, antenna_width, antenna_height, antenna_radius, rect=True, detail="0.01"):
+    antenna_sketch = vsketch.Vsketch()
+    antenna_sketch.detail(detail)
+    antenna_sketch.translate(-0.5 * base_width, 0)
+    with antenna_sketch.pushMatrix():
+        antenna_sketch.rect(-0.5 * antenna_width, -(antenna_height + 0.5 * base_height + antenna_radius), antenna_width, antenna_height + 0.5 * base_height + antenna_radius)
+        antenna_sketch.translate(0, -(antenna_height + antenna_radius + 0.5 * base_height))
+        antenna_sketch.circle(0, 0, radius=antenna_radius)
+    antenna_sketch.translate(0, -0.5 * base_height)
+    if rect:
+        antenna_sketch.rect(0, 0.5 * base_height, base_width, base_height, mode="center")
+    else:
+        antenna_sketch.arc(0.5 * base_width, 0.5 * base_height, 2 * base_width, base_height, 0.5 * np.pi, 1.5 * np.pi, close="chord")
+    return antenna_sketch
 
 ### Bodies:
 
@@ -439,11 +453,11 @@ def draw_grill_mouth(vsk, width, height, N_lines, rounded=True, line_through=Fal
 
 class RobotsSketch(vsketch.SketchClass):
     # Main parameters:
-    n_x = vsketch.Param(3, min_value=1)
-    n_y = vsketch.Param(4, min_value=1)
-    grid_dist_x = vsketch.Param(8.0)
-    grid_dist_y = vsketch.Param(9.0)
-    scale = vsketch.Param(0.7, decimals=2)
+    n_x = vsketch.Param(4, min_value=1)
+    n_y = vsketch.Param(6, min_value=1)
+    grid_dist_x = vsketch.Param(8.1)
+    grid_dist_y = vsketch.Param(8.4)
+    scale = vsketch.Param(0.55, decimals=2)
     
     debug = vsketch.Param(False)
     occult = vsketch.Param(True)
@@ -600,9 +614,9 @@ class RobotsSketch(vsketch.SketchClass):
     
     # Mouth parameters:
     mouth_types = Enum('MouthType', 'NONE SMILE GRILL LINE')
-    mouth_none_prob = vsketch.Param(0.1, min_value=0)
+    mouth_none_prob = vsketch.Param(0.05, min_value=0)
     mouth_smile_prob = vsketch.Param(0.25, min_value=0)
-    mouth_grill_prob = vsketch.Param(0.4, min_value=0)
+    mouth_grill_prob = vsketch.Param(0.45, min_value=0)
     mouth_line_prob = vsketch.Param(0.25, min_value=0)
     
     mouth_smile_width_gain_min = vsketch.Param(0.05, min_value=0)
@@ -628,20 +642,41 @@ class RobotsSketch(vsketch.SketchClass):
 
     # Antenna parameters:
     antenna_prob = vsketch.Param(0.4, min_value=0)
-    antenna_single_prob = vsketch.Param(0.4, min_value=0)
-    antenna_rect_base_prob = vsketch.Param(0.5, min_value=0)
-    antenna_base_width_min = vsketch.Param(0.2, min_value=0)
-    antenna_base_width_max = vsketch.Param(0.3, min_value=0)
-    antenna_base_height_min = vsketch.Param(0.1, min_value=0)
-    antenna_base_height_max = vsketch.Param(0.2, min_value=0)
-    antenna_width_min = vsketch.Param(0.04, min_value=0)
-    antenna_width_max = vsketch.Param(0.08, min_value=0)
-    antenna_height_min = vsketch.Param(0.2, min_value=0)
-    antenna_height_max = vsketch.Param(1.0, min_value=0)
-    antenna_radius_min = vsketch.Param(0.1, min_value=0)
-    antenna_radius_max = vsketch.Param(0.3, min_value=0)
-    antenna_x_gain_min = vsketch.Param(0.2, min_value=0)
-    antenna_x_gain_max = vsketch.Param(0.4, min_value=0)
+    
+    antenna_types = Enum('AntennaType', 'NONE UPPER_RECT UPPER_ARC SIDE')
+    antenna_none_prob = vsketch.Param(0.4, min_value=0)
+    antenna_upper_rect_prob = vsketch.Param(0.1, min_value=0)
+    antenna_upper_arc_prob = vsketch.Param(0.1, min_value=0)
+    antenna_side_prob = vsketch.Param(0.4, min_value=0)
+    
+    antenna_upper_single_prob = vsketch.Param(0.4, min_value=0)
+    antenna_upper_rect_base_prob = vsketch.Param(0.5, min_value=0)
+    antenna_upper_base_width_min = vsketch.Param(0.2, min_value=0)
+    antenna_upper_base_width_max = vsketch.Param(0.3, min_value=0)
+    antenna_upper_base_height_min = vsketch.Param(0.1, min_value=0)
+    antenna_upper_base_height_max = vsketch.Param(0.2, min_value=0)
+    antenna_upper_width_min = vsketch.Param(0.04, min_value=0)
+    antenna_upper_width_max = vsketch.Param(0.08, min_value=0)
+    antenna_upper_height_min = vsketch.Param(0.2, min_value=0)
+    antenna_upper_height_max = vsketch.Param(1.0, min_value=0)
+    antenna_upper_radius_min = vsketch.Param(0.05, min_value=0)
+    antenna_upper_radius_max = vsketch.Param(0.15, min_value=0)
+    antenna_upper_x_gain_min = vsketch.Param(0.2, min_value=0)
+    antenna_upper_x_gain_max = vsketch.Param(0.4, min_value=0)
+    
+    antenna_side_rect_prob = vsketch.Param(0.5, min_value=0, max_value=1)
+    antenna_side_base_width_min = vsketch.Param(0.2, min_value=0)
+    antenna_side_base_width_max = vsketch.Param(0.4, min_value=0)
+    antenna_side_base_height_min = vsketch.Param(0.1, min_value=0)
+    antenna_side_base_height_max = vsketch.Param(0.3, min_value=0)
+    antenna_side_width_min = vsketch.Param(0.04, min_value=0)
+    antenna_side_width_max = vsketch.Param(0.08, min_value=0)
+    antenna_side_height_min = vsketch.Param(0.2, min_value=0)
+    antenna_side_height_max = vsketch.Param(1.0, min_value=0)
+    antenna_side_radius_min = vsketch.Param(0.05, min_value=0)
+    antenna_side_radius_max = vsketch.Param(0.15, min_value=0)
+    antenna_side_y_gain_min = vsketch.Param(-0.7, min_value=0)
+    antenna_side_y_gain_max = vsketch.Param(0.2, min_value=0)
     
     # Arm parameters:
     arm_types = Enum('ArmType', 'NONE TUBE TUBE_CURVE STICK')
@@ -713,9 +748,9 @@ class RobotsSketch(vsketch.SketchClass):
     
     # Hand parameters:
     hand_types = Enum('HandType', 'NONE CLAW HORSE_SHOE SAWBLADE')
-    hand_none_prob = vsketch.Param(0.1, min_value=0)
-    hand_claw_prob = vsketch.Param(0.5, min_value=0)
-    hand_horse_shoe_prob = vsketch.Param(0.3, min_value=0)
+    hand_none_prob = vsketch.Param(0.05, min_value=0)
+    hand_claw_prob = vsketch.Param(0.525, min_value=0)
+    hand_horse_shoe_prob = vsketch.Param(0.325, min_value=0)
     hand_sawblade_prob = vsketch.Param(0.1, min_value=0)
     
     hand_claw_length_1_min = vsketch.Param(0.3, min_value=0)
@@ -1177,6 +1212,7 @@ class RobotsSketch(vsketch.SketchClass):
                 vsk.line(-0.5 * width - pad, self.mouth_y_offset + self.mouth_height + self.eye_radius + pad, 0.5 * width + pad, self.mouth_y_offset + self.mouth_height + self.eye_radius + pad)
                 vsk.line(-0.5 * width - pad, -self.eye_y - self.eye_radius - pad, -0.5 * width - pad, self.mouth_y_offset + self.mouth_height + self.eye_radius + pad)
                 vsk.line(0.5 * width + pad, -self.eye_y - self.eye_radius - pad, 0.5 * width + pad, self.mouth_y_offset + self.mouth_height + self.eye_radius + pad)
+                # vsk.rect(-0.5 * width - pad, -self.eye_y - self.eye_radius - pad, 0.5 * width + pad, self.mouth_y_offset + self.mouth_height + self.eye_radius + pad, mode="corners")
         else:
             if np.random.random_sample() < self.panel_prob:
                 panel_outer_padding = np.random.uniform(self.panel_outer_padding_gain_min, self.panel_outer_padding_gain_max) * self.body_width
@@ -1425,17 +1461,28 @@ class RobotsSketch(vsketch.SketchClass):
                 
         self.draw_body(vsk, not self.draw_head, debug)
         
-        draw_antenna = np.random.random_sample() < self.antenna_prob
+        antenna_choice = pick_random_element(self.antenna_types, self.antenna_type_probs)
+        draw_antenna = antenna_choice is not enum_type_to_int(self.antenna_types.NONE)
         if draw_antenna:
-            antenna_base_rect = np.random.random_sample() < self.antenna_rect_base_prob
-            antenna_base_width = np.random.uniform(self.antenna_base_width_min, self.antenna_base_width_max)
-            antenna_base_height = np.random.uniform(self.antenna_base_height_min, self.antenna_base_height_max)
-            antenna_width = np.random.uniform(self.antenna_width_min, self.antenna_width_max)
-            antenna_height = np.random.uniform(self.antenna_height_min, self.antenna_height_max)
-            antenna_radius = np.random.uniform(self.antenna_radius_min, self.antenna_radius_max)
-            antenna_sketch = generate_antenna_sketch(antenna_base_width, antenna_base_height, antenna_width, antenna_height,
-                                                     antenna_radius, rect=antenna_base_rect)
-        
+            if antenna_choice in (enum_type_to_int(self.antenna_types.UPPER_RECT), enum_type_to_int(self.antenna_types.UPPER_ARC)):
+                antenna_base_rect = antenna_choice == enum_type_to_int(self.head_types.RECT)
+                antenna_base_width = np.random.uniform(self.antenna_upper_base_width_min, self.antenna_upper_base_width_max)
+                antenna_base_height = np.random.uniform(self.antenna_upper_base_height_min, self.antenna_upper_base_height_max)
+                antenna_width = np.random.uniform(self.antenna_upper_width_min, self.antenna_upper_width_max)
+                antenna_height = np.random.uniform(self.antenna_upper_height_min, self.antenna_upper_height_max)
+                antenna_radius = np.random.uniform(self.antenna_upper_radius_min, self.antenna_upper_radius_max)
+                antenna_sketch = generate_upper_antenna_sketch(antenna_base_width, antenna_base_height, antenna_width, antenna_height,
+                                                        antenna_radius, rect=antenna_base_rect)
+            elif antenna_choice == enum_type_to_int(self.antenna_types.SIDE):
+                use_antenna_rect_base = np.random.random_sample() < self.antenna_side_rect_prob
+                antenna_base_width = np.random.uniform(self.antenna_side_base_width_min, self.antenna_side_base_width_max)
+                antenna_base_height = np.random.uniform(self.antenna_side_base_height_min, self.antenna_side_base_height_max)
+                antenna_width = np.random.uniform(self.antenna_side_width_min, self.antenna_side_width_max)
+                antenna_height = np.random.uniform(self.antenna_side_height_min, self.antenna_side_height_max)
+                antenna_radius = np.random.uniform(self.antenna_side_radius_min, self.antenna_side_radius_max)
+                antenna_sketch = generate_side_antenna_sketch(antenna_base_width, antenna_base_height, antenna_width, antenna_height,
+                                                              antenna_radius, rect=use_antenna_rect_base)
+
         if self.draw_head:
             with vsk.pushMatrix():
                 vsk.translate(0, -self.body_upper_height)
@@ -1476,32 +1523,40 @@ class RobotsSketch(vsketch.SketchClass):
                     
                 # Draw antennas:
                 if draw_antenna:
-                    vsk.translate(0, -head_upper_height)
-                    if head_choice in (enum_type_to_int(self.head_types.BULLET), enum_type_to_int(self.head_types.TRAPEZOID)) \
-                        or np.random.random_sample() < self.antenna_single_prob:
+                    if antenna_choice in (enum_type_to_int(self.antenna_types.UPPER_ARC), enum_type_to_int(self.antenna_types.UPPER_RECT)):
+                        vsk.translate(0, -head_upper_height)
+                        if head_choice in (enum_type_to_int(self.head_types.BULLET), enum_type_to_int(self.head_types.TRAPEZOID)) \
+                            or np.random.random_sample() < self.antenna_upper_single_prob:
+                            vsk.sketch(antenna_sketch)
+                        else:
+                            antenna_x_gain = np.random.uniform(self.antenna_upper_x_gain_min, self.antenna_upper_x_gain_max)
+                            antenna_x = np.min((np.max((antenna_x_gain * head_width, 0.5 * antenna_base_width)), 0.5 * (head_width - antenna_base_width)))
+                            vsk.translate(antenna_x, 0)
+                            vsk.sketch(antenna_sketch)
+                            vsk.translate(-2 * antenna_x, 0)
+                            vsk.sketch(antenna_sketch)
+                    elif antenna_choice == enum_type_to_int(self.antenna_types.SIDE) and head_choice == enum_type_to_int(self.head_types.RECT):
+                        antenna_y_gain = np.random.uniform(self.antenna_side_y_gain_min, self.antenna_side_y_gain_max)
+                        antenna_y = antenna_y_gain * head_upper_height
+                        vsk.translate(-0.5 * head_width, antenna_y)
                         vsk.sketch(antenna_sketch)
-                    else:
-                        antenna_x_gain = np.random.uniform(self.antenna_x_gain_min, self.antenna_x_gain_max)
-                        antenna_x = np.min((np.max((antenna_x_gain * head_width, 0.5 * antenna_base_width)), 0.5 * (head_width - antenna_base_width)))
-                        vsk.translate(antenna_x, 0)
-                        vsk.sketch(antenna_sketch)
-                        vsk.translate(-2 * antenna_x, 0)
+                        vsk.translate(head_width, 0)
+                        vsk.scale(-1, 1)
                         vsk.sketch(antenna_sketch)
         else:
             # Draw antennas:
-            if draw_antenna:
+            if draw_antenna and antenna_choice is not enum_type_to_int(self.antenna_types.SIDE):
                 with vsk.pushMatrix():
                     vsk.translate(0, -self.body_upper_height)
-                    if self.body_choice == enum_type_to_int(self.body_types.BULLET) or np.random.random_sample() < self.antenna_single_prob:
+                    if self.body_choice == enum_type_to_int(self.body_types.BULLET) or np.random.random_sample() < self.antenna_upper_single_prob:
                         vsk.sketch(antenna_sketch)
                     else:
-                        antenna_x_gain = np.random.uniform(self.antenna_x_gain_min, self.antenna_x_gain_max)
+                        antenna_x_gain = np.random.uniform(self.antenna_upper_x_gain_min, self.antenna_upper_x_gain_max)
                         antenna_x = np.min((np.max((antenna_x_gain * self.body_width, 0.5 * antenna_base_width)), 0.5 * (self.body_width - antenna_base_width)))
                         vsk.translate(antenna_x, 0)
                         vsk.sketch(antenna_sketch)
                         vsk.translate(-2 * antenna_x, 0)
                         vsk.sketch(antenna_sketch)
-            
             
         vsk.translate(0, self.body_lower_height + leg_length)  # reset position
         
@@ -1516,6 +1571,7 @@ class RobotsSketch(vsketch.SketchClass):
         self.mouth_type_probs = np.array([self.mouth_none_prob, self.mouth_smile_prob, self.mouth_grill_prob, self.mouth_line_prob])
         self.eye_type_probs = np.array([self.eye_point_prob, self.eye_ellipse_point_prob, self.eye_circle_prob, self.eye_rect_prob,
                                         self.eye_circle_single_prob, self.eye_circle_empty_prob])
+        self.antenna_type_probs = np.array([self.antenna_none_prob, self.antenna_upper_rect_prob, self.antenna_upper_arc_prob, self.antenna_side_prob])
         self.arm_type_probs = np.array([self.arm_none_prob, self.arm_tube_prob, self.arm_tube_curve_prob, self.arm_stick_prob])
         self.shoulder_type_probs = np.array([self.shoulder_none_prob, self.shoulder_rect_prob, self.shoulder_circle_prob])
         self.hand_type_probs = np.array([self.hand_none_prob, self.hand_claw_prob, self.hand_horse_shoe_prob, self.hand_sawblade_prob])
@@ -1525,13 +1581,7 @@ class RobotsSketch(vsketch.SketchClass):
         self.panel_double_circle_type_probs = np.array([self.panel_double_circle_single_prob, self.panel_double_circle_filled_prob,
                                                    self.panel_double_circle_striped_prob, self.panel_double_circle_dot_prob])
         self.panel_double_rect_type_probs = np.array([self.panel_double_rect_single_prob, self.panel_double_rect_filled_prob, self.panel_double_rect_striped_prob])
-        
-        # test_bezier(vsk)
-        # test_line_thick(vsk)
-        
-        # tree = QuadTree(4.0, 5.0, 0.1, 0.075)
-        # tree.draw(vsk)
-        
+                
         for y in range(self.n_y):
             with vsk.pushMatrix():
                 for x in range(self.n_x):
