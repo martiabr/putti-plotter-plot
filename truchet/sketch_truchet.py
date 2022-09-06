@@ -243,6 +243,7 @@ class TruchetSketch(vsketch.SketchClass):
         
     def draw(self, vsk: vsketch.Vsketch) -> None:
         vsk.size("a4", landscape=False)
+        # vsk.size("15cm", "20cm", landscape=False)  # 15 x 20 cm
         vsk.scale("cm")
         vsk.detail("0.1mm")
         
