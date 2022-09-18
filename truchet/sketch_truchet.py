@@ -79,7 +79,6 @@ class TruchetSketch(vsketch.SketchClass):
             tiles[3].line(self.size / 2 + dx, 0, self.size / 2 + dx, self.size)
             tiles[3].line(0, self.size / 2 + dx, self.size / 2 - skip, self.size / 2 + dx)
             tiles[3].line(self.size / 2 + skip, self.size / 2 + dx, self.size, self.size / 2 + dx)
-
         else:
             tiles[2].line(self.size / 2 + dx, 0, self.size / 2 + dx, self.size)
             tiles[2].line(0, self.size / 2 + dx, self.size, self.size / 2 + dx)
@@ -259,7 +258,6 @@ class TruchetSketch(vsketch.SketchClass):
         # vsk.penWidth("1mm", 2)
         # vsk.polygon([(0,0), (self.size,0), (self.size, self.size)], close=True)
         
-        # TODO: first make grid of ints, then refine (remove circles), then draw
         index_grid = np.zeros((self.n_x, self.n_y), dtype=int)
         for y in range(self.n_y):
             for x in range(self.n_x):
