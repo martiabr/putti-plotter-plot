@@ -90,4 +90,5 @@ How to do this?
 
 - Experiment with adding noise to tiles for a more chaotic look.
 - Experiment with bezier curves and possible 2 or 3 lines on each tile edge for a more choatic "shoelace" look 
-- More variations of the standard tiles 
+- More variations of the standard tiles
+- "Infinite circuit" drawing? 
