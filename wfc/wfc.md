@@ -92,3 +92,4 @@ How to do this?
 - Experiment with bezier curves and possible 2 or 3 lines on each tile edge for a more choatic "shoelace" look 
 - More variations of the standard tiles
 - "Infinite circuit" drawing? 
+- Add border constraints. Such that we can generate grids with smooth borders.
