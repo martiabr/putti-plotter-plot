@@ -71,10 +71,6 @@ How to do this?
   - Make sure to ignore already collapsed cells
 - Repeat
 
-- Need code to turn list of rules to doubly covered and 2D array
-  - Wait a minute. Rules dont necessarily go both ways...
-- If rule is A must be below B, we actually need to check if tile above cannot be B and if so remove it from possibilities...
-
 - Pop queue
 - Get valid tiles for cell
 - For each tile
@@ -87,7 +83,14 @@ How to do this?
       - must be true:
         - check that tile is still in possible tiles for other cell
 
+---
 
+# TODO:
+- [x] Make loop better
+- [x] Debug draw grid
+- [ ] Debug draw tile index in corner
+
+### Ideas:
 - Experiment with adding noise to tiles for a more chaotic look.
 - Experiment with bezier curves and possible 2 or 3 lines on each tile edge for a more choatic "shoelace" look 
 - More variations of the standard tiles

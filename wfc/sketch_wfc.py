@@ -1,3 +1,5 @@
+import random
+from iso import draw_grid
 import vsketch
 from enum import Enum
 import numpy as np
@@ -40,12 +42,10 @@ def delta_to_dir(delta):
     
 
 class Tile():
-    id_iter = count()    
-    
-    def __init__(self, subsketch, prob) -> None:
+    def __init__(self, subsketch, prob, index) -> None:
         self.subsketch = subsketch
         self.prob = prob
-        self.index = next(self.id_iter)
+        self.index = index
     
     def draw(self, vsk):
         vsk.sketch(self.subsketch)
@@ -80,10 +80,15 @@ class WFC():
         self.final_map = np.full((self.N_rows, self.N_cols), np.nan)
         self.entropy = self.calculate_entropy()
         
-        self._neighbour_indices = np.array([[-1,0], [1,0], [0,-1], [0,1]])
+        self.neighbour_indices = np.array([[-1,0], [1,0], [0,-1], [0,1]])
     
-    def draw(self, vsk):
-        pass
+    def draw(self, vsk, debug_indices=False, size=1.0):
+        for row in range(self.N_rows):
+            for col in range(self.N_cols):
+                if debug_indices:
+                    vsk.stroke(2)
+                    vsk.vpype(f"text -f rowmans -s 8 -p {size * col + 0.05}cm {size * row + 0.2}cm \"T{int(self.final_map[row, col])}\"")
+                    vsk.stroke(1)
     
     def is_collapsed(self, row, col):
         return np.isnan(self.entropy[row, col])
@@ -133,7 +138,7 @@ class WFC():
         """Retrieve valid neighbours of cell in (x,y).
         Valid means the neighbouring cells are within the bounds of the grid.
         """
-        neighbour_indices = np.array([row, col]) + self._neighbour_indices
+        neighbour_indices = np.array([row, col]) + self.neighbour_indices
         neighbour_indices = neighbour_indices[(neighbour_indices[:,0] >= 0) & (neighbour_indices[:,0] < self.N_rows) & \
             (neighbour_indices[:,1] >= 0) & (neighbour_indices[:,1] < self.N_cols)]
         return neighbour_indices
@@ -202,7 +207,7 @@ class WFC():
                 queue.extend([indices for indices in valid_noncollapsed_neighbours])
             
             print("\n")
-        
+            
     def iterate(self):
         row, col = self.pick_lowest_entropy_cell(self.entropy)
         # x, y = 0, 1
@@ -213,32 +218,49 @@ class WFC():
         print("Possibilities:\n", self.possibilities)
         self.propagate(row, col, tile_index)
         print("Entropy after propagation:\n", self.entropy)
-        
+        return np.isnan(self.entropy).all()
+    
+    def solve(self):
+        while not self.iterate():
+            pass
+            
 
 class WfcSketch(vsketch.SketchClass):
-    n_x = vsketch.Param(2)
-    n_y = vsketch.Param(2)
+    n_rows = vsketch.Param(2)
+    n_cols = vsketch.Param(2)
     tile_size = vsketch.Param(1.0)
     
+    debug_grid = vsketch.Param(False)
+    debug_indices = vsketch.Param(False)
+    
+    def draw_grid(self, vsk):
+        vsk.stroke(2)
+        for row in range(self.n_rows + 1):
+            vsk.line(0, row, self.n_cols, row)
+        for col in range(self.n_cols + 1):
+            vsk.line(col, 0, col, self.n_rows)
+        vsk.stroke(1)
+            
     def draw(self, vsk: vsketch.Vsketch) -> None:
         vsk.size("a4", landscape=False)
         vsk.scale("cm")
-
+        vsk.scale(self.tile_size, self.tile_size)
+        
+        if self.debug_grid:
+            self.draw_grid(vsk)
+                    
         tile_1_sketch = vsketch.Vsketch()
         tile_1_sketch.rect(0, 0, 0.1, 0.1, mode="radius")
-        tile_1 = Tile(tile_1_sketch, 0.5)
+        tile_1 = Tile(tile_1_sketch, 0.5, 0)
         tile_2_sketch = vsketch.Vsketch()
         tile_2_sketch.circle(0, 0, 0.1, mode="radius")
-        tile_2 = Tile(tile_2_sketch, 0.5)
+        tile_2 = Tile(tile_2_sketch, 0.5, 1)
         tileset = [tile_1, tile_2]
         ruleset = [[Rule(tile_1, tile_2, Direction.DOWN, must_be=True)], []]
                 
-        wfc = WFC(tileset, ruleset, self.n_x, self.n_y)
-        wfc.iterate()
-        wfc.iterate()
-        wfc.iterate()
-        wfc.iterate()
-        # wfc.draw(vsk)
+        wfc = WFC(tileset, ruleset, self.n_rows, self.n_cols)
+        wfc.solve()
+        wfc.draw(vsk, debug_indices=self.debug_indices, size=self.tile_size)
 
     def finalize(self, vsk: vsketch.Vsketch) -> None:
         vsk.vpype("linemerge linesimplify reloop linesort")
