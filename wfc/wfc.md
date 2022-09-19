@@ -9,6 +9,11 @@ https://www.procjam.com/tutorials/wfc/
 https://robertheaton.com/2018/12/17/wavefunction-collapse-algorithm/
 https://terbium.io/2018/11/wave-function-collapse/
 
+
+https://www.jackbrewer.co.uk/plot/truchet-tiles
+https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.378.5320&rep=rep1&type=pdf#page=69
+https://www.skillshare.com/projects/Truchet-Tiles-in-Python-Mode-for-Processing/390887
+
 ---
 
 ### Rules:
@@ -81,3 +86,8 @@ How to do this?
         - only check that other cell in DIR of cell is not collapsed and not collapsed to tile
       - must be true:
         - check that tile is still in possible tiles for other cell
+
+
+- Experiment with adding noise to tiles for a more chaotic look.
+- Experiment with bezier curves and possible 2 or 3 lines on each tile edge for a more choatic "shoelace" look 
+- More variations of the standard tiles 
