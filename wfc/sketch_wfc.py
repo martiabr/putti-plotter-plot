@@ -201,6 +201,15 @@ class WFC():
                                 self.possibilities[row, col, tile_index] = False
                                 possibilties_updated = True  # flag cell as updated
                                 break  # short circuit, no need to continue checking rules if one rule is already broken
+                                
+                    # reversed_dir = reverse_dir(rule.dir)
+                    # if reversed_dir in valid_directions:
+                        # row_other, col_other = self.dir_to_cell(row, col, reversed_dir)
+                        # if rule.must_be and not self.possibilities[row_other, col_other, rule.tile_index]:
+                            # self.possibilities[row, col, rule._other_tile_index] = False
+                            # TODO: do we need to check not must be also here?
+                            
+                
             if possibilties_updated:
                 self.entropy[row, col] = self.calculate_cell_entropy(row, col)  # update entropy
                 valid_noncollapsed_neighbours = self.get_valid_noncollapsed_neighbours(row, col, self.entropy)
