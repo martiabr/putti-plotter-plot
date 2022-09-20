@@ -85,16 +85,18 @@ How to do this?
 
 ---
 
-Some logic is missing.
+False rules still dont work...
 
-saying that "tile1 below tile0 must be true" is the same as saying "all other tiles below tile0 must be false"
 
 ---
 
 # TODO:
 - [x] Make loop better
 - [x] Debug draw grid
-- [ ] Debug draw tile index in corner
+- [x] Debug draw tile index in corner
+- [x] Optional debug print
+- [x] Draw tiles
+- [ ] Numba?
 
 ### Ideas:
 - Experiment with adding noise to tiles for a more chaotic look.

@@ -39,7 +39,9 @@ def delta_to_dir(delta):
         return Direction.UP
     else:
         raise Exception(f"Invalid delta {delta}.")
-    
+
+def reverse_dir(dir):
+    return Direction((dir.value + 2) % 4)
 
 class Tile():
     def __init__(self, subsketch, prob, index) -> None:
@@ -89,6 +91,15 @@ class WFC():
                     vsk.stroke(2)
                     vsk.vpype(f"text -f rowmans -s 8 -p {size * col + 0.05}cm {size * row + 0.2}cm \"T{int(self.final_map[row, col])}\"")
                     vsk.stroke(1)
+                    
+        with vsk.pushMatrix():
+            vsk.translate(0.5 * size, 0.5 * size)
+            for row in range(self.N_rows):
+                with vsk.pushMatrix():
+                    for col in range(self.N_cols):
+                        vsk.sketch(self.tileset[int(self.final_map[row, col])].subsketch)
+                        vsk.translate(size, 0)
+                vsk.translate(0, size)
     
     def is_collapsed(self, row, col):
         return np.isnan(self.entropy[row, col])
@@ -158,7 +169,7 @@ class WFC():
         neighbour_indices = np.array([indices for indices in neighbour_indices if not np.isnan(entropy[indices[0],indices[1]])])
         return neighbour_indices
     
-    def propagate(self, row_collapsed, col_collapsed, tile_index_collapsed):
+    def propagate(self, row_collapsed, col_collapsed, debug=False):
         # find neighbours that are not collapsed and not outside bounds
         # add them to FIFO queue
         # iterate
@@ -169,78 +180,86 @@ class WFC():
         # Need to think about this more. For now just check all.
         
         neighbour_indices = self.get_valid_noncollapsed_neighbours(row_collapsed, col_collapsed, self.entropy)
-        print("Neighbours in queue:\n", neighbour_indices,"\n")
+        if debug: print("Neighbours in queue:\n", neighbour_indices,"\n")
         
         queue = deque([indices for indices in neighbour_indices])
         
         while queue:
             row, col = queue.popleft()
-            print(f"Popped ({row}, {col}).")
+            if debug: print(f"Popped ({row}, {col}).")
             
             valid_tile_indices = self.get_valid_possibilities_indices(row, col)
-            print(f"Valid tiles: {valid_tile_indices}")
+            if debug: print(f"Valid tiles: {valid_tile_indices}")
             
             valid_directions = self.get_valid_directions(row, col)
-            print(f"Valid directions: {[d.name for d in valid_directions]}")
+            if debug: print(f"Valid directions: {[d.name for d in valid_directions]}")
             
             possibilties_updated = False
             
             for tile_index in valid_tile_indices:
-                print(f"Checking tile {tile_index}")
+                if debug: print(f"Checking tile {tile_index}")
                 rules = self.ruleset[tile_index]
                 
+                rules_finished_forward = False
                 for rule in rules:
-                    print(f"Checking rule: tile {rule.dir} of T{rule.tile.index} must be T{rule.other_tile.index} {rule.must_be}")
-                    if rule.dir in valid_directions:
+                    if debug: print(f"\tChecking rule: tile {rule.dir} of T{rule.tile.index} must be T{rule.other_tile.index} {rule.must_be}")
+                    if rule.dir in valid_directions and not rules_finished_forward:
                         row_other, col_other = self.dir_to_cell(row, col, rule.dir)
-                        print(f"Cell to check is ({row_other}, {col_other}).")
+                        if debug: print(f"\t\tCell to check is ({row_other}, {col_other}).")
                         if (rule.must_be and not self.possibilities[row_other, col_other, rule.other_tile.index]) or \
                             (not rule.must_be and self.is_collapsed(row_other, col_other) and \
                             self.final_map[row_other, col_other] == rule.other_tile.index):
-                                print("**Rule broken. Removing possibility.**")
+                                if debug: print(f"\t\t**Rule broken. Removing possibility {tile_index} from ({row}, {col}).**")
                                 self.possibilities[row, col, tile_index] = False
                                 possibilties_updated = True  # flag cell as updated
-                                break  # short circuit, no need to continue checking rules if one rule is already broken
-                                
-                    # reversed_dir = reverse_dir(rule.dir)
-                    # if reversed_dir in valid_directions:
-                        # row_other, col_other = self.dir_to_cell(row, col, reversed_dir)
-                        # if rule.must_be and not self.possibilities[row_other, col_other, rule.tile_index]:
-                            # self.possibilities[row, col, rule._other_tile_index] = False
-                            # TODO: do we need to check not must be also here?
+                                rules_finished_forward = True
                             
-                
+                    reversed_dir = reverse_dir(rule.dir)
+                    if reversed_dir in valid_directions:
+                        row_other, col_other = self.dir_to_cell(row, col, reversed_dir)
+                        if debug: print(f"\t\t(Reversed) cell to check is ({row_other}, {col_other}).")
+
+                        if self.is_collapsed(row_other, col_other) and not rule.must_be and \
+                            self.final_map[row_other, col_other] == rule.tile.index:
+                            self.possibilities[row, col, rule.other_tile.index] = False
+                            possibilties_updated = True  # flag cell as updated
+                                
+                        if self.is_collapsed(row_other, col_other) and rule.must_be and \
+                            self.possibilities[row_other, col_other, rule.tile.index]:
+                            if debug: print(f"\t\t**Rule broken. Removing possibility {rule.other_tile.index} from ({row}, {col}).**")
+                            self.possibilities[row, col, :] = False
+                            self.possibilities[row, col, rule.other_tile.index] = True
+                            possibilties_updated = True  # flag cell as updated
+                            
             if possibilties_updated:
                 self.entropy[row, col] = self.calculate_cell_entropy(row, col)  # update entropy
                 valid_noncollapsed_neighbours = self.get_valid_noncollapsed_neighbours(row, col, self.entropy)
                 queue.extend([indices for indices in valid_noncollapsed_neighbours])
             
-            print("\n")
+            if debug: print("\n")
             
-    def iterate(self):
+    def iterate(self, debug=False):
         row, col = self.pick_lowest_entropy_cell(self.entropy)
-        # x, y = 0, 1
         tile_index = self.collapse_cell(row, col)
-        print(f"Picked Tile {tile_index} at ({row}, {col}).")
-        print("Map after collapse:\n", self.final_map)
-        print("Entropy after collapse:\n", self.entropy)
-        # print("Possibilities:\n", self.possibilities)
-        self.propagate(row, col, tile_index)
-        print("Entropy after propagation:\n", self.entropy)
+        if debug: print(f"Picked Tile {tile_index} at ({row}, {col}).")
+        if debug: print("Map after collapse:\n", self.final_map)
+        if debug: print("Entropy after collapse:\n", self.entropy)
+        self.propagate(row, col, debug)
+        if debug: print("Entropy after propagation:\n", self.entropy)
         return np.isnan(self.entropy).all()
     
-    def solve(self):
-        while not self.iterate():
+    def solve(self, debug=False):
+        while not self.iterate(debug):
             pass
             
 
 class WfcSketch(vsketch.SketchClass):
-    n_rows = vsketch.Param(2)
-    n_cols = vsketch.Param(2)
+    n_rows = vsketch.Param(3)
+    n_cols = vsketch.Param(3)
     tile_size = vsketch.Param(1.0)
     
-    debug_grid = vsketch.Param(False)
-    debug_indices = vsketch.Param(False)
+    debug_grid = vsketch.Param(True)
+    debug_indices = vsketch.Param(True)
     
     def draw_grid(self, vsk):
         vsk.stroke(2)
@@ -259,16 +278,28 @@ class WfcSketch(vsketch.SketchClass):
             self.draw_grid(vsk)
                     
         tile_0_sketch = vsketch.Vsketch()
-        tile_0_sketch.rect(0, 0, 0.1, 0.1, mode="radius")
+        tile_0_sketch.detail("0.01mm")
+        tile_0_sketch.rect(0, 0, 0.2, 0.2, mode="radius")
         tile_0 = Tile(tile_0_sketch, 0.5, 0)
+        
         tile_1_sketch = vsketch.Vsketch()
-        tile_1_sketch.circle(0, 0, 0.1, mode="radius")
+        tile_1_sketch.detail("0.01mm")
+        tile_1_sketch.circle(0, 0, 0.2, mode="radius")
         tile_1 = Tile(tile_1_sketch, 0.5, 1)
-        tileset = [tile_0, tile_1]
-        ruleset = [[Rule(tile_0, Direction.DOWN, tile_1, must_be=True)], []]
+        
+        tile_2_sketch = vsketch.Vsketch()
+        tile_2_sketch.detail("0.01mm")
+        tile_2_sketch.line(-0.2, 0, 0.2, 0.0)
+        tile_2_sketch.line(0, -0.2, 0.0, 0.2)
+        tile_2 = Tile(tile_2_sketch, 0.5, 2)
+        
+        tileset = [tile_0, tile_1, tile_2]
+        
+        ruleset = [[Rule(tile_0, Direction.DOWN, tile_1, must_be=True)], [], [Rule(tile_2, Direction.DOWN, tile_1, must_be=False)]]
+        # ruleset = [[Rule(tile_0, Direction.DOWN, tile_1, must_be=False)], [], []]
                 
         wfc = WFC(tileset, ruleset, self.n_rows, self.n_cols)
-        wfc.solve()
+        wfc.solve(debug=False)
         wfc.draw(vsk, debug_indices=self.debug_indices, size=self.tile_size)
 
     def finalize(self, vsk: vsketch.Vsketch) -> None:
