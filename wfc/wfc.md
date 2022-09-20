@@ -85,6 +85,12 @@ How to do this?
 
 ---
 
+Some logic is missing.
+
+saying that "tile1 below tile0 must be true" is the same as saying "all other tiles below tile0 must be false"
+
+---
+
 # TODO:
 - [x] Make loop better
 - [x] Debug draw grid

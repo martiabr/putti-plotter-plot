@@ -19,23 +19,23 @@ class Direction(Enum):
 
 def dir_to_delta(dir):
     if dir == Direction.RIGHT:
-        return np.array([1, 0])
-    elif dir == Direction.DOWN:
         return np.array([0, 1])
+    elif dir == Direction.DOWN:
+        return np.array([1, 0])
     elif dir == Direction.LEFT:
-        return np.array([-1, 0])
-    elif dir == Direction.UP:
         return np.array([0, -1])
+    elif dir == Direction.UP:
+        return np.array([-1, 0])
 
 
 def delta_to_dir(delta):
-    if np.allclose(delta, np.array([1, 0])):
+    if np.allclose(delta, np.array([0, 1])):
         return Direction.RIGHT
-    elif np.allclose(delta, np.array([0, 1])):
+    elif np.allclose(delta, np.array([1, 0])):
         return Direction.DOWN
-    elif np.allclose(delta, np.array([-1, 0])):
-        return Direction.LEFT
     elif np.allclose(delta, np.array([0, -1])):
+        return Direction.LEFT
+    elif np.allclose(delta, np.array([-1, 0])):
         return Direction.UP
     else:
         raise Exception(f"Invalid delta {delta}.")
@@ -52,7 +52,7 @@ class Tile():
         
     
 class Rule():
-    def __init__(self, tile, other_tile, dir, must_be) -> None:
+    def __init__(self, tile, dir, other_tile, must_be) -> None:
         """_summary_
 
         Args:
@@ -158,7 +158,7 @@ class WFC():
         neighbour_indices = np.array([indices for indices in neighbour_indices if not np.isnan(entropy[indices[0],indices[1]])])
         return neighbour_indices
     
-    def propagate(self, row_collapsed, col_collapsed, tile_index):
+    def propagate(self, row_collapsed, col_collapsed, tile_index_collapsed):
         # find neighbours that are not collapsed and not outside bounds
         # add them to FIFO queue
         # iterate
@@ -215,7 +215,7 @@ class WFC():
         print(f"Picked Tile {tile_index} at ({row}, {col}).")
         print("Map after collapse:\n", self.final_map)
         print("Entropy after collapse:\n", self.entropy)
-        print("Possibilities:\n", self.possibilities)
+        # print("Possibilities:\n", self.possibilities)
         self.propagate(row, col, tile_index)
         print("Entropy after propagation:\n", self.entropy)
         return np.isnan(self.entropy).all()
@@ -249,14 +249,14 @@ class WfcSketch(vsketch.SketchClass):
         if self.debug_grid:
             self.draw_grid(vsk)
                     
+        tile_0_sketch = vsketch.Vsketch()
+        tile_0_sketch.rect(0, 0, 0.1, 0.1, mode="radius")
+        tile_0 = Tile(tile_0_sketch, 0.5, 0)
         tile_1_sketch = vsketch.Vsketch()
-        tile_1_sketch.rect(0, 0, 0.1, 0.1, mode="radius")
-        tile_1 = Tile(tile_1_sketch, 0.5, 0)
-        tile_2_sketch = vsketch.Vsketch()
-        tile_2_sketch.circle(0, 0, 0.1, mode="radius")
-        tile_2 = Tile(tile_2_sketch, 0.5, 1)
-        tileset = [tile_1, tile_2]
-        ruleset = [[Rule(tile_1, tile_2, Direction.DOWN, must_be=True)], []]
+        tile_1_sketch.circle(0, 0, 0.1, mode="radius")
+        tile_1 = Tile(tile_1_sketch, 0.5, 1)
+        tileset = [tile_0, tile_1]
+        ruleset = [[Rule(tile_0, Direction.DOWN, tile_1, must_be=True)], []]
                 
         wfc = WFC(tileset, ruleset, self.n_rows, self.n_cols)
         wfc.solve()
