@@ -85,11 +85,6 @@ How to do this?
 
 ---
 
-False rules still dont work...
-
-
----
-
 # TODO:
 - [x] Make loop better
 - [x] Debug draw grid
@@ -97,6 +92,8 @@ False rules still dont work...
 - [x] Optional debug print
 - [x] Draw tiles
 - [ ] Numba?
+- [x] Function for generating tileset nicely
+- [ ] Fix sampling of tiles using prob
 
 ### Ideas:
 - Experiment with adding noise to tiles for a more chaotic look.

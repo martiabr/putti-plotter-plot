@@ -130,7 +130,7 @@ class WFC():
     
     def collapse_cell(self, row, col):
         valid_indices = np.where(self.possibilities[row, col])[0]
-        picked_index = np.random.choice(valid_indices)
+        picked_index = np.random.choice(valid_indices, p=[self.tileset[index].prob for index in valid_indices])
         self.possibilities[row, col, :] = False
         self.possibilities[row, col, picked_index] = True
         self.final_map[row, col] = picked_index
@@ -254,12 +254,14 @@ class WFC():
             
 
 class WfcSketch(vsketch.SketchClass):
-    n_rows = vsketch.Param(3)
-    n_cols = vsketch.Param(3)
+    n_rows = vsketch.Param(6)
+    n_cols = vsketch.Param(6)
     tile_size = vsketch.Param(1.0)
     
     debug_grid = vsketch.Param(True)
     debug_indices = vsketch.Param(True)
+    
+    detail = "0.01mm"
     
     def draw_grid(self, vsk):
         vsk.stroke(2)
@@ -268,6 +270,41 @@ class WfcSketch(vsketch.SketchClass):
         for col in range(self.n_cols + 1):
             vsk.line(col, 0, col, self.n_rows)
         vsk.stroke(1)
+        
+    def new_tile_sketch(self):
+        tile_sketch = vsketch.Vsketch()
+        tile_sketch.detail(self.detail)
+        return tile_sketch
+        
+    def generate_knot_tileset(self, width=0.0, skip=0.0):
+        probs = np.array([1.0, 1.0, 1.0])
+        probs = probs / np.sum(probs)
+        
+        tile_sketches = []
+        for i in range(probs.shape[0]):
+            tile_sketches.append(self.new_tile_sketch())
+        
+        # tile_sketches[0].rect(0, 0, 0.2, 0.2, mode="radius")
+        
+        # tile_sketches[1].circle(0, 0, 0.2, mode="radius")
+        
+        # tile_sketches[2].line(-0.2, 0, 0.2, 0.0)
+        # tile_sketches[2].line(0, -0.2, 0.0, 0.2)
+        
+        tile_sketches[0].arc(-0.5 * self.tile_size, -0.5 * self.tile_size, self.tile_size + width, self.tile_size + width, 3*np.pi/2, 2*np.pi)
+        tile_sketches[0].arc(0.5 * self.tile_size, 0.5 * self.tile_size, self.tile_size + width, self.tile_size + width, np.pi/2, np.pi)
+        
+        tile_sketches[1].arc(0.5 * self.tile_size,  -0.5 * self.tile_size, self.tile_size + width, self.tile_size + width, np.pi, 3*np.pi/2)
+        tile_sketches[1].arc( -0.5 * self.tile_size, 0.5 * self.tile_size, self.tile_size + width, self.tile_size + width, 0, np.pi/2)
+        
+        tile_sketches[2].line(0, -0.5 * self.tile_size, 0, - skip)
+        tile_sketches[2].line(0, skip, 0.5 * width, 0.5 * self.tile_size)
+        tile_sketches[2].line(-0.5 * self.tile_size, 0.5 * width, 0.5 * self.tile_size, 0.5 * width)
+        
+        tiles = []
+        for index, (sketch, prob) in enumerate(zip(tile_sketches, probs)):
+            tiles.append(Tile(sketch, prob, index))
+        return tiles
             
     def draw(self, vsk: vsketch.Vsketch) -> None:
         vsk.size("a4", landscape=False)
@@ -277,26 +314,10 @@ class WfcSketch(vsketch.SketchClass):
         if self.debug_grid:
             self.draw_grid(vsk)
                     
-        tile_0_sketch = vsketch.Vsketch()
-        tile_0_sketch.detail("0.01mm")
-        tile_0_sketch.rect(0, 0, 0.2, 0.2, mode="radius")
-        tile_0 = Tile(tile_0_sketch, 0.5, 0)
+        tileset = self.generate_knot_tileset()
         
-        tile_1_sketch = vsketch.Vsketch()
-        tile_1_sketch.detail("0.01mm")
-        tile_1_sketch.circle(0, 0, 0.2, mode="radius")
-        tile_1 = Tile(tile_1_sketch, 0.5, 1)
-        
-        tile_2_sketch = vsketch.Vsketch()
-        tile_2_sketch.detail("0.01mm")
-        tile_2_sketch.line(-0.2, 0, 0.2, 0.0)
-        tile_2_sketch.line(0, -0.2, 0.0, 0.2)
-        tile_2 = Tile(tile_2_sketch, 0.5, 2)
-        
-        tileset = [tile_0, tile_1, tile_2]
-        
-        ruleset = [[Rule(tile_0, Direction.DOWN, tile_1, must_be=True)], [], [Rule(tile_2, Direction.DOWN, tile_1, must_be=False)]]
-        # ruleset = [[Rule(tile_0, Direction.DOWN, tile_1, must_be=False)], [], []]
+        # ruleset = [[Rule(tile_0, Direction.DOWN, tile_1, must_be=True)], [], [Rule(tile_2, Direction.DOWN, tile_1, must_be=False)]]
+        ruleset = [[], [], []]
                 
         wfc = WFC(tileset, ruleset, self.n_rows, self.n_cols)
         wfc.solve(debug=False)
