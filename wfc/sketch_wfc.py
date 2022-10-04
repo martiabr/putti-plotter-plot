@@ -69,6 +69,26 @@ class Rule():
         self.dir = dir
         self.must_be = must_be
         
+        
+def draw_map(map, tileset, vsk, debug_indices=False, size=1.0):
+    N_rows, N_cols = map.shape
+    for row in range(N_rows):
+        for col in range(N_cols):
+            if debug_indices and int(map[row, col]) >= 0:
+                vsk.stroke(2)
+                vsk.vpype(f"text -f rowmans -s 8 -p {size * col + 0.05}cm {size * row + 0.2}cm \"T{int(map[row, col])}\"")
+                vsk.stroke(1)
+                
+    with vsk.pushMatrix():
+        vsk.translate(0.5 * size, 0.5 * size)
+        for row in range(N_rows):
+            with vsk.pushMatrix():
+                for col in range(N_cols):
+                    if int(map[row, col]) >= 0:
+                        vsk.sketch(tileset[int(map[row, col])].subsketch)
+                        vsk.translate(size, 0)
+            vsk.translate(0, size)
+        
 
 class WFC():
     def __init__(self, tileset, ruleset, N_rows, N_cols) -> None:
@@ -85,21 +105,7 @@ class WFC():
         self.neighbour_indices = np.array([[-1,0], [1,0], [0,-1], [0,1]])
     
     def draw(self, vsk, debug_indices=False, size=1.0):
-        for row in range(self.N_rows):
-            for col in range(self.N_cols):
-                if debug_indices:
-                    vsk.stroke(2)
-                    vsk.vpype(f"text -f rowmans -s 8 -p {size * col + 0.05}cm {size * row + 0.2}cm \"T{int(self.final_map[row, col])}\"")
-                    vsk.stroke(1)
-                    
-        with vsk.pushMatrix():
-            vsk.translate(0.5 * size, 0.5 * size)
-            for row in range(self.N_rows):
-                with vsk.pushMatrix():
-                    for col in range(self.N_cols):
-                        vsk.sketch(self.tileset[int(self.final_map[row, col])].subsketch)
-                        vsk.translate(size, 0)
-                vsk.translate(0, size)
+        draw_map(self.final_map, self.tileset, vsk, debug_indices, size)
     
     def is_collapsed(self, row, col):
         return np.isnan(self.entropy[row, col])
@@ -130,7 +136,9 @@ class WFC():
     
     def collapse_cell(self, row, col):
         valid_indices = np.where(self.possibilities[row, col])[0]
-        picked_index = np.random.choice(valid_indices, p=[self.tileset[index].prob for index in valid_indices])
+        probs = np.array([self.tileset[index].prob for index in valid_indices])
+        probs = probs / np.sum(probs)
+        picked_index = np.random.choice(valid_indices, p=probs)
         self.possibilities[row, col, :] = False
         self.possibilities[row, col, picked_index] = True
         self.final_map[row, col] = picked_index
@@ -260,6 +268,7 @@ class WfcSketch(vsketch.SketchClass):
     
     debug_grid = vsketch.Param(True)
     debug_indices = vsketch.Param(True)
+    debug_tiles_order = vsketch.Param(False)
     
     detail = "0.01mm"
     
@@ -277,7 +286,7 @@ class WfcSketch(vsketch.SketchClass):
         return tile_sketch
         
     def generate_knot_tileset(self, width=0.0, skip=0.0):
-        probs = np.array([1.0, 1.0, 1.0])
+        probs = np.ones(21)
         probs = probs / np.sum(probs)
         
         tile_sketches = []
@@ -297,9 +306,26 @@ class WfcSketch(vsketch.SketchClass):
         tile_sketches[1].arc(0.5 * self.tile_size,  -0.5 * self.tile_size, self.tile_size + width, self.tile_size + width, np.pi, 3*np.pi/2)
         tile_sketches[1].arc( -0.5 * self.tile_size, 0.5 * self.tile_size, self.tile_size + width, self.tile_size + width, 0, np.pi/2)
         
-        tile_sketches[2].line(0, -0.5 * self.tile_size, 0, - skip)
+        tile_sketches[2].line(0, -0.5 * self.tile_size, 0, -skip)
         tile_sketches[2].line(0, skip, 0.5 * width, 0.5 * self.tile_size)
         tile_sketches[2].line(-0.5 * self.tile_size, 0.5 * width, 0.5 * self.tile_size, 0.5 * width)
+        
+        tile_sketches[3].line(0, -0.5 * self.tile_size, 0, 0.5 * self.tile_size)
+        tile_sketches[4].line(-0.5 * self.tile_size, 0.5 * width, 0.5 * self.tile_size, 0.5 * width)
+        
+        tile_sketches[5].arc(-0.5 * self.tile_size, -0.5 * self.tile_size, self.tile_size + width, self.tile_size + width, 3*np.pi/2, 2*np.pi)
+
+        tile_sketches[9].line(0, -0.5 * self.tile_size, 0, 0)
+        tile_sketches[9].line(-0.5 * self.tile_size, 0.5 * width, 0.5 * self.tile_size, 0.5 * width)
+        
+        tile_sketches[13].line(0, -0.5 * self.tile_size, 0, 0)
+        
+        tile_sketches[17].line(0, -0.5 * self.tile_size, 0, 0)
+        tile_sketches[17].line(0.5 * self.tile_size, 0, 0, 0)
+        
+        for i in [6, 7, 8, 10, 11, 12, 14, 15, 16, 18, 19, 20]:
+            tile_sketches[i].rotate(0.5 * np.pi)
+            tile_sketches[i].sketch(tile_sketches[i-1])
         
         tiles = []
         for index, (sketch, prob) in enumerate(zip(tile_sketches, probs)):
@@ -316,12 +342,21 @@ class WfcSketch(vsketch.SketchClass):
                     
         tileset = self.generate_knot_tileset()
         
+        n_tiles = len(tileset)
+        
         # ruleset = [[Rule(tile_0, Direction.DOWN, tile_1, must_be=True)], [], [Rule(tile_2, Direction.DOWN, tile_1, must_be=False)]]
-        ruleset = [[], [], []]
-                
-        wfc = WFC(tileset, ruleset, self.n_rows, self.n_cols)
-        wfc.solve(debug=False)
-        wfc.draw(vsk, debug_indices=self.debug_indices, size=self.tile_size)
+        ruleset = [[] for i in range(n_tiles)]
+        # for i in [0, 1, 2, 4, 6, 7, 9, 10, 11]:
+        #     ruleset[3].append(Rule(tileset[3], Direction.LEFT, tileset[i], must_be=False))
+                              
+        if self.debug_tiles_order:
+            map = np.arange(self.n_rows * self.n_cols).reshape((self.n_rows, self.n_cols))
+            map[map >= n_tiles] = -1
+            draw_map(map, tileset, vsk, debug_indices=self.debug_indices, size=self.tile_size)
+        else:
+            wfc = WFC(tileset, ruleset, self.n_rows, self.n_cols)
+            wfc.solve(debug=False)
+            wfc.draw(vsk, debug_indices=self.debug_indices, size=self.tile_size)
 
     def finalize(self, vsk: vsketch.Vsketch) -> None:
         vsk.vpype("linemerge linesimplify reloop linesort")
