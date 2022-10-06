@@ -5,7 +5,7 @@ from enum import Enum
 import numpy as np
 from itertools import compress, count
 from collections import deque
-
+from numba import njit
 
 class Direction(Enum):
     RIGHT = 0
@@ -16,7 +16,7 @@ class Direction(Enum):
     def __str__(self):
         return self.name
 
-
+# @njit(cache=True)
 def dir_to_delta(dir):
     if dir == Direction.RIGHT:
         return np.array([0, 1])
@@ -27,6 +27,10 @@ def dir_to_delta(dir):
     elif dir == Direction.UP:
         return np.array([-1, 0])
 
+# @njit(cache=True)
+def dir_to_cell(row, col, dir):
+    delta = dir_to_delta(dir)
+    return np.array([row, col]) + delta
 
 def delta_to_dir(delta):
     if np.allclose(delta, np.array([0, 1])):
@@ -145,10 +149,6 @@ class WFC():
         self.entropy[row, col] = np.nan
         return picked_index
     
-    def dir_to_cell(self, row, col, dir):
-        delta = dir_to_delta(dir)
-        return np.array([row, col]) + delta
-    
     def neighbour_to_dir(self, row, col, row_neighbour, col_neighbour):
         delta = np.array([row_neighbour, col_neighbour]) - np.array([row, col])
         return delta_to_dir(delta)
@@ -177,6 +177,7 @@ class WFC():
         neighbour_indices = np.array([indices for indices in neighbour_indices if not np.isnan(entropy[indices[0],indices[1]])])
         return neighbour_indices
     
+    # @profile
     def propagate(self, row_collapsed, col_collapsed, debug=False):
         # find neighbours that are not collapsed and not outside bounds
         # add them to FIFO queue
@@ -188,9 +189,9 @@ class WFC():
         # Need to think about this more. For now just check all.
         
         neighbour_indices = self.get_valid_noncollapsed_neighbours(row_collapsed, col_collapsed, self.entropy)
-        if debug: print("Neighbours in queue:\n", neighbour_indices,"\n")
-        
+        np.random.shuffle(neighbour_indices)
         queue = deque([indices for indices in neighbour_indices])
+        if debug: print("Neighbours in queue:\n", queue,"\n")
         
         while queue:
             row, col = queue.popleft()
@@ -200,7 +201,7 @@ class WFC():
             if debug: print(f"Valid tiles: {valid_tile_indices}")
             
             valid_directions = self.get_valid_directions(row, col)
-            if debug: print(f"Valid directions: {[d.name for d in valid_directions]}")
+            # if debug: print(f"Valid directions: {[d.name for d in valid_directions]}")
             
             possibilties_updated = False
             
@@ -210,10 +211,10 @@ class WFC():
                 
                 rules_finished_forward = False
                 for rule in rules:
-                    if debug: print(f"\tChecking rule: tile {rule.dir} of T{rule.tile.index} must be T{rule.other_tile.index} {rule.must_be}")
+                    # if debug: print(f"\tChecking rule: tile {rule.dir} of T{rule.tile.index} must be T{rule.other_tile.index} {rule.must_be}")
                     if rule.dir in valid_directions and not rules_finished_forward:
-                        row_other, col_other = self.dir_to_cell(row, col, rule.dir)
-                        if debug: print(f"\t\tCell to check is ({row_other}, {col_other}).")
+                        row_other, col_other = dir_to_cell(row, col, rule.dir)
+                        # if debug: print(f"\t\tCell to check is ({row_other}, {col_other}).")
                         if (rule.must_be and not self.possibilities[row_other, col_other, rule.other_tile.index]) or \
                             (not rule.must_be and self.is_collapsed(row_other, col_other) and \
                             self.final_map[row_other, col_other] == rule.other_tile.index):
@@ -222,27 +223,35 @@ class WFC():
                                 possibilties_updated = True  # flag cell as updated
                                 rules_finished_forward = True
                             
-                    reversed_dir = reverse_dir(rule.dir)
-                    if reversed_dir in valid_directions:
-                        row_other, col_other = self.dir_to_cell(row, col, reversed_dir)
-                        if debug: print(f"\t\t(Reversed) cell to check is ({row_other}, {col_other}).")
+                    # reversed_dir = reverse_dir(rule.dir)
+                    # if reversed_dir in valid_directions:
+                    #     row_other, col_other = dir_to_cell(row, col, reversed_dir)
+                    #     # if debug: print(f"\t\t(Reversed) cell to check is ({row_other}, {col_other}).")
 
-                        if self.is_collapsed(row_other, col_other) and not rule.must_be and \
-                            self.final_map[row_other, col_other] == rule.tile.index:
-                            self.possibilities[row, col, rule.other_tile.index] = False
-                            possibilties_updated = True  # flag cell as updated
+                    #     if self.is_collapsed(row_other, col_other) and not rule.must_be and \
+                    #         self.final_map[row_other, col_other] == rule.tile.index:
+                    #         if debug: print(f"\t\t**(Reversed) rule broken. Removing possibility {rule.other_tile.index} from ({row}, {col}).**")
+                    #         self.possibilities[row, col, rule.other_tile.index] = False
+                    #         possibilties_updated = True  # flag cell as updated
                                 
-                        if self.is_collapsed(row_other, col_other) and rule.must_be and \
-                            self.possibilities[row_other, col_other, rule.tile.index]:
-                            if debug: print(f"\t\t**Rule broken. Removing possibility {rule.other_tile.index} from ({row}, {col}).**")
-                            self.possibilities[row, col, :] = False
-                            self.possibilities[row, col, rule.other_tile.index] = True
-                            possibilties_updated = True  # flag cell as updated
+                    #     if self.is_collapsed(row_other, col_other) and rule.must_be and \
+                    #         self.possibilities[row_other, col_other, rule.tile.index]:
+                    #         if debug: print(f"\t\t**(Reversed) rule broken. Removing possibility {rule.other_tile.index} from ({row}, {col}).**")
+                    #         self.possibilities[row, col, :] = False
+                    #         self.possibilities[row, col, rule.other_tile.index] = True
+                    #         possibilties_updated = True  # flag cell as updated
                             
             if possibilties_updated:
                 self.entropy[row, col] = self.calculate_cell_entropy(row, col)  # update entropy
+                if debug: print("Entropy:\n", self.entropy)
                 valid_noncollapsed_neighbours = self.get_valid_noncollapsed_neighbours(row, col, self.entropy)
-                queue.extend([indices for indices in valid_noncollapsed_neighbours])
+                np.random.shuffle(valid_noncollapsed_neighbours)
+                if debug: print("Valid noncollapsed neighbours:\n", valid_noncollapsed_neighbours)
+
+                for indices in valid_noncollapsed_neighbours:
+                    if not any((indices == cell).all() for cell in queue):
+                        queue.extend([indices])
+                if debug: print("Updated queue:\n", queue)
             
             if debug: print("\n")
             
@@ -253,7 +262,7 @@ class WFC():
         if debug: print("Map after collapse:\n", self.final_map)
         if debug: print("Entropy after collapse:\n", self.entropy)
         self.propagate(row, col, debug)
-        if debug: print("Entropy after propagation:\n", self.entropy)
+        if debug: print("Entropy after propagation:\n", self.entropy, "\n")
         return np.isnan(self.entropy).all()
     
     def solve(self, debug=False):
@@ -262,13 +271,14 @@ class WFC():
             
 
 class WfcSketch(vsketch.SketchClass):
-    n_rows = vsketch.Param(6)
-    n_cols = vsketch.Param(6)
+    n_rows = vsketch.Param(10)
+    n_cols = vsketch.Param(10)
     tile_size = vsketch.Param(1.0)
     
-    debug_grid = vsketch.Param(True)
-    debug_indices = vsketch.Param(True)
+    debug_grid = vsketch.Param(False)
+    debug_indices = vsketch.Param(False)
     debug_tiles_order = vsketch.Param(False)
+    debug_print = vsketch.Param(False)
     
     detail = "0.01mm"
     
@@ -286,7 +296,7 @@ class WfcSketch(vsketch.SketchClass):
         return tile_sketch
         
     def generate_knot_tileset(self, width=0.0, skip=0.0):
-        probs = np.ones(21)
+        probs = np.ones(13)
         probs = probs / np.sum(probs)
         
         tile_sketches = []
@@ -318,12 +328,13 @@ class WfcSketch(vsketch.SketchClass):
         tile_sketches[9].line(0, -0.5 * self.tile_size, 0, 0)
         tile_sketches[9].line(-0.5 * self.tile_size, 0.5 * width, 0.5 * self.tile_size, 0.5 * width)
         
-        tile_sketches[13].line(0, -0.5 * self.tile_size, 0, 0)
+        # tile_sketches[13].line(0, -0.5 * self.tile_size, 0, 0)
         
-        tile_sketches[17].line(0, -0.5 * self.tile_size, 0, 0)
-        tile_sketches[17].line(0.5 * self.tile_size, 0, 0, 0)
+        # tile_sketches[17].line(0, -0.5 * self.tile_size, 0, 0)
+        # tile_sketches[17].line(0.5 * self.tile_size, 0, 0, 0)
         
-        for i in [6, 7, 8, 10, 11, 12, 14, 15, 16, 18, 19, 20]:
+        # for i in [6, 7, 8, 10, 11, 12, 14, 15, 16, 18, 19, 20]:
+        for i in [6, 7, 8, 10, 11, 12]:
             tile_sketches[i].rotate(0.5 * np.pi)
             tile_sketches[i].sketch(tile_sketches[i-1])
         
@@ -344,18 +355,36 @@ class WfcSketch(vsketch.SketchClass):
         
         n_tiles = len(tileset)
         
-        # ruleset = [[Rule(tile_0, Direction.DOWN, tile_1, must_be=True)], [], [Rule(tile_2, Direction.DOWN, tile_1, must_be=False)]]
         ruleset = [[] for i in range(n_tiles)]
-        # for i in [0, 1, 2, 4, 6, 7, 9, 10, 11]:
-        #     ruleset[3].append(Rule(tileset[3], Direction.LEFT, tileset[i], must_be=False))
-                              
+        valid_directions = [[Direction.RIGHT, Direction.UP, Direction.LEFT, Direction.DOWN],  # 0  
+                            [Direction.RIGHT, Direction.UP, Direction.LEFT, Direction.DOWN],  # 1
+                            [Direction.RIGHT, Direction.UP, Direction.LEFT, Direction.DOWN],  # 2
+                            [                 Direction.UP,                 Direction.DOWN],  # 3
+                            [Direction.RIGHT,               Direction.LEFT,               ],  # 4
+                            [                 Direction.UP, Direction.LEFT                ],  # 5
+                            [Direction.RIGHT, Direction.UP                                ],  # 6
+                            [Direction.RIGHT,                               Direction.DOWN],  # 7
+                            [                               Direction.LEFT, Direction.DOWN],  # 8
+                            [Direction.RIGHT, Direction.UP, Direction.LEFT                ],  # 9
+                            [Direction.RIGHT, Direction.UP                , Direction.DOWN],  # 10
+                            [Direction.RIGHT,               Direction.LEFT, Direction.DOWN],  # 11
+                            [                 Direction.UP, Direction.LEFT, Direction.DOWN]]  # 12
+        
+        for i, valid_dirs in enumerate(valid_directions):
+            for j, other_valid_dirs in enumerate(valid_directions):
+                for dir in Direction:
+                    opposite_dir = reverse_dir(dir)
+                    if (dir in valid_dirs and opposite_dir not in other_valid_dirs) or \
+                        (dir not in valid_dirs and opposite_dir in other_valid_dirs):
+                            ruleset[i].append(Rule(tileset[i], dir, tileset[j], must_be=False))
+        
         if self.debug_tiles_order:
             map = np.arange(self.n_rows * self.n_cols).reshape((self.n_rows, self.n_cols))
             map[map >= n_tiles] = -1
             draw_map(map, tileset, vsk, debug_indices=self.debug_indices, size=self.tile_size)
         else:
             wfc = WFC(tileset, ruleset, self.n_rows, self.n_cols)
-            wfc.solve(debug=False)
+            wfc.solve(debug=self.debug_print)
             wfc.draw(vsk, debug_indices=self.debug_indices, size=self.tile_size)
 
     def finalize(self, vsk: vsketch.Vsketch) -> None:

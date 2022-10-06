@@ -17,6 +17,7 @@ rasterio = "*"
 iso = {editable = true, path = "./iso"}
 line-profiler = "*"
 vpype-occult = "*"
+numba = "*"
 
 [dev-packages]
 autopep8 = "*"

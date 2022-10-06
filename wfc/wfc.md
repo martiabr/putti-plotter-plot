@@ -91,9 +91,30 @@ How to do this?
 - [x] Debug draw tile index in corner
 - [x] Optional debug print
 - [x] Draw tiles
-- [ ] Numba?
 - [x] Function for generating tileset nicely
-- [ ] Fix sampling of tiles using prob
+- [x] Fix sampling of tiles using prob
+- [x] Randomize queue 
+- [x] Check speed
+- [ ] Numba? Need to move some functions outside class to speed up
+- [ ] Extend tileset
+- [ ] Investigate need of reverse check
+
+It gets stuck in propagate, adds and pops forever.
+Possibly because same cell is added multiple times in queue?
+Would it be correct to check and not add cell to queue if already there? Or delete the one we already have?
+
+Problem: we are trying to remove possibilties that are already removed... And by doing this we say things are updated when they are not.
+
+The code seems to work without the reversed stuff so maybe it works... Must be further investigated
+
+Line profiler on propagate:
+- 17% get_valid_directions()
+- 31% dir_to_cell()
+- 14+21% simple if checks
+So propagate is not really issue?
+No all time of iterate is used in propagate.
+Draw uses nothing.
+Just need to reduce checks somehow...
 
 ### Ideas:
 - Experiment with adding noise to tiles for a more chaotic look.
