@@ -96,8 +96,20 @@ How to do this?
 - [x] Randomize queue 
 - [x] Check speed
 - [ ] Numba? Need to move some functions outside class to speed up
-- [ ] Extend tileset
+- [x] Extend tileset
+- [ ] Improve tileset
+  - [ ] Variations (dots)
+  - [ ] Thickness
+  - [ ] Optional overlap
+  - [ ] Variable width between sections
+  - [ ] Think about more variations
+- [x] Tune probs, the rotated ones need lower prob
+- [x] Edge constraints
+- [x] Progress bar
+- [ ] **Speed up by having variations of same tile. The only unique thing here is the valid directions. This will give much more maintainable speeds as adding variations will not make things slower**
 - [ ] Investigate need of reverse check
+
+---
 
 It gets stuck in propagate, adds and pops forever.
 Possibly because same cell is added multiple times in queue?
@@ -106,6 +118,8 @@ Would it be correct to check and not add cell to queue if already there? Or dele
 Problem: we are trying to remove possibilties that are already removed... And by doing this we say things are updated when they are not.
 
 The code seems to work without the reversed stuff so maybe it works... Must be further investigated
+
+---
 
 Line profiler on propagate:
 - 17% get_valid_directions()
@@ -116,9 +130,12 @@ No all time of iterate is used in propagate.
 Draw uses nothing.
 Just need to reduce checks somehow...
 
+---
+
 ### Ideas:
 - Experiment with adding noise to tiles for a more chaotic look.
 - Experiment with bezier curves and possible 2 or 3 lines on each tile edge for a more choatic "shoelace" look 
-- More variations of the standard tiles
-- "Infinite circuit" drawing? 
-- Add border constraints. Such that we can generate grids with smooth borders.
+- "Infinite circuit" drawing?
+- Generative metro map
+- Inka?
+- Remove small loops

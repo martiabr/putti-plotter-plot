@@ -6,6 +6,7 @@ import numpy as np
 from itertools import compress, count
 from collections import deque
 from numba import njit
+from tqdm import trange
 
 class Direction(Enum):
     RIGHT = 0
@@ -84,25 +85,37 @@ def draw_map(map, tileset, vsk, debug_indices=False, size=1.0):
                 vsk.stroke(1)
                 
     with vsk.pushMatrix():
-        vsk.translate(0.5 * size, 0.5 * size)
+        vsk.translate(0.5, 0.5)
         for row in range(N_rows):
             with vsk.pushMatrix():
                 for col in range(N_cols):
                     if int(map[row, col]) >= 0:
                         vsk.sketch(tileset[int(map[row, col])].subsketch)
-                        vsk.translate(size, 0)
-            vsk.translate(0, size)
+                        vsk.translate(1.0, 0)
+            vsk.translate(0, 1.0)
         
 
 class WFC():
-    def __init__(self, tileset, ruleset, N_rows, N_cols) -> None:
+    def __init__(self, tileset, ruleset, N_rows, N_cols, invalid_edge_tiles=None) -> None:
         self.tileset = tileset
         self.ruleset = ruleset
         self.N_rows = N_rows
         self.N_cols = N_cols
         self.N_tiles = len(self.tileset)
+        self.valid_edge_tiles = invalid_edge_tiles        
         
         self.possibilities = np.full((self.N_rows, self.N_cols, self.N_tiles), True)
+        if invalid_edge_tiles is not None:  # remove invalid possibilties along edges
+            for dir, tiles in invalid_edge_tiles.items():
+                if dir == Direction.RIGHT:
+                    self.possibilities[:,self.N_cols-1,tiles] = False
+                elif dir == Direction.UP:
+                    self.possibilities[0,:,tiles] = False
+                elif dir == Direction.LEFT:
+                    self.possibilities[:,0,tiles] = False
+                elif dir == Direction.DOWN:
+                    self.possibilities[self.N_rows-1,:,tiles] = False
+        
         self.final_map = np.full((self.N_rows, self.N_cols), np.nan)
         self.entropy = self.calculate_entropy()
         
@@ -177,7 +190,6 @@ class WFC():
         neighbour_indices = np.array([indices for indices in neighbour_indices if not np.isnan(entropy[indices[0],indices[1]])])
         return neighbour_indices
     
-    # @profile
     def propagate(self, row_collapsed, col_collapsed, debug=False):
         # find neighbours that are not collapsed and not outside bounds
         # add them to FIFO queue
@@ -222,7 +234,7 @@ class WFC():
                                 self.possibilities[row, col, tile_index] = False
                                 possibilties_updated = True  # flag cell as updated
                                 rules_finished_forward = True
-                            
+                    
                     # reversed_dir = reverse_dir(rule.dir)
                     # if reversed_dir in valid_directions:
                     #     row_other, col_other = dir_to_cell(row, col, reversed_dir)
@@ -266,19 +278,23 @@ class WFC():
         return np.isnan(self.entropy).all()
     
     def solve(self, debug=False):
-        while not self.iterate(debug):
-            pass
+        # while not self.iterate(debug):
+        #     pass
+        for i in trange(self.N_rows * self.N_cols):
+            self.iterate(debug)
             
-
 class WfcSketch(vsketch.SketchClass):
-    n_rows = vsketch.Param(10)
-    n_cols = vsketch.Param(10)
-    tile_size = vsketch.Param(1.0)
-    
     debug_grid = vsketch.Param(False)
     debug_indices = vsketch.Param(False)
     debug_tiles_order = vsketch.Param(False)
     debug_print = vsketch.Param(False)
+    
+    n_rows = vsketch.Param(10)
+    n_cols = vsketch.Param(10)
+    tile_size = vsketch.Param(1.0)
+    width = vsketch.Param(0.1)
+    radius = vsketch.Param(0.13)
+    connected_edge = vsketch.Param(True)
     
     detail = "0.01mm"
     
@@ -295,8 +311,14 @@ class WfcSketch(vsketch.SketchClass):
         tile_sketch.detail(self.detail)
         return tile_sketch
         
-    def generate_knot_tileset(self, width=0.0, skip=0.0):
-        probs = np.ones(13)
+    def generate_knot_tileset(self, width=0.1, radius=0.1):
+        # probs = np.ones(17)
+        # probs = np.ones(21)
+        probs = np.array([1, 1, 1, 0.5, 0.5,
+                          0.25, 0.25, 0.25, 0.25,
+                          0.25, 0.25, 0.25, 0.25,
+                          0.10, 0.10, 0.10, 0.10,
+                          1, 0.5])
         probs = probs / np.sum(probs)
         
         tile_sketches = []
@@ -310,31 +332,50 @@ class WfcSketch(vsketch.SketchClass):
         # tile_sketches[2].line(-0.2, 0, 0.2, 0.0)
         # tile_sketches[2].line(0, -0.2, 0.0, 0.2)
         
-        tile_sketches[0].arc(-0.5 * self.tile_size, -0.5 * self.tile_size, self.tile_size + width, self.tile_size + width, 3*np.pi/2, 2*np.pi)
-        tile_sketches[0].arc(0.5 * self.tile_size, 0.5 * self.tile_size, self.tile_size + width, self.tile_size + width, np.pi/2, np.pi)
+        for w in [width, -width]:
+            tile_sketches[0].arc(-0.5, -0.5, 1.0 + w, 1.0 + w, 3*np.pi/2, 2*np.pi)
+            tile_sketches[0].arc(0.5, 0.5, 1.0 + w, 1.0 + w, np.pi/2, np.pi)
         
-        tile_sketches[1].arc(0.5 * self.tile_size,  -0.5 * self.tile_size, self.tile_size + width, self.tile_size + width, np.pi, 3*np.pi/2)
-        tile_sketches[1].arc( -0.5 * self.tile_size, 0.5 * self.tile_size, self.tile_size + width, self.tile_size + width, 0, np.pi/2)
+            tile_sketches[1].arc(0.5,  -0.5, 1.0 + w, 1.0 + w, np.pi, 3*np.pi/2)
+            tile_sketches[1].arc( -0.5, 0.5, 1.0 + w, 1.0 + w, 0, np.pi/2)
         
-        tile_sketches[2].line(0, -0.5 * self.tile_size, 0, -skip)
-        tile_sketches[2].line(0, skip, 0.5 * width, 0.5 * self.tile_size)
-        tile_sketches[2].line(-0.5 * self.tile_size, 0.5 * width, 0.5 * self.tile_size, 0.5 * width)
-        
-        tile_sketches[3].line(0, -0.5 * self.tile_size, 0, 0.5 * self.tile_size)
-        tile_sketches[4].line(-0.5 * self.tile_size, 0.5 * width, 0.5 * self.tile_size, 0.5 * width)
-        
-        tile_sketches[5].arc(-0.5 * self.tile_size, -0.5 * self.tile_size, self.tile_size + width, self.tile_size + width, 3*np.pi/2, 2*np.pi)
+            tile_sketches[2].line(0.5 * w, -0.5, 0.5 * w, -0.5 * width)
+            tile_sketches[2].line(0.5 * w, 0.5 * width, 0.5 * w, 0.5)
+            # tile_sketches[2].line(-0.5, 0.5 * w, 0.5, 0.5 * w)
+            tile_sketches[2].line(-0.5, 0.5 * w, -0.5 * width, 0.5 * w)
+            tile_sketches[2].line(0.5, 0.5 * w, 0.5 * width, 0.5 * w)
+            
+            tile_sketches[3].line(0.5 * w, -0.5, 0.5 * w, 0.5)
+            tile_sketches[4].line(-0.5, 0.5 * w, 0.5, 0.5 * w)
+            
+            tile_sketches[5].arc(-0.5, -0.5, 1.0 + w, 1.0 + w, 3*np.pi/2, 2*np.pi)
 
-        tile_sketches[9].line(0, -0.5 * self.tile_size, 0, 0)
-        tile_sketches[9].line(-0.5 * self.tile_size, 0.5 * width, 0.5 * self.tile_size, 0.5 * width)
+            tile_sketches[9].line(0.5 * w, -0.5, 0.5 * w, -0.5 * width)
+            
+            # tile_sketches[17].line(0, -0.5, 0, 0)
+            
+            length = radius * np.sin(np.arccos(0.5 * width / radius))
+            tile_sketches[17].line(0.5 * w, -0.5, 0.5 * w, -length)
+            tile_sketches[17].line(0.5 * w, length, 0.5 * w, 0.5)
+            tile_sketches[17].line(-0.5, 0.5 * w, -length, 0.5 * w)
+            tile_sketches[17].line(0.5, 0.5 * w, length, 0.5 * w)
+            tile_sketches[17].circle(0, 0, radius=radius)
+            
+            tile_sketches[18].sketch(tile_sketches[17])
+            tile_sketches[18].circle(0, 0, 1e-4)
+            
         
-        # tile_sketches[13].line(0, -0.5 * self.tile_size, 0, 0)
+        tile_sketches[9].line(-0.5, -0.5 * width, -0.5 * width, -0.5 * width)
+        tile_sketches[9].line(0.5 * width   , -0.5 * width, 0.5, -0.5 * width)
+        tile_sketches[9].line(-0.5, 0.5 * width, 0.5, 0.5 * width)
+        # tile_sketches[9].circle(0, 0, radius=radius)
         
-        # tile_sketches[17].line(0, -0.5 * self.tile_size, 0, 0)
-        # tile_sketches[17].line(0.5 * self.tile_size, 0, 0, 0)
+        tile_sketches[13].line(-0.5 * width, -0.5, -0.5 * width, 0.5 * width)
+        tile_sketches[13].line(0.5 * width, -0.5, 0.5 * width, -0.5 * width)
+        tile_sketches[13].line(0.5 * width, -0.5 * width, 0.5, -0.5 * width)
+        tile_sketches[13].line(-0.5 * width, 0.5 * width, 0.5, 0.5 * width)
         
-        # for i in [6, 7, 8, 10, 11, 12, 14, 15, 16, 18, 19, 20]:
-        for i in [6, 7, 8, 10, 11, 12]:
+        for i in [6, 7, 8, 10, 11, 12, 14, 15, 16]:
             tile_sketches[i].rotate(0.5 * np.pi)
             tile_sketches[i].sketch(tile_sketches[i-1])
         
@@ -351,7 +392,7 @@ class WfcSketch(vsketch.SketchClass):
         if self.debug_grid:
             self.draw_grid(vsk)
                     
-        tileset = self.generate_knot_tileset()
+        tileset = self.generate_knot_tileset(width=self.width, radius=self.radius)
         
         n_tiles = len(tileset)
         
@@ -368,8 +409,19 @@ class WfcSketch(vsketch.SketchClass):
                             [Direction.RIGHT, Direction.UP, Direction.LEFT                ],  # 9
                             [Direction.RIGHT, Direction.UP                , Direction.DOWN],  # 10
                             [Direction.RIGHT,               Direction.LEFT, Direction.DOWN],  # 11
-                            [                 Direction.UP, Direction.LEFT, Direction.DOWN]]  # 12
+                            [                 Direction.UP, Direction.LEFT, Direction.DOWN],  # 12
+                            # [Direction.UP],                                                 # 13
+                            # [Direction.RIGHT],                                              # 14
+                            # [Direction.DOWN],                                               # 15
+                            # [Direction.LEFT],                                               # 16
+                            [Direction.RIGHT, Direction.UP                                ],  # 13
+                            [Direction.RIGHT,                               Direction.DOWN],  # 14
+                            [                               Direction.LEFT, Direction.DOWN],  # 15
+                            [                 Direction.UP, Direction.LEFT                ],  # 16
+                            [Direction.RIGHT, Direction.UP, Direction.LEFT, Direction.DOWN],  # 17
+                            [Direction.RIGHT, Direction.UP, Direction.LEFT, Direction.DOWN]]  # 18
         
+        # Generate all rules based on valid_directions:
         for i, valid_dirs in enumerate(valid_directions):
             for j, other_valid_dirs in enumerate(valid_directions):
                 for dir in Direction:
@@ -378,12 +430,22 @@ class WfcSketch(vsketch.SketchClass):
                         (dir not in valid_dirs and opposite_dir in other_valid_dirs):
                             ruleset[i].append(Rule(tileset[i], dir, tileset[j], must_be=False))
         
+        # Generate valid tiles on edges:
+        if self.connected_edge:
+            invalid_edge_tiles = {Direction.RIGHT: [], Direction.UP: [], Direction.LEFT: [], Direction.DOWN: []}
+            for i, directions in enumerate(valid_directions):
+                for dir in Direction:
+                    if dir in directions:
+                        invalid_edge_tiles[dir].append(i)
+        else:
+            invalid_edge_tiles = None
+            
         if self.debug_tiles_order:
             map = np.arange(self.n_rows * self.n_cols).reshape((self.n_rows, self.n_cols))
             map[map >= n_tiles] = -1
             draw_map(map, tileset, vsk, debug_indices=self.debug_indices, size=self.tile_size)
         else:
-            wfc = WFC(tileset, ruleset, self.n_rows, self.n_cols)
+            wfc = WFC(tileset, ruleset, self.n_rows, self.n_cols, invalid_edge_tiles)
             wfc.solve(debug=self.debug_print)
             wfc.draw(vsk, debug_indices=self.debug_indices, size=self.tile_size)
 
