@@ -15,22 +15,31 @@ class ExoSketch(vsketch.SketchClass):
     
     def process_data(self, file_path):
         col_names = self.get_col_names(file_path)
-        print(col_names)
+        # print(col_names)
         
-        df = pd.read_csv(file_path, header=83)
+        df = pd.read_csv(file_path, header=83, nrows=10000)
         
         # TODO:
         # - Remove doubles (keep most recent?)
+        #   - For all unique names, find all with the name, pick most recent update?
+        #   - That is the easiest heuristic
+        #   - Better would probably be to combine the rows somehow. So we get the least amount of NaNs?
         # - Group items by star somehow
         # - Filter away items that dont have data in x
         # - Filter away items with too few planets
+        # - Filter away not confirmed?
+        # - Create plots of the data! E.g. histograms
         
-        min_num_planets = 3
+        min_num_planets = 2
         col_name = col_names[col_names["Column name"] == "Number of Planets"]["Abbrv"]
-        print(df[df[col_name] == 1])
-        # df = df[df[col_name] >= min_num_planets]
+        selection = df[col_name] >= min_num_planets
+        df = df.loc[selection[col_name].to_numpy()]
         
-        # print(df)
+        # print((df[df["soltype"] != "Published Confirmed"]))
+        
+        
+        
+        print(df)
         
 
     def draw(self, vsk: vsketch.Vsketch) -> None:

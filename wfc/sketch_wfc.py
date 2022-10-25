@@ -1,11 +1,8 @@
-import random
-from iso import draw_grid
 import vsketch
 from enum import Enum
 import numpy as np
-from itertools import compress, count
+from itertools import compress
 from collections import deque
-from numba import njit
 from tqdm import trange
 
 class Direction(Enum):
