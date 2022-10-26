@@ -51,9 +51,12 @@ class ExoSketch(vsketch.SketchClass):
         
         print(df)
         
-        print(df.groupby("hostname"))
+        # print(df.groupby("hostname"))
         
-        df.to_csv("exo_test.csv")
+        for df_host in df.groupby("hostname"):
+            print(df_host)
+        
+        # df.to_csv("exo_test.csv")
         
 
     def draw(self, vsk: vsketch.Vsketch) -> None:
