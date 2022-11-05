@@ -1,20 +1,27 @@
 # EXOPLANETS DRAWING
 
 ## TODO:
-- [ ] Shading of stars and planets
-- [ ] Add planets at random location in orbit
-  - [ ] Shaded option
-  - [ ] Margin around planet option
-  - [ ] Random or not random
-- [ ] Add name of system
-- [ ] Add name of planets
+- [x] Shading of stars
+- [x] Shading of planets
+- [x] Add planets at random location in orbit
+  - [x] Shaded option
+  - [x] Margin around planet option
+  - [x] Random or not random
+- [x] Add name of system
+- [x] Add name of planets
 - [ ] Add special marker on potentially habitable planets
 - [ ] Add spectrum type
 - [ ] Add drawing of multistar systems
-- [ ] Add proper scaling
-  - [ ] Log scaling
-  - [ ] Normalize size
-- [ ] Add grid
+- [x] Add proper scaling
+  - [x] Log scaling
+  - [x] Normalize size
+- [x] Add grid
 - [ ] Add AOP
 - [ ] Add way to show inclination of orbits
 - [ ] Add distance?
+
+---
+
+How to do scaling?
+First need to know size.
+Then we need to first do all computations, then draw.
