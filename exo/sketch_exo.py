@@ -1,11 +1,22 @@
 import vsketch
 import pandas as pd
 import requests
-import math
 import numpy as np
-from bs4 import BeautifulSoup
-from plotter_util import draw_shaded_circle
-       
+# from bs4 import BeautifulSoup
+# from plotter_util import draw_shaded_circle
+
+
+def draw_shaded_circle(vsk, x_0, y_0, radius, fill_distance, angle):
+    vsk.circle(x_0, y_0, radius=radius)
+    N = np.max((0, int(np.round(2 * (radius / fill_distance - 1)))))
+    fill_distance = 2 * radius / (N + 1)
+    with vsk.pushMatrix():
+        vsk.translate(x_0, y_0)
+        vsk.rotate(angle)
+        for d in np.linspace(-radius + fill_distance, radius - fill_distance, N, endpoint=True):
+            dy = radius * np.sin(np.arccos(d / radius))
+            vsk.line(d, -dy, d, dy) 
+                   
 
 class ExoSketch(vsketch.SketchClass):
     # Sketch parameters:
@@ -23,6 +34,10 @@ class ExoSketch(vsketch.SketchClass):
     star_radius_gain = vsketch.Param(0.010)
     planet_radius_gain = vsketch.Param(0.003)
     
+    draw_multi_stars = vsketch.Param(True)
+    min_multi_star_orbit_radius_gain = vsketch.Param(1.5)
+    
+    # Scaling:
     system_scaling = vsketch.Param("Log", choices=["None", "Log", "Normalize"])
     system_normalized_size = vsketch.Param(0.22, min_value=0.0)
     log_base = vsketch.Param(3.0, min_value=0.0)
@@ -34,8 +49,7 @@ class ExoSketch(vsketch.SketchClass):
     filled_stars = vsketch.Param(False)
     stars_fill_angle = vsketch.Param(0.75)
     stars_fill_thickness = vsketch.Param(0.005)
-    
-    
+
     # Text:
     planet_font_size = vsketch.Param(0.035)
     system_font_size = vsketch.Param(0.060)
@@ -114,6 +128,7 @@ class ExoSketch(vsketch.SketchClass):
             c_max = largest_orbit_planet["pl_orbfoci"]
             y_dist_max = largest_orbit_planet["y_dist"]
             
+            # Compute scale factor:
             scale_factor = 1.0
             if self.system_scaling == "Normalize":
                 scale_factor = self.system_normalized_size / y_dist_max
@@ -124,14 +139,25 @@ class ExoSketch(vsketch.SketchClass):
             system_sketch.detail("1e-3")
             
             with system_sketch.pushMatrix():
-                # system_sketch.scale(np.log(1.5 * y_dist_max) / np.log(self.log_base))
-                # system_sketch.scale(0.6*np.log(10.0 * y_dist_max + 1.0))
-                
-                if self.filled_stars:
-                    draw_shaded_circle(system_sketch, 0, 0, radius=scale_factor * star_radius, fill_distance=self.stars_fill_thickness,
-                                    angle=self.stars_fill_angle)
+                # Draw star(s):
+                if self.draw_multi_stars:
+                    pos_stars = np.zeros((num_stars, 2))
+                    if num_stars > 1:
+                        star_orbit_radius = np.min((1.0, self.min_multi_star_orbit_radius_gain * scale_factor * star_radius))  # TODO: improve how this is chosen.
+                        start_angle = np.random.uniform(0, 2 * np.pi)
+                        delta_angle = 2 * np.pi / num_stars
+                        for i_star in range(num_stars):
+                            angle_i = start_angle + delta_angle * i_star
+                            pos_stars[i_star] = star_orbit_radius * np.array([np.cos(angle_i), np.sin(angle_i)])
                 else:
-                    system_sketch.circle(0, 0, radius=scale_factor * star_radius)
+                    pos_stars = np.zeros((1, 2))
+                
+                for star_pos in pos_stars:    
+                    if self.filled_stars:
+                        draw_shaded_circle(system_sketch, star_pos[0], star_pos[1], radius=scale_factor * star_radius, fill_distance=self.stars_fill_thickness,
+                                        angle=self.stars_fill_angle)
+                    else:
+                        system_sketch.circle(star_pos[0], star_pos[1], radius=scale_factor * star_radius)
                 
                 for index, planet in system.iterrows():
                     planet_name = planet["pl_name_short"]
@@ -139,7 +165,6 @@ class ExoSketch(vsketch.SketchClass):
                     e = planet["pl_orbeccen"]
                     planet_radius = self.planet_radius_gain * scale_factor * planet["pl_rade"]
                     a = scale_factor * planet["pl_orbsmax"]
-                    # if np.isnan(a): a = 0.0  # assume circular orbit if no data on eccentricity
                     b = scale_factor * planet["pl_orbsmin"]
                     c = scale_factor * planet["pl_orbfoci"]
                     aop = planet["pl_orblper"]
@@ -161,11 +186,22 @@ class ExoSketch(vsketch.SketchClass):
                     else:
                         system_sketch.circle(x, y, radius=planet_radius)
                     
+                    # Planet label:
                     system_sketch.text(f"{planet_name}", x=(x + planet_radius + self.font_padding_planet), y=y,
                         font=self.planet_font_type, size=self.planet_font_size, align="left", mode="transform")
 
+                    # Inclination drawing:
+                    with system_sketch.pushMatrix():
+                        inclination = planet["pl_orbincl"]
+                        system_sketch.rotate(inclination)
+                        system_sketch.circle(x, radius=0.1*planet_radius)
+                        system_sketch.line(-c - 2 * a, 0, -c + 2 * a, 0)
+
+            # System label:
             system_sketch.text(f"{star_name.upper()}", x=-scale_factor * c_max, y=(scale_factor * y_dist_max + 0.5 * self.system_font_size + self.font_padding_star),
                                font=self.system_font_type, size=self.system_font_size, align="center", mode="transform")
+            
+            
             
             vsk.translate(x_star + scale_factor * c_max, y_star)   
             vsk.translate(0, -(scale_factor * y_dist_max + 0.5 * self.system_font_size + self.font_padding_star))
@@ -188,7 +224,7 @@ class ExoSketch(vsketch.SketchClass):
         # print(df)
         systems = df.groupby("hostname")
         
-        df_hab = self.get_habitable_planets()
+        # df_hab = self.get_habitable_planets()
         # TODO: df_hab -> indices in df
         
         N_systems = self.n_x * self.n_y

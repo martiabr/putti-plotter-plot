@@ -19,6 +19,7 @@
 - [ ] Add AOP
 - [ ] Add way to show inclination of orbits
 - [ ] Add distance?
+- [ ] Optional legend
 
 ---
 
