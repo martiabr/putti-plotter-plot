@@ -35,7 +35,11 @@ class ExoSketch(vsketch.SketchClass):
     planet_radius_gain = vsketch.Param(0.003)
     
     draw_multi_stars = vsketch.Param(True)
-    min_multi_star_orbit_radius_gain = vsketch.Param(1.5)
+    min_multi_star_orbit_radius_gain = vsketch.Param(1.2)
+    max_multi_star_orbit_radius_gain = vsketch.Param(1.6)
+    
+    draw_inclination = vsketch.Param(True)
+    inclination_scale = vsketch.Param(1.0)
     
     # Scaling:
     system_scaling = vsketch.Param("Log", choices=["None", "Log", "Normalize"])
@@ -110,7 +114,7 @@ class ExoSketch(vsketch.SketchClass):
     
     def draw_system(self, vsk, x_star, y_star, system):
         with vsk.pushMatrix():            
-            num_stars = system["sy_snum"]
+            num_stars = system.iloc[0]["sy_snum"]
             
             star_radius = self.star_radius_gain * system.iloc[0]["st_rad"]
             star_name = system.iloc[0]["hostname"]
@@ -143,7 +147,8 @@ class ExoSketch(vsketch.SketchClass):
                 if self.draw_multi_stars:
                     pos_stars = np.zeros((num_stars, 2))
                     if num_stars > 1:
-                        star_orbit_radius = np.min((1.0, self.min_multi_star_orbit_radius_gain * scale_factor * star_radius))  # TODO: improve how this is chosen.
+                        star_orbit_radius_gain = np.random.uniform(self.min_multi_star_orbit_radius_gain, self.max_multi_star_orbit_radius_gain)
+                        star_orbit_radius = star_orbit_radius_gain * scale_factor * star_radius
                         start_angle = np.random.uniform(0, 2 * np.pi)
                         delta_angle = 2 * np.pi / num_stars
                         for i_star in range(num_stars):
@@ -191,17 +196,18 @@ class ExoSketch(vsketch.SketchClass):
                         font=self.planet_font_type, size=self.planet_font_size, align="left", mode="transform")
 
                     # Inclination drawing:
-                    with system_sketch.pushMatrix():
-                        inclination = planet["pl_orbincl"]
-                        system_sketch.rotate(inclination)
-                        system_sketch.circle(x, radius=0.1*planet_radius)
-                        system_sketch.line(-c - 2 * a, 0, -c + 2 * a, 0)
+                    if self.draw_inclination:
+                        with system_sketch.pushMatrix():
+                            inclination = np.deg2rad(planet["pl_orbincl"])
+                            system_sketch.scale(self.inclination_scale)
+                            system_sketch.rotate(inclination)
+                            planet_line_pos = np.random.uniform(-2 * a, 2 * a) - c
+                            system_sketch.circle(planet_line_pos, 0, planet_radius)
+                            system_sketch.line(-c - 2 * a, 0, -c + 2 * a, 0)
 
             # System label:
             system_sketch.text(f"{star_name.upper()}", x=-scale_factor * c_max, y=(scale_factor * y_dist_max + 0.5 * self.system_font_size + self.font_padding_star),
                                font=self.system_font_type, size=self.system_font_size, align="center", mode="transform")
-            
-            
             
             vsk.translate(x_star + scale_factor * c_max, y_star)   
             vsk.translate(0, -(scale_factor * y_dist_max + 0.5 * self.system_font_size + self.font_padding_star))
