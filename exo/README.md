@@ -11,11 +11,12 @@
 - [x] Add name of planets
 - [ ] Add special marker on potentially habitable planets
 - [ ] Add spectrum type
-- [ ] Add drawing of multistar systems
+- [x] Add drawing of multistar systems
 - [x] Add proper scaling
   - [x] Log scaling
   - [x] Normalize size
 - [x] Add grid
+- [ ] Dashed orbit lines
 - [ ] Add AOP
 - [ ] Add way to show inclination of orbits
 - [ ] Add distance?
