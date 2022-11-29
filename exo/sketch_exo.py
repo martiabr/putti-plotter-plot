@@ -2,8 +2,8 @@ import vsketch
 import pandas as pd
 import requests
 import numpy as np
-from bs4 import BeautifulSoup
-# from plotter_util import draw_shaded_circle
+# from bs4 import BeautifulSoupvsk 
+# from plotter_util.plotter_util import draw_shaded_circle
 
 
 def draw_shaded_circle(vsk, x_0, y_0, radius, fill_distance, angle):
