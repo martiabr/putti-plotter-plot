@@ -2,7 +2,7 @@ import vsketch
 import pandas as pd
 import requests
 import numpy as np
-# from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup
 # from plotter_util import draw_shaded_circle
 
 
@@ -38,8 +38,10 @@ class ExoSketch(vsketch.SketchClass):
     min_multi_star_orbit_radius_gain = vsketch.Param(1.2)
     max_multi_star_orbit_radius_gain = vsketch.Param(1.6)
     
-    draw_inclination = vsketch.Param(True)
+    draw_inclination = vsketch.Param(False)
     inclination_scale = vsketch.Param(1.0)
+    
+    use_aop = vsketch.Param(True)
     
     # Scaling:
     system_scaling = vsketch.Param("Log", choices=["None", "Log", "Normalize"])
@@ -71,7 +73,7 @@ class ExoSketch(vsketch.SketchClass):
         col_names["Column name"] = col_names["Column name"].str.strip()
         return col_names
     
-    def process_data(self, file_path, cols_filter=["pl_orbincl", "pl_orbeccen", "pl_orbsmax", "st_rad", "pl_rade"], min_num_planets=3):
+    def process_data(self, file_path, cols_filter=["pl_orbeccen", "pl_orbsmax", "st_rad", "pl_rade"], min_num_planets=3):
         col_names = self.get_col_names(file_path)
         
         df = pd.read_csv(file_path, header=109)
@@ -103,6 +105,8 @@ class ExoSketch(vsketch.SketchClass):
         
         # print(df["hostname"].value_counts().to_string())
         
+        df["pl_orblper"] = df["pl_orblper"].fillna(0)
+        
         # Replace some shortened words to full versions:
         name_translations = {"Cnc": "Cancri", "GJ": "Gliese", "tau Cet": "Tau Ceti"}
         # TODO: V ... Tau -> Tauri
@@ -117,6 +121,7 @@ class ExoSketch(vsketch.SketchClass):
             num_stars = system.iloc[0]["sy_snum"]
             
             star_radius = self.star_radius_gain * system.iloc[0]["st_rad"]
+            # star_spectral_type = system.iloc[0]["st_spectype"]
             star_name = system.iloc[0]["hostname"]
             
             # TODO: move some of these computations to process_data
@@ -126,6 +131,7 @@ class ExoSketch(vsketch.SketchClass):
             
             system["pl_orbsmin"] = system.apply(lambda row: row["pl_orbsmax"] * np.sqrt(1.0 - row["pl_orbeccen"]**2), axis=1)
             system["pl_orbfoci"] = system.apply(lambda row: row["pl_orbsmax"] * row["pl_orbeccen"], axis=1)
+            # system["y_dist"] = system.apply(lambda row: self.planet_radius_gain * row["pl_rade"] + row["pl_orbsmax"] * np.sin(np.deg2rad(row["pl_orblper"])), axis=1)
             system["y_dist"] = system.apply(lambda row: self.planet_radius_gain * row["pl_rade"] + row["pl_orbsmin"], axis=1)
             
             largest_orbit_planet = system.loc[system["y_dist"].idxmax()]
@@ -164,6 +170,7 @@ class ExoSketch(vsketch.SketchClass):
                     else:
                         system_sketch.circle(star_pos[0], star_pos[1], radius=scale_factor * star_radius)
                 
+                # Draw planets and orbits:
                 for index, planet in system.iterrows():
                     planet_name = planet["pl_name_short"]
                     
@@ -172,8 +179,7 @@ class ExoSketch(vsketch.SketchClass):
                     a = scale_factor * planet["pl_orbsmax"]
                     b = scale_factor * planet["pl_orbsmin"]
                     c = scale_factor * planet["pl_orbfoci"]
-                    aop = planet["pl_orblper"]
-                    # print(aop)
+                    aop = np.deg2rad(planet["pl_orblper"])
                     # TODO: deal with aop
                     
                     if self.random_angles:
@@ -181,19 +187,23 @@ class ExoSketch(vsketch.SketchClass):
                     else:
                         theta = 0.0
                     
-                    angle_offset = (self.planet_line_padding + 2 * planet_radius) / (a + b)
-                    system_sketch.arc(-c, 0, 2 * a, 2 * b, theta + angle_offset, 2 * np.pi + theta - angle_offset)
-                    
-                    x, y = a * np.cos(theta) - c, - b * np.sin(theta)
-                    if self.filled_planets:
-                        draw_shaded_circle(system_sketch, x, y, planet_radius, fill_distance=self.planets_fill_thickness,
-                                        angle=self.planets_fill_angle)
-                    else:
-                        system_sketch.circle(x, y, radius=planet_radius)
-                    
-                    # Planet label:
-                    system_sketch.text(f"{planet_name}", x=(x + planet_radius + self.font_padding_planet), y=y,
-                        font=self.planet_font_type, size=self.planet_font_size, align="left", mode="transform")
+                    with system_sketch.pushMatrix():
+                        if self.use_aop:
+                            system_sketch.rotate(aop)
+                        
+                        angle_offset = (self.planet_line_padding + 2 * planet_radius) / (a + b)
+                        system_sketch.arc(-c, 0, 2 * a, 2 * b, theta + angle_offset, 2 * np.pi + theta - angle_offset)
+                        
+                        x, y = a * np.cos(theta) - c, - b * np.sin(theta)
+                        if self.filled_planets:
+                            draw_shaded_circle(system_sketch, x, y, planet_radius, fill_distance=self.planets_fill_thickness,
+                                            angle=self.planets_fill_angle)
+                        else:
+                            system_sketch.circle(x, y, radius=planet_radius)
+                        
+                        # Planet label:
+                        system_sketch.text(f"{planet_name}", x=(x + planet_radius + self.font_padding_planet), y=y,
+                            font=self.planet_font_type, size=self.planet_font_size, align="left", mode="label")
 
                     # Inclination drawing:
                     if self.draw_inclination:
@@ -206,10 +216,10 @@ class ExoSketch(vsketch.SketchClass):
                             system_sketch.line(-c - 2 * a, 0, -c + 2 * a, 0)
 
             # System label:
-            system_sketch.text(f"{star_name.upper()}", x=-scale_factor * c_max, y=(scale_factor * y_dist_max + 0.5 * self.system_font_size + self.font_padding_star),
+            system_sketch.text(f"{star_name.upper()}", x=0, y=(scale_factor * y_dist_max + 0.5 * self.system_font_size + self.font_padding_star),
                                font=self.system_font_type, size=self.system_font_size, align="center", mode="transform")
             
-            vsk.translate(x_star + scale_factor * c_max, y_star)   
+            vsk.translate(x_star, y_star)   
             vsk.translate(0, -(scale_factor * y_dist_max + 0.5 * self.system_font_size + self.font_padding_star))
             vsk.sketch(system_sketch)
         
