@@ -6,3 +6,4 @@ Important aspect is shading, if everything is shaded could add white circles as 
 Extra ideas:
 - Partial fills e.g. circle a la 6 feet
 - Other fills e.g. dot grid, dot grid with noise, short lines (requires collision checks)
+- lines

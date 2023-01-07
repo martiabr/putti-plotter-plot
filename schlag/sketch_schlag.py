@@ -3,10 +3,11 @@ import numpy as np
 from numpy.random import default_rng
 from enum import Enum
 
-
-# TODO: scale size over time
-# TODO: add boundary only shapes
-# TODO: more shapes, custom params, scaling down size over time
+# TODO:
+# add boundary only shapes
+# lines
+# custom params
+# more shading options
 
 
 def pick_random_element(probs):
@@ -37,18 +38,47 @@ def draw_circle(x, y, radius):
     return sketch
 
         
-def draw_shaded_circle(x_0, y_0, radius, fill_distance, angle=0.0):
+def draw_shaded_circle(x_0, y_0, radius, fill_distance, angle=0.0, fill_gain=1.0):
     sketch = get_empty_sketch()
     sketch.circle(x_0, y_0, radius=radius)
-    N = np.max((0, int(np.round(2 * (radius / fill_distance - 1)))))
-    fill_distance = 2 * radius / (N + 1)
+    # N = np.max((0, int(np.round(2 * (radius / fill_distance - 1)))))
+    N = np.max((0, int(np.round(fill_gain * 2 * (radius / fill_distance - 1)))))
+    fill_distance = fill_gain * 2 * radius / (N + 1)
+    start = -radius + fill_distance
+    end = -start
+    fill_end = start + fill_gain * (end - start)
     sketch.translate(x_0, y_0)
     sketch.rotate(angle)
-    for d in np.linspace(-radius + fill_distance, radius - fill_distance, N, endpoint=True):
-        dy = radius * np.sin(np.arccos(d / radius))
-        sketch.line(d, -dy, d, dy) 
+    for x in np.linspace(start, fill_end, N, endpoint=True):
+        dy = radius * np.sin(np.arccos(x / radius))
+        sketch.line(x, -dy, x, dy) 
     return sketch
-            
+
+
+def draw_dot_shaded_circle(x_0, y_0, radius, dot_distance, vsk=None, noise_gain=None, noise_freq=1.0):
+    if noise_gain is not None: vsk.noiseSeed(np.random.randint(1e6))
+    sketch = get_empty_sketch()
+    sketch.translate(x_0, y_0)
+    sketch.circle(0, 0, radius=radius)
+    sketch.translate(-radius, -radius)
+    N = np.max((0, int(np.round(2 * (radius / dot_distance - 1)))))
+    dot_distance = 2 * radius / (N + 1)
+    for x in np.linspace(0, 2 * radius, N + 2, endpoint=True):
+        for y in np.linspace(0, 2 * radius, N + 2, endpoint=True):
+            x_noise, y_noise = 0.0, 0.0
+            if noise_gain is not None and vsk is not None:
+                angle = 2 * np.pi * vsk.noise(noise_freq * x, noise_freq * y)
+                x_noise = noise_gain * dot_distance * np.cos(angle)
+                y_noise = noise_gain * dot_distance * np.sin(angle)
+            x_total, y_total = x + x_noise, y + y_noise
+            if (x_total - radius)**2 +(y_total - radius)**2 < radius**2:
+                sketch.circle(x_total, y_total, radius=1e-2)
+    return sketch
+
+
+def draw_partial_filled_circle(x, y, radius, fill_gain=0.5, fill_distance=1e-2):
+    return draw_shaded_circle(x, y, radius, fill_distance=fill_distance, fill_gain=fill_gain)
+     
 
 def draw_shaded_rect(x, y, width, height, fill_distance, angle=0.0):
     sketch = get_empty_sketch()
@@ -65,10 +95,31 @@ def draw_shaded_rect(x, y, width, height, fill_distance, angle=0.0):
     # for y in np.linspace(-0.5*height + fill_distance_y, 0.5*height - fill_distance_y, N_y, endpoint=True):
     #     x = (y + 0.5*height) / np.tan(angle) - 0.5*width
     #     sketch.line(x, -0.5*height, -0.5*width, y)
-
-        
     return sketch
 
+
+def draw_dot_shaded_rect(x_0, y_0, width, height, dot_distance, vsk=None, noise_gain=None, noise_freq=1.0):
+    if noise_gain is not None: vsk.noiseSeed(np.random.randint(1e6))
+    sketch = get_empty_sketch()
+    sketch.translate(x_0, y_0)
+    sketch.rect(0, 0, width, height, mode="center")
+    sketch.translate(-0.5 * width, -0.5 * height)
+    N_x = np.max((0, int(np.round(width / dot_distance - 1))))
+    N_y = np.max((0, int(np.round(height / dot_distance - 1))))
+    dot_distance_x = width / (N_x + 1)
+    dot_distance_y = height / (N_y + 1)
+    for x in np.linspace(0, width, N_x + 2, endpoint=True):
+        for y in np.linspace(0, height, N_y + 2, endpoint=True):
+            x_noise, y_noise = 0.0, 0.0
+            if noise_gain is not None and vsk is not None:
+                angle = 2 * np.pi * vsk.noise(noise_freq * x, noise_freq * y)
+                x_noise = noise_gain * dot_distance_x * np.cos(angle)
+                y_noise = noise_gain * dot_distance_y * np.sin(angle)
+            x_total, y_total = x + x_noise, y + y_noise
+            if x_total > 0.0 and x_total < width and y_total > 0.0 and y_total < height:
+                sketch.circle(x_total, y_total, radius=1e-2)
+    return sketch
+    
 
 def draw_filled_rect(x, y, width, height, angle=0.0):
     sketch = draw_shaded_rect(x, y, width, height, fill_distance=1e-2, angle=angle)
@@ -157,14 +208,16 @@ class SchlagSketch(vsketch.SketchClass):
     
     # Shape params:
     N_shapes = vsketch.Param(100, min_value=0)
-    shapes = Enum("Shape", "SHADED_RECT SHADED_CIRCLE FILLED_RECT FILLED_CIRCLE RECT CIRCLE DOT_CIRCLE")
-    p_rect = vsketch.Param(0.1, min_value=0, max_value=1)
-    p_circle = vsketch.Param(0.1, min_value=0, max_value=1)
-    p_filled_rect = vsketch.Param(0.15, min_value=0, max_value=1)
+    shapes = Enum("Shape", "SHADED_RECT SHADED_CIRCLE FILLED_RECT FILLED_CIRCLE RECT CIRCLE DOT_CIRCLE DOT_SHADED_RECT DOT_SHADED_CIRCLE")
+    p_rect = vsketch.Param(0.05, min_value=0, max_value=1)
+    p_circle = vsketch.Param(0.05, min_value=0, max_value=1)
+    p_filled_rect = vsketch.Param(0.1, min_value=0, max_value=1)
     p_filled_circle = vsketch.Param(0.1, min_value=0, max_value=1)
     p_shaded_rect = vsketch.Param(0.2, min_value=0, max_value=1)
     p_shaded_circle = vsketch.Param(0.2, min_value=0, max_value=1)
-    p_dot_circle = vsketch.Param(0.15, min_value=0, max_value=1)
+    p_dot_circle = vsketch.Param(0.1, min_value=0, max_value=1)
+    p_dot_shaded_rect = vsketch.Param(0.1, min_value=0, max_value=1)
+    p_dot_shaded_circle = vsketch.Param(0.1, min_value=0, max_value=1)
     
     size_scale_start = vsketch.Param(0.5, min_value=0)
     size_scale_end = vsketch.Param(2.0, min_value=0)
@@ -184,6 +237,9 @@ class SchlagSketch(vsketch.SketchClass):
     dot_circle_radius_max = vsketch.Param(0.4, min_value=0)
     dot_circle_inner_radius_gain_min = vsketch.Param(0.1, min_value=0)
     dot_circle_inner_radius_gain_max = vsketch.Param(0.6, min_value=0)
+    
+    dot_fill_distance_min = vsketch.Param(0.03, min_value=0)
+    dot_fill_distance_max = vsketch.Param(0.1, min_value=0)
     
     
     def check_valid_pos(self, x, y, grid):
@@ -242,13 +298,32 @@ class SchlagSketch(vsketch.SketchClass):
             vsk.rotate(angle)
             vsk.sketch(sketch)
 
+    def draw_debug_shapes(self, vsk):
+        vsk.stroke(5)
+        vsk.sketch(draw_shaded_circle(0, 0, radius=0.375, fill_distance=0.1, angle=np.deg2rad(45)))
+        vsk.sketch(draw_shaded_rect(1, 0, width=0.7, height=0.5, fill_distance=0.1, angle=np.deg2rad(45)))
+        vsk.sketch(draw_dot_circle(2, 0, radius=0.375, radius_inner=0.15))
+        vsk.sketch(draw_filled_circle(3, 0, radius=0.375))
+        vsk.sketch(draw_circle(4, 0, radius=0.375))
+        vsk.sketch(draw_rect(5, 0, 0.7, 0.5))
+        vsk.sketch(draw_pole(6, 0.25, 0.1, 1, 0.1))
+        vsk.sketch(draw_flag(7, 0.25, 0.1, 1, 0.5, 0.3, right=False, triangular=True))
+        vsk.sketch(draw_partial_filled_circle(8, 0, 0.375, fill_gain=0.5))
+        vsk.sketch(draw_dot_shaded_rect(9, 0, 0.7, 0.6, dot_distance=6e-2))
+        vsk.sketch(draw_dot_shaded_rect(10, 0, 0.7, 0.6, dot_distance=6e-2, vsk=vsk, noise_gain=0.4, noise_freq=4.0))
+        vsk.sketch(draw_dot_shaded_circle(0, 1, 0.375, dot_distance=6e-2))
+        vsk.sketch(draw_dot_shaded_circle(1, 1, 0.375, dot_distance=6e-2, vsk=vsk, noise_gain=0.4, noise_freq=4.0))
+        # vsk.sketch(draw_dot_shaded_rect(9, 0, 0.7, 0.5, dot_distance=6e-2))
+        # vsk.sketch(draw_filled_rect(6, 0, 0.7, 0.5))
+
     def draw(self, vsk: vsketch.Vsketch) -> None:
         vsk.size("a4", landscape=False)
         vsk.scale("cm")
         vsk.scale(self.scale)
         
         self.p_shapes = np.array([self.p_shaded_rect, self.p_shaded_circle, self.p_rect, self.p_circle,
-                                  self.p_filled_rect, self.p_filled_circle, self.p_dot_circle])
+                                  self.p_filled_rect, self.p_filled_circle, self.p_dot_circle,
+                                  self.p_dot_shaded_rect, self.p_dot_shaded_circle])
         
         self.unit_size = self.width / self.N_grid_x
         self.height = self.N_grid_y * self.unit_size
@@ -319,7 +394,7 @@ class SchlagSketch(vsketch.SketchClass):
                 width = size_scale * self.rng.uniform(self.rect_width_min, self.rect_width_max)
                 height = width * self.rng.uniform(1.0, self.rect_height_gain_max)
                 fill_distance = self.rng.uniform(self.fill_distance_min, self.fill_distance_max)
-                rect = draw_shaded_rect(0, 0, width, height, fill_distance, angle=np.deg2rad(45))
+                rect = draw_shaded_rect(0, 0, width, height, fill_distance)
                 self.draw_sketch_with_angle(vsk, rect, x, y, angle)
             elif choice == enum_type_to_int(self.shapes.SHADED_CIRCLE):
                 radius = size_scale * self.rng.uniform(self.circle_radius_min, self.circle_radius_max)
@@ -346,21 +421,21 @@ class SchlagSketch(vsketch.SketchClass):
                 radius_inner = radius * self.rng.uniform(self.dot_circle_inner_radius_gain_min,
                                                          self.dot_circle_inner_radius_gain_max)
                 vsk.sketch(draw_dot_circle(x, y, radius, radius_inner))
-
-
+            elif choice == enum_type_to_int(self.shapes.DOT_SHADED_RECT):
+                width = size_scale * self.rng.uniform(self.rect_width_min, self.rect_width_max)
+                height = width * self.rng.uniform(1.0, self.rect_height_gain_max)
+                dot_distance = self.rng.uniform(self.dot_fill_distance_min, self.dot_fill_distance_max)
+                rect = draw_dot_shaded_rect(0, 0, width, height, dot_distance, vsk, noise_gain=0.4, noise_freq=4.0)
+                # TODO: w/wo noise, randomized noise params
+                self.draw_sketch_with_angle(vsk, rect, x, y, angle)
+            elif choice == enum_type_to_int(self.shapes.DOT_SHADED_CIRCLE):
+                radius = size_scale * self.rng.uniform(self.circle_radius_min, self.circle_radius_max)
+                dot_distance = self.rng.uniform(self.dot_fill_distance_min, self.dot_fill_distance_max)
+                circle = draw_dot_shaded_circle(0, 0, radius, dot_distance, vsk, noise_gain=0.4, noise_freq=4.0)
+                self.draw_sketch_with_angle(vsk, circle, x, y, angle)
                 
         if self.debug_show_shapes:
-            vsk.stroke(5)
-            vsk.sketch(draw_shaded_circle(0, 0, radius=0.375, fill_distance=0.1, angle=np.deg2rad(45)))
-            vsk.sketch(draw_shaded_rect(1, 0, width=0.7, height=0.5, fill_distance=0.1, angle=np.deg2rad(45)))
-            vsk.sketch(draw_dot_circle(2, 0, radius=0.375, radius_inner=0.15))
-            vsk.sketch(draw_filled_circle(3, 0, radius=0.375))
-            vsk.sketch(draw_circle(4, 0, radius=0.375))
-            vsk.sketch(draw_rect(5, 0, 0.7, 0.5))
-            vsk.sketch(draw_pole(6, 0.25, 0.1, 1, 0.1))
-            vsk.sketch(draw_flag(7, 0.25, 0.1, 1, 0.5, 0.3, right=False, triangular=True))
-            # vsk.sketch(draw_filled_rect(6, 0, 0.7, 0.5))
-            # vsk.triangle()
+            self.draw_debug_shapes(vsk)
             
 
         if self.occult:
