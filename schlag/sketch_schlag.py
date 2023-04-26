@@ -4,10 +4,11 @@ from numpy.random import default_rng
 from enum import Enum
 
 # TODO:
-# add boundary only shapes
-# lines
-# custom params
-# more shading options
+# add boundary only shapes (x)
+# lines (x)
+# more custom params
+# short random angle line shading 
+# draw border things before all other things?
 
 
 def pick_random_element(probs):
@@ -145,6 +146,7 @@ def draw_pole(x, y, pole_width, pole_height, radius):
     sketch.rect(0, 0, pole_width, pole_height, mode="center")
     sketch.translate(0, -0.5 * (pole_height + radius))
     sketch.circle(0, 0, radius=radius)
+    sketch.translate(0, pole_height + 0.5 * radius)
     return sketch
 
 
@@ -172,6 +174,12 @@ def draw_flag(x, y, pole_width, pole_height, flag_width, flag_height, right=True
     return sketch
 
 
+def draw_line(x, y, length, width=1e-2):
+    sketch = get_empty_sketch()
+    sketch.line(x, y, x, y - length)
+    return sketch
+    
+
 class SchlagSketch(vsketch.SketchClass):
     # General params:
     N_grid_x = vsketch.Param(50, min_value=1)
@@ -179,6 +187,7 @@ class SchlagSketch(vsketch.SketchClass):
     width = vsketch.Param(10.0)
     scale = vsketch.Param(1.0, min_value=0.0)
     debug_show_blob = vsketch.Param(True)
+    debug_show_blob_border = vsketch.Param(True)
     debug_show_blob_shapes = vsketch.Param(True)
     debug_show_shapes = vsketch.Param(True)
     occult = vsketch.Param(False)
@@ -208,24 +217,31 @@ class SchlagSketch(vsketch.SketchClass):
     
     # Shape params:
     N_shapes = vsketch.Param(100, min_value=0)
-    shapes = Enum("Shape", "SHADED_RECT SHADED_CIRCLE FILLED_RECT FILLED_CIRCLE RECT CIRCLE DOT_CIRCLE DOT_SHADED_RECT DOT_SHADED_CIRCLE")
+    shapes = Enum("Shape", "SHADED_RECT SHADED_CIRCLE FILLED_RECT FILLED_CIRCLE RECT CIRCLE DOT_CIRCLE DOT_SHADED_RECT " +\
+                           "DOT_SHADED_CIRCLE PARTIAL_FILLED_CIRCLE POLE FLAG LINE")
+    border_shapes = (shapes.POLE, shapes.FLAG, shapes.LINE)
+    p_shaded_rect = vsketch.Param(0.15, min_value=0, max_value=1)
+    p_shaded_circle = vsketch.Param(0.15, min_value=0, max_value=1)
+    p_filled_rect = vsketch.Param(0.09, min_value=0, max_value=1)
+    p_filled_circle = vsketch.Param(0.1, min_value=0, max_value=1)
     p_rect = vsketch.Param(0.05, min_value=0, max_value=1)
     p_circle = vsketch.Param(0.05, min_value=0, max_value=1)
-    p_filled_rect = vsketch.Param(0.1, min_value=0, max_value=1)
-    p_filled_circle = vsketch.Param(0.1, min_value=0, max_value=1)
-    p_shaded_rect = vsketch.Param(0.2, min_value=0, max_value=1)
-    p_shaded_circle = vsketch.Param(0.2, min_value=0, max_value=1)
     p_dot_circle = vsketch.Param(0.1, min_value=0, max_value=1)
     p_dot_shaded_rect = vsketch.Param(0.1, min_value=0, max_value=1)
     p_dot_shaded_circle = vsketch.Param(0.1, min_value=0, max_value=1)
+    p_partial_filled_circle = vsketch.Param(0.05, min_value=0, max_value=1)
+    p_pole = vsketch.Param(0.02, min_value=0, max_value=1)
+    p_flag = vsketch.Param(0.02, min_value=0, max_value=1)
+    p_line = vsketch.Param(0.02, min_value=0, max_value=1)
     
+    do_size_scaling = vsketch.Param(True)
     size_scale_start = vsketch.Param(0.5, min_value=0)
     size_scale_end = vsketch.Param(2.0, min_value=0)
     
     
     rect_width_min = vsketch.Param(0.1, min_value=0)
-    rect_width_max = vsketch.Param(0.8, min_value=0)
-    rect_height_gain_max = vsketch.Param(4.0, min_value=0)
+    rect_width_max = vsketch.Param(0.6, min_value=0)
+    rect_height_gain_max = vsketch.Param(3.5, min_value=0)
     
     circle_radius_min = vsketch.Param(0.2, min_value=0)
     circle_radius_max = vsketch.Param(0.6, min_value=0)
@@ -238,9 +254,30 @@ class SchlagSketch(vsketch.SketchClass):
     dot_circle_inner_radius_gain_min = vsketch.Param(0.1, min_value=0)
     dot_circle_inner_radius_gain_max = vsketch.Param(0.6, min_value=0)
     
-    dot_fill_distance_min = vsketch.Param(0.03, min_value=0)
-    dot_fill_distance_max = vsketch.Param(0.1, min_value=0)
+    dot_fill_distance_min = vsketch.Param(0.05, min_value=0)
+    dot_fill_distance_max = vsketch.Param(0.09, min_value=0)
+    p_noisy_dot_fill = vsketch.Param(0.75, min_value=0, max_value=1)
+    dot_fill_noise_gain_min = vsketch.Param(0.2, min_value=0)
+    dot_fill_noise_gain_max = vsketch.Param(0.6, min_value=0)
+    dot_fill_noise_freq_min = vsketch.Param(1.0, min_value=0)
+    dot_fill_noise_freq_max = vsketch.Param(6.0, min_value=0)
     
+    pole_height_min = vsketch.Param(0.5, min_value=0)
+    pole_height_max = vsketch.Param(1.3, min_value=0)
+    pole_width_gain_min = vsketch.Param(0.05, min_value=0)
+    pole_width_gain_max = vsketch.Param(0.12, min_value=0)
+    pole_radius_gain_min = vsketch.Param(1.1, min_value=0)
+    pole_radius_gain_max = vsketch.Param(1.5, min_value=0)
+    
+    p_flag_triangular = vsketch.Param(0.5, min_value=0, max_value=1)
+    flag_height_gain_min = vsketch.Param(0.2, min_value=0)
+    flag_height_gain_max = vsketch.Param(0.3, min_value=0)
+    flag_width_gain_min = vsketch.Param(1.1, min_value=0)
+    flag_width_gain_max = vsketch.Param(1.7, min_value=0)
+    
+    line_length_min = vsketch.Param(0.5, min_value=0)
+    line_length_max = vsketch.Param(1.5, min_value=0)
+
     
     def check_valid_pos(self, x, y, grid):
         return (0 <= x < grid.shape[0]) and (0 <= y < grid.shape[1])
@@ -252,7 +289,7 @@ class SchlagSketch(vsketch.SketchClass):
         if unit_dist is not None:
             dx, dy = self.rng.uniform(-0.5*unit_dist, 0.5*unit_dist, 2)
             x, y = x + dx, y + dy
-        return x, y
+        return x, y, choice_index
     
     def generate_metaballs_blob(self, xy_metaballs, r_metaballs):
         f_grid = np.zeros((self.N_grid_x, self.N_grid_y))
@@ -300,30 +337,39 @@ class SchlagSketch(vsketch.SketchClass):
 
     def draw_debug_shapes(self, vsk):
         vsk.stroke(5)
-        vsk.sketch(draw_shaded_circle(0, 0, radius=0.375, fill_distance=0.1, angle=np.deg2rad(45)))
-        vsk.sketch(draw_shaded_rect(1, 0, width=0.7, height=0.5, fill_distance=0.1, angle=np.deg2rad(45)))
-        vsk.sketch(draw_dot_circle(2, 0, radius=0.375, radius_inner=0.15))
-        vsk.sketch(draw_filled_circle(3, 0, radius=0.375))
-        vsk.sketch(draw_circle(4, 0, radius=0.375))
-        vsk.sketch(draw_rect(5, 0, 0.7, 0.5))
-        vsk.sketch(draw_pole(6, 0.25, 0.1, 1, 0.1))
-        vsk.sketch(draw_flag(7, 0.25, 0.1, 1, 0.5, 0.3, right=False, triangular=True))
-        vsk.sketch(draw_partial_filled_circle(8, 0, 0.375, fill_gain=0.5))
-        vsk.sketch(draw_dot_shaded_rect(9, 0, 0.7, 0.6, dot_distance=6e-2))
-        vsk.sketch(draw_dot_shaded_rect(10, 0, 0.7, 0.6, dot_distance=6e-2, vsk=vsk, noise_gain=0.4, noise_freq=4.0))
-        vsk.sketch(draw_dot_shaded_circle(0, 1, 0.375, dot_distance=6e-2))
-        vsk.sketch(draw_dot_shaded_circle(1, 1, 0.375, dot_distance=6e-2, vsk=vsk, noise_gain=0.4, noise_freq=4.0))
-        # vsk.sketch(draw_dot_shaded_rect(9, 0, 0.7, 0.5, dot_distance=6e-2))
-        # vsk.sketch(draw_filled_rect(6, 0, 0.7, 0.5))
+        with vsk.pushMatrix():
+            vsk.translate(0,-2)
+            
+            for x in range(10):
+                for y in range(2):
+                    vsk.circle(x, y, radius=3e-2)
+                       
+            vsk.sketch(draw_shaded_circle(0, 0, radius=0.375, fill_distance=0.1, angle=np.deg2rad(45)))
+            vsk.sketch(draw_shaded_rect(1, 0, width=0.7, height=0.5, fill_distance=0.1, angle=np.deg2rad(45)))
+            vsk.sketch(draw_dot_circle(2, 0, radius=0.375, radius_inner=0.15))
+            vsk.sketch(draw_filled_circle(3, 0, radius=0.375))
+            vsk.sketch(draw_filled_rect(4, 0, 0.7, 0.5))
+            vsk.sketch(draw_circle(5, 0, radius=0.375))
+            vsk.sketch(draw_rect(6, 0, 0.7, 0.5))
+            vsk.sketch(draw_pole(7, 0, 0.1, 1, 0.1))
+            vsk.sketch(draw_flag(8, 0, 0.1, 1, 0.5, 0.3, right=False, triangular=True))
+            vsk.sketch(draw_line(9, 0, 1))
+            vsk.sketch(draw_partial_filled_circle(0, 1, 0.375, fill_gain=0.5))
+            vsk.sketch(draw_dot_shaded_rect(1, 1, 0.7, 0.6, dot_distance=6e-2))
+            vsk.sketch(draw_dot_shaded_rect(2, 1, 0.7, 0.6, dot_distance=6e-2, vsk=vsk, noise_gain=0.4, noise_freq=4.0))
+            vsk.sketch(draw_dot_shaded_circle(3, 1, 0.375, dot_distance=6e-2))
+            vsk.sketch(draw_dot_shaded_circle(4, 1, 0.375, dot_distance=6e-2, vsk=vsk, noise_gain=0.4, noise_freq=4.0))
 
-    def draw(self, vsk: vsketch.Vsketch) -> None:
+    def draw_init(self, vsk):
         vsk.size("a4", landscape=False)
         vsk.scale("cm")
         vsk.scale(self.scale)
         
         self.p_shapes = np.array([self.p_shaded_rect, self.p_shaded_circle, self.p_rect, self.p_circle,
                                   self.p_filled_rect, self.p_filled_circle, self.p_dot_circle,
-                                  self.p_dot_shaded_rect, self.p_dot_shaded_circle])
+                                  self.p_dot_shaded_rect, self.p_dot_shaded_circle, self.p_partial_filled_circle,
+                                  self.p_pole, self.p_flag, self.p_line])
+        print(np.sum(self.p_shapes))
         
         self.unit_size = self.width / self.N_grid_x
         self.height = self.N_grid_y * self.unit_size
@@ -331,6 +377,8 @@ class SchlagSketch(vsketch.SketchClass):
         self.ys_grid = np.linspace(0, self.height, num=self.N_grid_y)
         
         self.rng = default_rng()
+    
+    def generate_occupancy_grid(self, vsk):
         xy_metaballs_min = np.full(2, self.r_metaballs_max) + self.padding
         xy_metaballs_max = np.array([self.width, self.height]) - xy_metaballs_min
         xy_metaballs = self.rng.uniform(low=xy_metaballs_min, high=xy_metaballs_max, size=(self.N_metaballs,2))
@@ -343,7 +391,7 @@ class SchlagSketch(vsketch.SketchClass):
         # Add rects to blob:
         N_rects = self.rng.integers(self.N_rects_blob_min, self.N_rects_blob_max + 1)
         for i in range(N_rects):
-            x_rect, y_rect = self.sample_random_occupied_pos(x_valid, y_valid)
+            x_rect, y_rect, _ = self.sample_random_occupied_pos(x_valid, y_valid)
             rect_angle = self.rng.uniform(0, np.pi)
             rect_width = self.rng.uniform(self.rects_blob_width_min, self.rects_blob_width_max)
             rect_height = rect_width * self.rng.uniform(1.0, self.rects_blob_height_gain_max)  # random orientation so can do this to simplify tuning
@@ -357,14 +405,33 @@ class SchlagSketch(vsketch.SketchClass):
         # Add circles to blob:
         N_circles = self.rng.integers(self.N_circles_blob_min, self.N_circles_blob_max + 1)
         for i in range(N_circles):
-            x_circle, y_circle = self.sample_random_occupied_pos(x_valid, y_valid)
+            x_circle, y_circle, _ = self.sample_random_occupied_pos(x_valid, y_valid)
             radius = self.rng.uniform(self.circles_blob_radius_min, self.circles_blob_radius_max)
             self.add_circle_to_grid(occupancy_grid, x_circle, y_circle, radius, unit_dist=self.unit_size)
             if self.debug_show_blob_shapes:
                 vsk.circle(x_circle, y_circle, radius=radius)
 
-        x_valid, y_valid = np.where(occupancy_grid)  # update array of occupied cells after adding other shapes 
+        x_valid, y_valid = np.where(occupancy_grid)  # update array of occupied cells after adding other shapes
         
+        # Find border:
+        border_grid = np.zeros((self.N_grid_x, self.N_grid_y))
+        dir_grid = np.zeros((self.N_grid_x, self.N_grid_y, 4))
+        for x, y in zip(x_valid, y_valid):
+            if y > 0 and not occupancy_grid[x,y-1]:
+                border_grid[x,y] = True
+                dir_grid[x,y,0] = True
+            if x > 0 and not occupancy_grid[x-1,y]:
+                border_grid[x,y] = True
+                dir_grid[x,y,1] = True
+            if y < self.N_grid_y - 1 and not occupancy_grid[x,y+1]:
+                border_grid[x,y] = True
+                dir_grid[x,y,2] = True
+            if x < self.N_grid_x - 1 and not occupancy_grid[x+1,y]:  # iterative through right, up, left, down
+                border_grid[x,y] = True
+                dir_grid[x,y,3] = True
+        
+        x_border, y_border = np.where(border_grid)
+        dirs = dir_grid[x_border, y_border]
         
         # Debug draws:
         if self.debug_show_blob_shapes:
@@ -378,18 +445,52 @@ class SchlagSketch(vsketch.SketchClass):
                 for j, y in enumerate(self.ys_grid):
                     vsk.circle(x, y, radius=0.01)
                     if occupancy_grid[i,j]:
-                        vsk.circle(x, y, radius=0.5*self.unit_size)
+                        vsk.rect(x, y, self.unit_size, self.unit_size, mode="center")
         
+        if self.debug_show_blob_border:
+            vsk.stroke(4)
+            for i, x in enumerate(self.xs_grid):
+                for j, y in enumerate(self.ys_grid):
+                    if border_grid[i,j]:
+                        vsk.rect(x, y, self.unit_size, self.unit_size, mode="center")
+                        if dir_grid[i,j,0]:
+                            vsk.line(x, y - 0.5*self.unit_size, x, y - self.unit_size)
+                        if dir_grid[i,j,1]:
+                            vsk.line(x - 0.5*self.unit_size, y, x - self.unit_size, y)
+                        if dir_grid[i,j,2]:
+                            vsk.line(x, y + 0.5*self.unit_size, x, y + self.unit_size)
+                        if dir_grid[i,j,3]:
+                            vsk.line(x + 0.5*self.unit_size, y, x + self.unit_size, y)
+                            
+        return x_valid, y_valid, x_border, y_border, dirs
+    
+    def draw(self, vsk: vsketch.Vsketch) -> None:
+        self.draw_init(vsk)
         
+        x_valid, y_valid, x_border, y_border, dirs = self.generate_occupancy_grid(vsk)
+
         # Draw shapes:
         vsk.stroke(4)
         for i in range(self.N_shapes):
             choice = pick_random_element(self.p_shapes)
-            x, y = self.sample_random_occupied_pos(x_valid, y_valid, unit_dist=self.unit_size)
-            angle = self.rng.uniform(0, np.pi)
-            s = (self.N_shapes - 1 - i) / (self.N_shapes - 1)
-            size_scale = self.size_scale_start + s * (self.size_scale_end - self.size_scale_start)
-            # size_scale = 1.0
+            
+            # Sample position and angle of shape:
+            if self.shapes(choice + 1) in self.border_shapes:
+                x, y, index = self.sample_random_occupied_pos(x_border, y_border, unit_dist=self.unit_size)
+                dirs_i = dirs[index]
+                dir_i = np.random.choice(np.where(dirs_i)[0])  # choose direction
+                angle = self.rng.uniform(-0.25 * np.pi, 0.25 * np.pi) - 0.5 * np.pi * dir_i
+            else:
+                x, y, _ = self.sample_random_occupied_pos(x_valid, y_valid, unit_dist=self.unit_size)
+                angle = self.rng.uniform(0, np.pi)
+            
+            # Determine size scaling of shape:
+            if self.do_size_scaling:
+                s = (self.N_shapes - 1 - i) / (self.N_shapes - 1)
+                size_scale = self.size_scale_start + s * (self.size_scale_end - self.size_scale_start)
+            else:
+                size_scale = 1.0    
+                
             if choice == enum_type_to_int(self.shapes.SHADED_RECT):
                 width = size_scale * self.rng.uniform(self.rect_width_min, self.rect_width_max)
                 height = width * self.rng.uniform(1.0, self.rect_height_gain_max)
@@ -425,26 +526,51 @@ class SchlagSketch(vsketch.SketchClass):
                 width = size_scale * self.rng.uniform(self.rect_width_min, self.rect_width_max)
                 height = width * self.rng.uniform(1.0, self.rect_height_gain_max)
                 dot_distance = self.rng.uniform(self.dot_fill_distance_min, self.dot_fill_distance_max)
-                rect = draw_dot_shaded_rect(0, 0, width, height, dot_distance, vsk, noise_gain=0.4, noise_freq=4.0)
-                # TODO: w/wo noise, randomized noise params
+                if self.rng.uniform() < self.p_noisy_dot_fill:
+                    noise_gain = self.rng.uniform(self.dot_fill_noise_gain_min, self.dot_fill_noise_gain_max)
+                    noise_freq = self.rng.uniform(self.dot_fill_noise_freq_min, self.dot_fill_noise_freq_max)
+                    rect = draw_dot_shaded_rect(0, 0, width, height, dot_distance, vsk, noise_gain=noise_gain, noise_freq=noise_freq)
+                else:
+                    rect = draw_dot_shaded_rect(0, 0, width, height, dot_distance)
                 self.draw_sketch_with_angle(vsk, rect, x, y, angle)
             elif choice == enum_type_to_int(self.shapes.DOT_SHADED_CIRCLE):
                 radius = size_scale * self.rng.uniform(self.circle_radius_min, self.circle_radius_max)
                 dot_distance = self.rng.uniform(self.dot_fill_distance_min, self.dot_fill_distance_max)
-                circle = draw_dot_shaded_circle(0, 0, radius, dot_distance, vsk, noise_gain=0.4, noise_freq=4.0)
+                if self.rng.uniform() < self.p_noisy_dot_fill:
+                    noise_gain = self.rng.uniform(self.dot_fill_noise_gain_min, self.dot_fill_noise_gain_max)
+                    noise_freq = self.rng.uniform(self.dot_fill_noise_freq_min, self.dot_fill_noise_freq_max)
+                    circle = draw_dot_shaded_circle(0, 0, radius, dot_distance, vsk, noise_gain=noise_gain, noise_freq=noise_freq)
+                else:
+                    circle = draw_dot_shaded_circle(0, 0, radius, dot_distance)
                 self.draw_sketch_with_angle(vsk, circle, x, y, angle)
+            elif choice == enum_type_to_int(self.shapes.POLE):
+                height = self.rng.uniform(self.pole_height_min, self.pole_height_max)
+                width = height * self.rng.uniform(self.pole_width_gain_min, self.pole_width_gain_max)
+                radius = width * self.rng.uniform(self.pole_radius_gain_min, self.pole_radius_gain_max)
+                pole = draw_pole(0, 0, width, height, radius)
+                self.draw_sketch_with_angle(vsk, pole, x, y, angle)
+            elif choice == enum_type_to_int(self.shapes.FLAG):
+                height = self.rng.uniform(self.pole_height_min, self.pole_height_max)
+                width = height * self.rng.uniform(self.pole_width_gain_min, self.pole_width_gain_max)
+                flag_height = height * self.rng.uniform(self.flag_height_gain_min, self.flag_height_gain_max)
+                flag_width = flag_height * self.rng.uniform(self.flag_width_gain_min, self.flag_width_gain_max)
+                right = self.rng.uniform() < 0.5
+                triangular = self.rng.uniform() < self.p_flag_triangular
+                flag = draw_flag(0, 0, width, height, flag_width, flag_height, right, triangular)
+                self.draw_sketch_with_angle(vsk, flag, x, y, angle)
+            elif choice == enum_type_to_int(self.shapes.LINE):
+                length = self.rng.uniform(self.line_length_min, self.line_length_max)
+                line = draw_line(0, 0, length)
+                self.draw_sketch_with_angle(vsk, line, x, y, angle)
                 
         if self.debug_show_shapes:
             self.draw_debug_shapes(vsk)
             
-
         if self.occult:
             vsk.vpype("occult -i")
         
-
     def finalize(self, vsk: vsketch.Vsketch) -> None:
         vsk.vpype("linemerge linesimplify reloop linesort")
-
 
 if __name__ == "__main__":
     SchlagSketch.display()
