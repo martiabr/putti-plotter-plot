@@ -7,6 +7,7 @@ from scipy.spatial import Delaunay
 import pandas as pd
 import networkx as nx
 from collections import deque
+import heapq
 from shapely import Polygon
 
 from plotter_shapes.plotter_shapes import draw_filled_circle, draw_dashed_line
@@ -135,10 +136,11 @@ class StarchartsSketch(vsketch.SketchClass):
         return graph
 
     def draw_graph(self, graph, vsk, dashed=False, debug=False):
-        if debug:
-            for node, pos in graph.nodes(data=True):
+        # if debug:
+            # for node, pos in graph.nodes(data=True):
                 # vsk.stroke(graph.cluster_label+2)
-                vsk.circle(pos["x"], pos["y"], radius=5e-2) 
+                # vsk.circle(pos["x"], pos["y"], radius=5e-2) 
+                # vsk.text(str(node), pos["x"] + 2e-1, pos["y"] - 2e-1, align="center", size=0.2)
         
         for u, v in graph.edges:
             x_u, y_u = graph.nodes[u]["x"], graph.nodes[u]["y"]
@@ -203,39 +205,81 @@ class StarchartsSketch(vsketch.SketchClass):
             
             reduced_graph = nx.Graph()
             
-            queue = deque([start_node])
-            valid_nodes = np.ones(N_points, dtype=bool)
-            while len(queue) > 0:
-                node = queue.popleft()
-                reduced_graph.add_nodes_from([(node, full_graph.nodes[node])])
+            # queue = deque([start_node])
+            # valid_nodes = np.ones(N_points, dtype=bool)
+            # while len(queue) > 0:
+            #     node = queue.popleft()
+            #     reduced_graph.add_nodes_from([(node, full_graph.nodes[node])])
                 
-                valid_nodes[node] = False
-                valid_edges = [x for x in full_graph[node].items() if valid_nodes[x[0]]]
-                # print(f"\nPopped node {node}")
-                # print(f"Valid nodes (all): {valid_nodes}")
-                # print(f"Valid edges: {valid_edges}")
+            #     valid_nodes[node] = False
+            #     valid_edges = [x for x in full_graph[node].items() if valid_nodes[x[0]]]
+            #     # print(f"\nPopped node {node}")
+            #     # print(f"Valid nodes (all): {valid_nodes}")
+            #     # print(f"Valid edges: {valid_edges}")
                 
-                if len(valid_edges) > 0:
-                    # Pick closest neighbor node:
-                    closest_neighbor, attributes = min(valid_edges, key=lambda edge: edge[1]["distance"])
-                    queue.append(closest_neighbor)
+            #     if len(valid_edges) > 0:
+            #         # Pick closest neighbor node:
+            #         closest_neighbor, attributes = min(valid_edges, key=lambda edge: edge[1]["distance"])
+            #         queue.append(closest_neighbor)
                     
-                    # Add edge to new graph:
-                    reduced_graph.add_edges_from([(node, closest_neighbor, attributes)])
-                    # print(f"Closest neighbor: {closest_neighbor}")
-                    # print(f"Reduced graph: {reduced_graph}")
+            #         # Add edge to new graph:
+            #         reduced_graph.add_edges_from([(node, closest_neighbor, attributes)])
+            #         # print(f"Closest neighbor: {closest_neighbor}")
+            #         # print(f"Reduced graph: {reduced_graph}")
             
-            # Randomly go through remaining nodes:
-            # TODO: update this to continue to iterate... Requires some refactoring of code.
-            while np.any(valid_nodes):
-                nodes_left_to_visit = np.where(valid_nodes)[0]
-                node = self.rng.choice(nodes_left_to_visit)
-                reduced_graph.add_nodes_from([(node, full_graph.nodes[node])])
-                valid_nodes[node] = False
-                edges = [x for x in full_graph[node].items()]
-                closest_neighbor, attributes = min(edges, key=lambda edge: edge[1]["distance"])
-                reduced_graph.add_edges_from([(node, closest_neighbor, attributes)])
+            # # Randomly go through remaining nodes:
+            # # TODO: update this to continue to iterate... Requires some refactoring of code.
+            # while np.any(valid_nodes):
+            #     nodes_left_to_visit = np.where(valid_nodes)[0]
+            #     node = self.rng.choice(nodes_left_to_visit)
+            #     reduced_graph.add_nodes_from([(node, full_graph.nodes[node])])
+            #     valid_nodes[node] = False
+            #     edges = [x for x in full_graph[node].items()]
+            #     closest_neighbor, attributes = min(edges, key=lambda edge: edge[1]["distance"])
+            #     reduced_graph.add_edges_from([(node, closest_neighbor, attributes)])
 
+
+            # New strategy: drop the queue, instead always add the shortest edge among the available ones.
+            # Then there is no two parter custom stuff.
+            # How to do it?
+            # list of all available edges, a heap can be used to maintain a sorted list over time as we traverse the graph
+            # pop from the heap, add node and edge to reduced graph, mark the node as visited, add new valid edges to heap
+            # Wow this should be so much simpler in addition to giving better result!
+            
+            # Can same edge be added several times? Should not be possible as nodes can only be visited once
+            # Yet very funky stuff are happening
+            # Would be able to add several edges to same not yet visited node!
+            # When we pop and visit the node the other edge is still in there and will be visited later.
+            # So need to go through heap and remove no longer relevant edges! 
+            
+            valid_nodes = np.ones(N_points, dtype=bool)  # Boolean array to keep track of visited nodes
+            valid_edges_heap = []
+            
+            i_nodes = 0
+            
+            def visit_node(node):
+                # vsk.text(str(i_nodes), full_graph.nodes[node]["x"] + 2e-1, full_graph.nodes[node]["y"] - 2e-1, align="center", size=0.2)
+                
+                valid_nodes[node] = False
+                reduced_graph.add_nodes_from([(node, full_graph.nodes[node])])
+                
+                # Push new possible edges:
+                new_edges = [x for x in full_graph[node].items() if valid_nodes[x[0]]]
+                for to_node, attributes in new_edges:
+                    heap_edge_tuple = (attributes["distance"], node, to_node, attributes)
+                    heapq.heappush(valid_edges_heap, heap_edge_tuple)
+                
+            visit_node(start_node)
+            while np.any(valid_nodes):
+                _, from_node, to_node, attributes = heapq.heappop(valid_edges_heap)
+                
+                valid_visit = valid_nodes[to_node]  # TODO: not sure on this?
+                if valid_visit:  # Somehow if destination node already visited, ignore the whole iteration...
+                    i_nodes += 1
+                    visit_node(to_node)  # visit node and update heap structure with new edges
+                    
+                    reduced_graph.add_edges_from([(from_node, to_node, attributes)])
+                    
 
             # Pick how many extra edges to add:
             edges_left = len(full_graph.edges) - len(reduced_graph.edges)
@@ -272,7 +316,7 @@ class StarchartsSketch(vsketch.SketchClass):
             # Draw full graph:
             if self.debug_draw_full_tri:
                 vsk.stroke(2)
-                self.draw_graph(full_graph, vsk, dashed=True)
+                self.draw_graph(full_graph, vsk, dashed=True, debug=self.debug)
             
             # Other debug draws:
             if self.debug:
