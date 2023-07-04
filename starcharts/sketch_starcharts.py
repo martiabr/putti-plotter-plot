@@ -28,10 +28,11 @@ from plotter_shapes.plotter_shapes import draw_filled_circle, draw_dashed_line
 # - Add extra set of stars which will not be clustered (x)
 # - Different size of stars (x)
 # - Extra edges but not for triangles with bad circumference to area ratio (x)
-# - Redo graph iteration code to actually deal with the leftovers correctly
-# - Heuristic for ignoring sharp angles? Hard to tune but should be easy to compute the angle
-# - Circles around some stars (largest)
+# - Redo graph iteration code to actually deal with the leftovers correctly (x)
+# - Circles around some stars (largest) (x)
 # - Randomly draw dotted lines between close stars across constellations
+# - 3-way or cross stars with random rotation? For a few select stars instead of filled circle? Why not try it, fast to do
+# - Heuristic for ignoring sharp angles? Hard to tune but should be easy to compute the angle
 # - Somehow make more than one extra edge not do bad stuff
 
 
@@ -45,8 +46,8 @@ class StarchartsSketch(vsketch.SketchClass):
     mode = vsketch.Param("circle", choices=["rect", "circle"])
     border = vsketch.Param("simple", choices=["none", "simple"])
     
-    N_stars = vsketch.Param(350, min_value=0)
-    stars_no_cluster_frac  = vsketch.Param(0.5, min_value=0.0, max_value=1.0)
+    N_stars = vsketch.Param(500, min_value=0)
+    stars_no_cluster_frac  = vsketch.Param(0.6, min_value=0.0, max_value=1.0)
 
     inner_padding = vsketch.Param(0.5, min_value=0.0)
     border_padding = vsketch.Param(0.5, min_value=0.0)
@@ -121,7 +122,8 @@ class StarchartsSketch(vsketch.SketchClass):
         star_clusters = df_stars[df_stars["label"] != -1].groupby("label")
         return star_clusters
     
-    def build_graph(self, pos, edges):
+    @staticmethod
+    def build_graph(pos, edges):
         graph = nx.Graph()
         
         for i, (x, y) in enumerate(pos):
@@ -134,6 +136,63 @@ class StarchartsSketch(vsketch.SketchClass):
                     graph.add_edge(n_1, n_2, distance=d_12)
         
         return graph
+
+    @staticmethod
+    def build_reduced_graph(full_graph, start_node):
+        N_nodes = len(full_graph.nodes)
+        
+        reduced_graph = nx.Graph()
+
+        valid_nodes = np.ones(N_nodes, dtype=bool)  # Boolean array to keep track of visited nodes
+        valid_edges_heap = []
+        
+        def visit_node(node):
+            # vsk.text(str(i_nodes), full_graph.nodes[node]["x"] + 2e-1, full_graph.nodes[node]["y"] - 2e-1, align="center", size=0.2)
+            
+            valid_nodes[node] = False
+            reduced_graph.add_nodes_from([(node, full_graph.nodes[node])])
+            
+            # Push new possible edges:
+            new_edges = [x for x in full_graph[node].items() if valid_nodes[x[0]]]
+            for to_node, attributes in new_edges:
+                heap_edge_tuple = (attributes["distance"], node, to_node, attributes)
+                heapq.heappush(valid_edges_heap, heap_edge_tuple)
+            
+        visit_node(start_node)
+        
+        while np.any(valid_nodes):
+            _, from_node, to_node, attributes = heapq.heappop(valid_edges_heap)
+            if valid_nodes[to_node]:
+                visit_node(to_node)  # visit node and update heap structure with new edges
+                reduced_graph.add_edges_from([(from_node, to_node, attributes)])
+        
+        return reduced_graph
+
+    def add_extra_adges(self, full_graph, reduced_graph, num_extra_edges, area_perimeter_ratio_thresh):
+        graph_difference = nx.difference(full_graph, reduced_graph)  # get graph with edges not yet added
+
+        # Remove edges which have bad area / circumference ratio:
+        for node_from, node_to in graph_difference.edges:  # for every edge not added to reduced graph
+            # curr_distance = full_graph.edges[node_from, node_to]["distance"]  # distance of current edge
+            path = nx.shortest_path(reduced_graph, node_from, node_to, weight="distance")  # get shortest path
+            
+            # Create polygon and get area and circumference:
+            poly_points = [(full_graph.nodes[n]["x"], full_graph.nodes[n]["y"]) for n in path]
+            poly = Polygon(poly_points)
+            area_perimeter_ratio = poly.area / poly.length
+            if area_perimeter_ratio < area_perimeter_ratio_thresh:
+                graph_difference.remove_edge(node_from, node_to)
+        
+        # Randomly add edges:
+        edges_left = len(graph_difference.edges)
+        num_extra_edges = np.min((num_extra_edges, edges_left))
+        if num_extra_edges > 0:
+            extra_edges = self.rng.choice(graph_difference.edges, num_extra_edges)
+            for node_from, node_to in extra_edges:
+                attributes = full_graph.edges[node_from, node_to]
+                reduced_graph.add_edges_from([(node_from, node_to, attributes)]) 
+                    
+        return reduced_graph
 
     def draw_graph(self, graph, vsk, dashed=False, debug=False):
         # if debug:
@@ -188,129 +247,31 @@ class StarchartsSketch(vsketch.SketchClass):
         ###
         
         for label, df_cluster in star_clusters:
-            pos = df_cluster[["x", "y"]].to_numpy()
-            N_points = len(pos)
-            
             # Build graph:
+            pos = df_cluster[["x", "y"]].to_numpy()
             tri = Delaunay(pos)
             full_graph = self.build_graph(pos, tri.simplices)
             full_graph.cluster_label = label
             
-            ### Iterate graph:
             
-            # Start node:
+            # Decide start node:
             # start_node = self.rng.integers(0, N_points)  # TODO: option for this
-            cluster_mean = np.mean(pos, axis=0)  # Should be changed out with centroid of the hull around the cluster. Could be done by a union of all the triangles.
+            cluster_mean = np.mean(pos, axis=0)  # TODO: should be changed out with centroid of the hull around the cluster. Could be done by a union of all the triangles.
             start_node = np.argmax(np.linalg.norm(pos - cluster_mean, axis=1))
             
-            reduced_graph = nx.Graph()
-            
-            # queue = deque([start_node])
-            # valid_nodes = np.ones(N_points, dtype=bool)
-            # while len(queue) > 0:
-            #     node = queue.popleft()
-            #     reduced_graph.add_nodes_from([(node, full_graph.nodes[node])])
-                
-            #     valid_nodes[node] = False
-            #     valid_edges = [x for x in full_graph[node].items() if valid_nodes[x[0]]]
-            #     # print(f"\nPopped node {node}")
-            #     # print(f"Valid nodes (all): {valid_nodes}")
-            #     # print(f"Valid edges: {valid_edges}")
-                
-            #     if len(valid_edges) > 0:
-            #         # Pick closest neighbor node:
-            #         closest_neighbor, attributes = min(valid_edges, key=lambda edge: edge[1]["distance"])
-            #         queue.append(closest_neighbor)
-                    
-            #         # Add edge to new graph:
-            #         reduced_graph.add_edges_from([(node, closest_neighbor, attributes)])
-            #         # print(f"Closest neighbor: {closest_neighbor}")
-            #         # print(f"Reduced graph: {reduced_graph}")
-            
-            # # Randomly go through remaining nodes:
-            # # TODO: update this to continue to iterate... Requires some refactoring of code.
-            # while np.any(valid_nodes):
-            #     nodes_left_to_visit = np.where(valid_nodes)[0]
-            #     node = self.rng.choice(nodes_left_to_visit)
-            #     reduced_graph.add_nodes_from([(node, full_graph.nodes[node])])
-            #     valid_nodes[node] = False
-            #     edges = [x for x in full_graph[node].items()]
-            #     closest_neighbor, attributes = min(edges, key=lambda edge: edge[1]["distance"])
-            #     reduced_graph.add_edges_from([(node, closest_neighbor, attributes)])
+            # Iterate graph to build a reduced version:
+            reduced_graph = self.build_reduced_graph(full_graph, start_node)
 
-
-            # New strategy: drop the queue, instead always add the shortest edge among the available ones.
-            # Then there is no two parter custom stuff.
-            # How to do it?
-            # list of all available edges, a heap can be used to maintain a sorted list over time as we traverse the graph
-            # pop from the heap, add node and edge to reduced graph, mark the node as visited, add new valid edges to heap
-            # Wow this should be so much simpler in addition to giving better result!
-            
-            # Can same edge be added several times? Should not be possible as nodes can only be visited once
-            # Yet very funky stuff are happening
-            # Would be able to add several edges to same not yet visited node!
-            # When we pop and visit the node the other edge is still in there and will be visited later.
-            # So need to go through heap and remove no longer relevant edges! 
-            
-            valid_nodes = np.ones(N_points, dtype=bool)  # Boolean array to keep track of visited nodes
-            valid_edges_heap = []
-            
-            i_nodes = 0
-            
-            def visit_node(node):
-                # vsk.text(str(i_nodes), full_graph.nodes[node]["x"] + 2e-1, full_graph.nodes[node]["y"] - 2e-1, align="center", size=0.2)
-                
-                valid_nodes[node] = False
-                reduced_graph.add_nodes_from([(node, full_graph.nodes[node])])
-                
-                # Push new possible edges:
-                new_edges = [x for x in full_graph[node].items() if valid_nodes[x[0]]]
-                for to_node, attributes in new_edges:
-                    heap_edge_tuple = (attributes["distance"], node, to_node, attributes)
-                    heapq.heappush(valid_edges_heap, heap_edge_tuple)
-                
-            visit_node(start_node)
-            while np.any(valid_nodes):
-                _, from_node, to_node, attributes = heapq.heappop(valid_edges_heap)
-                
-                valid_visit = valid_nodes[to_node]  # TODO: not sure on this?
-                if valid_visit:  # Somehow if destination node already visited, ignore the whole iteration...
-                    i_nodes += 1
-                    visit_node(to_node)  # visit node and update heap structure with new edges
-                    
-                    reduced_graph.add_edges_from([(from_node, to_node, attributes)])
-                    
 
             # Pick how many extra edges to add:
             edges_left = len(full_graph.edges) - len(reduced_graph.edges)
-            # print("Edges left:", edges_left)
             num_extra_edges = self.rng.choice(range(len(self.p_extra_edges)), p=self.p_extra_edges)
             num_extra_edges = np.min((num_extra_edges, edges_left))
+            # print("Edges left:", edges_left)
             # print("Extra edges:", num_extra_edges)
             
             if num_extra_edges > 0:
-                graph_difference = nx.difference(full_graph, reduced_graph)  # get graph with edges not yet added
-
-                # Remove edges which have bad area / circumference ratio:
-                for node_from, node_to in graph_difference.edges:  # for every edge not added to reduced graph
-                    # curr_distance = full_graph.edges[node_from, node_to]["distance"]  # distance of current edge
-                    path = nx.shortest_path(reduced_graph, node_from, node_to, weight="distance")  # get shortest path
-                    
-                    # Create polygon and get area and circumference:
-                    poly_points = [(full_graph.nodes[n]["x"], full_graph.nodes[n]["y"]) for n in path]
-                    poly = Polygon(poly_points)
-                    area_perimeter_ratio = poly.area / poly.length
-                    if area_perimeter_ratio < self.area_perimeter_ratio_thresh:
-                        graph_difference.remove_edge(node_from, node_to)
-                
-                # Randomly add edges:
-                edges_left = len(graph_difference.edges)
-                num_extra_edges = np.min((num_extra_edges, edges_left))
-                if num_extra_edges > 0:
-                    extra_edges = self.rng.choice(graph_difference.edges, num_extra_edges)
-                    for node_from, node_to in extra_edges:
-                        attributes = full_graph.edges[node_from, node_to]
-                        reduced_graph.add_edges_from([(node_from, node_to, attributes)])
+                reduced_graph = self.add_extra_adges(full_graph, reduced_graph, num_extra_edges, self.area_perimeter_ratio_thresh)
 
 
             # Draw full graph:
