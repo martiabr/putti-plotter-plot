@@ -74,6 +74,11 @@ class StarchartsSketch(vsketch.SketchClass):
     circle_largest_thresh = vsketch.Param(0.055, min_value=0.0)
     circle_largest_pad = vsketch.Param(0.07, min_value=0.0)
     
+    line_largest = vsketch.Param(True)
+    line_largest_frac = vsketch.Param(0.4, min_value=0.0)
+    line_largest_dash_size = vsketch.Param(0.25, min_value=0.0)
+    line_largest_dash_factor = vsketch.Param(0.4, min_value=0.0, max_value=1.0)
+    
     rng = default_rng(123)
     
     def sample_star_positions(self, N_stars, mode="rect"):
@@ -123,7 +128,10 @@ class StarchartsSketch(vsketch.SketchClass):
         return star_clusters
     
     @staticmethod
-    def build_graph(pos, edges):
+    def build_graph(pos):
+        tri = Delaunay(pos)
+        edges = tri.simplices
+        
         graph = nx.Graph()
         
         for i, (x, y) in enumerate(pos):
@@ -249,8 +257,7 @@ class StarchartsSketch(vsketch.SketchClass):
         for label, df_cluster in star_clusters:
             # Build graph:
             pos = df_cluster[["x", "y"]].to_numpy()
-            tri = Delaunay(pos)
-            full_graph = self.build_graph(pos, tri.simplices)
+            full_graph = self.build_graph(pos)
             full_graph.cluster_label = label
             
             
@@ -300,11 +307,21 @@ class StarchartsSketch(vsketch.SketchClass):
         
         # Draw stars:                
         self.draw_stars(vsk, pos_stars, radii_stars)
-        
+
+        indices_largest = np.argwhere(radii_stars > self.circle_largest_thresh)
         if self.circle_largest:
-            indices = np.argwhere(radii_stars > self.circle_largest_thresh)
-            for pos, radius in zip(pos_stars[indices].squeeze(), radii_stars[indices].squeeze()):
+            for pos, radius in zip(pos_stars[indices_largest].squeeze(), radii_stars[indices_largest].squeeze()):
                 vsk.circle(pos[0], pos[1], radius=radius+self.circle_largest_pad)
+
+        if self.line_largest:
+            graph_largest = self.build_graph(pos_stars[indices_largest].squeeze())
+            N_edge_picks = int(self.line_largest_frac * len(graph_largest.edges))
+            edge_picks = self.rng.choice(graph_largest.edges, N_edge_picks)
+            for n_from, n_to in edge_picks:
+                vsk.sketch(draw_dashed_line(graph_largest.nodes[n_from]["x"], graph_largest.nodes[n_from]["y"],
+                                            graph_largest.nodes[n_to]["x"], graph_largest.nodes[n_to]["y"], 
+                                            dash_size=self.line_largest_dash_size, factor=self.line_largest_dash_factor))
+        
         
         # Old stuff to draw outliers:   
         # for label, pos in zip(labels, pos_stars):
