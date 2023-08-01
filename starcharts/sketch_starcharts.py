@@ -10,7 +10,7 @@ from collections import deque
 import heapq
 from shapely import Polygon
 
-from plotter_shapes.plotter_shapes import draw_filled_circle, draw_dashed_line
+from plotter_shapes.plotter_shapes import draw_filled_circle, draw_dashed_line, draw_cross, draw_asterix, rotate_and_draw_sketch
 
 
 # Option for removing dots if cluster is too big
@@ -30,8 +30,10 @@ from plotter_shapes.plotter_shapes import draw_filled_circle, draw_dashed_line
 # - Extra edges but not for triangles with bad circumference to area ratio (x)
 # - Redo graph iteration code to actually deal with the leftovers correctly (x)
 # - Circles around some stars (largest) (x)
-# - Randomly draw dotted lines between close stars across constellations
+# - Randomly draw dotted lines between close stars across constellations (x)
 # - 3-way or cross stars with random rotation? For a few select stars instead of filled circle? Why not try it, fast to do
+# - Cool borders - look at old starchart maps for inspiration
+# Honestly after the two points above I think it is done
 # - Heuristic for ignoring sharp angles? Hard to tune but should be easy to compute the angle
 # - Somehow make more than one extra edge not do bad stuff
 
@@ -49,8 +51,8 @@ class StarchartsSketch(vsketch.SketchClass):
     N_stars = vsketch.Param(500, min_value=0)
     stars_no_cluster_frac  = vsketch.Param(0.6, min_value=0.0, max_value=1.0)
 
-    inner_padding = vsketch.Param(0.5, min_value=0.0)
-    border_padding = vsketch.Param(0.5, min_value=0.0)
+    inner_padding = vsketch.Param(0.3, min_value=0.0)
+    border_padding = vsketch.Param(0.9, min_value=0.0)
     
     eps = vsketch.Param(1.0, min_value=0.0)
     
@@ -78,6 +80,13 @@ class StarchartsSketch(vsketch.SketchClass):
     line_largest_frac = vsketch.Param(0.4, min_value=0.0)
     line_largest_dash_size = vsketch.Param(0.25, min_value=0.0)
     line_largest_dash_factor = vsketch.Param(0.4, min_value=0.0, max_value=1.0)
+    
+    p_star_dot = vsketch.Param(0.8, min_value=0.0, max_value=1.0)
+    p_star_cross = vsketch.Param(0.1, min_value=0.0, max_value=1.0)
+    p_star_ast = vsketch.Param(0.1, min_value=0.0, max_value=1.0)
+    
+    cross_radius_gain = vsketch.Param(3.0, min_value=0.0)
+    ast_radius_gain = vsketch.Param(3.0, min_value=0.0)
     
     rng = default_rng(123)
     
@@ -217,9 +226,18 @@ class StarchartsSketch(vsketch.SketchClass):
             else:
                 vsk.line(x_u, y_u, x_v, y_v)
 
-    def draw_stars(self, vsk, pos, radii):
+    def draw_stars(self, vsk, pos, radii, type="dot"):
+        assert type in ("dot", "cross", "ast")
+        
         for pos, radius in zip(pos, radii):
-            vsk.sketch(draw_filled_circle(pos[0], pos[1], radius=radius, line_width=5e-3))
+            if type == "dot":
+                vsk.sketch(draw_filled_circle(pos[0], pos[1], radius=radius, line_width=5e-3))
+            elif type == "cross":
+                sketch = draw_cross(0, 0, size=radius)
+                rotate_and_draw_sketch(vsk, sketch, pos[0], pos[1], angle=self.rng.uniform(0, np.pi))
+            elif type == "ast":
+                sketch = draw_asterix(0, 0, size=radius)
+                rotate_and_draw_sketch(vsk, sketch, pos[0], pos[1], angle=self.rng.uniform(0, np.pi))
             
     def draw_rect_border(self, vsk):
         vsk.line(self.border_padding, self.border_padding, self.WIDTH - self.border_padding, self.border_padding)
@@ -236,6 +254,7 @@ class StarchartsSketch(vsketch.SketchClass):
         
         self.padding = self.inner_padding + self.border_padding
         self.p_extra_edges = np.array([self.p_extra_edges_0, self.p_extra_edges_1, self.p_extra_edges_2])
+        # self.p_star_shape = np.array([self.p_star_dot, self.p_star_cross, self.p_star_ast])
     
     def draw(self, vsk: vsketch.Vsketch) -> None:
         self.draw_init(vsk)
@@ -305,14 +324,22 @@ class StarchartsSketch(vsketch.SketchClass):
             elif self.mode == "circle":
                 self.draw_circle_border(vsk)
         
-        # Draw stars:                
-        self.draw_stars(vsk, pos_stars, radii_stars)
+        # Draw stars:    
+        N_stars_no_cluster = self.N_stars - k_cluster   
+        N_cross_stars = int(np.round(self.p_star_cross * N_stars_no_cluster))
+        N_ast_stars = int(np.round(self.p_star_ast * N_stars_no_cluster))
+        self.draw_stars(vsk, pos_stars[:-(N_ast_stars + N_cross_stars)], radii_stars, type="dot")
+        self.draw_stars(vsk, pos_stars[-(N_ast_stars + N_cross_stars):-N_ast_stars], 
+                        self.cross_radius_gain * radii_stars, type="cross")
+        self.draw_stars(vsk, pos_stars[-N_ast_stars:], self.ast_radius_gain * radii_stars, type="ast")
 
+        # Circle around largest stars:
         indices_largest = np.argwhere(radii_stars > self.circle_largest_thresh)
         if self.circle_largest:
             for pos, radius in zip(pos_stars[indices_largest].squeeze(), radii_stars[indices_largest].squeeze()):
                 vsk.circle(pos[0], pos[1], radius=radius+self.circle_largest_pad)
 
+        # Line between largest stars:
         if self.line_largest:
             graph_largest = self.build_graph(pos_stars[indices_largest].squeeze())
             N_edge_picks = int(self.line_largest_frac * len(graph_largest.edges))

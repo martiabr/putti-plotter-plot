@@ -141,7 +141,20 @@ def draw_pole(x, y, pole_width, pole_height, radius):
     sketch.translate(0, pole_height + 0.5 * radius)
     return sketch
 
+def draw_cross(x, y, size):
+    sketch = get_empty_sketch()
+    sketch.line(x - 0.5 * size, y, x + 0.5 * size, y)
+    sketch.line(x, y - 0.5 * size, x, y + 0.5 * size)
+    return sketch
 
+def draw_asterix(x, y, size):
+    sketch = get_empty_sketch()
+    sketch.translate(x, y)
+    for i in range(3):
+        sketch.line(-0.5 * size, 0, 0.5 * size, 0)
+        sketch.rotate(np.pi / 3)
+    return sketch
+    
 def draw_flag(x, y, pole_width, pole_height, flag_width, flag_height, right=True, triangular=False):
     sketch = get_empty_sketch()
     sketch.translate(x, y - 0.5 * pole_height)
@@ -221,7 +234,7 @@ def draw_speckled_shaded_rect(x_0, y_0, width, height, density):
     return sketch
 
 
-def rotate_and_draw_sketch(vsk, sketch, x, y, angle):
+def rotate_and_draw_sketch(vsk, sketch, x=0, y=0, angle=0):
     with vsk.pushMatrix():
         vsk.translate(x, y)
         vsk.rotate(angle)
