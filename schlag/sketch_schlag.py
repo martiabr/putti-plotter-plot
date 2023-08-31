@@ -369,7 +369,6 @@ class SchlagSketch(vsketch.SketchClass):
                                   self.p_filled_rect, self.p_filled_circle, self.p_dot_circle,
                                   self.p_dot_shaded_rect, self.p_dot_shaded_circle, self.p_partial_filled_circle,
                                   self.p_pole, self.p_flag, self.p_line])
-        print(np.sum(self.p_shapes))
         
         self.unit_size = self.width / self.N_grid_x
         self.height = self.N_grid_y * self.unit_size

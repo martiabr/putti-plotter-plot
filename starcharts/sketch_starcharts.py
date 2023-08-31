@@ -6,7 +6,6 @@ from sklearn.cluster import DBSCAN
 from scipy.spatial import Delaunay
 import pandas as pd
 import networkx as nx
-from collections import deque
 import heapq
 from shapely import Polygon
 
@@ -349,17 +348,6 @@ class StarchartsSketch(vsketch.SketchClass):
                                             graph_largest.nodes[n_to]["x"], graph_largest.nodes[n_to]["y"], 
                                             dash_size=self.line_largest_dash_size, factor=self.line_largest_dash_factor))
         
-        
-        # Old stuff to draw outliers:   
-        # for label, pos in zip(labels, pos_stars):
-        #     if label == -1:
-        #         vsk.line(pos[0], pos[1] - 0.1, pos[0], pos[1] + 0.1)
-        #         vsk.line(pos[0] - 0.1, pos[1], pos[0] + 0.1, pos[1])
-        #     # else:
-            #     vsk.stroke(label+2)
-            #     vsk.circle(pos[0], pos[1], radius=1e-1)
-        
-            
     def finalize(self, vsk: vsketch.Vsketch) -> None:
         vsk.vpype("linemerge linesimplify reloop linesort")
 
