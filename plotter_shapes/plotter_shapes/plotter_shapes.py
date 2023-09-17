@@ -1,7 +1,7 @@
+import random
 import vsketch
 import numpy as np
-from numpy.random import default_rng
-from enum import Enum
+from shapely import Polygon, affinity, Point, MultiPoint
 
 def pick_random_element(probs):
     return np.random.choice(len(probs), p=probs)
@@ -201,9 +201,9 @@ def draw_thick_line(x, y, length, width=1e-2):
     return draw_filled_rect(x, y - 0.5 * length, width, length)
 
 
-def sample_random_point_on_circle(radius):
-    theta_i = np.random.uniform(0, 2 * np.pi)
-    radius_i = radius * np.sqrt(np.random.uniform(0, 1.0))
+def sample_random_points_on_circle(radius, N=1):
+    theta_i = np.random.uniform(0, 2 * np.pi, N).squeeze()
+    radius_i = radius * np.sqrt(np.random.uniform(0, 1.0, N).squeeze())
     x_i, y_i = radius_i * np.array([np.cos(theta_i), np.sin(theta_i)])
     return x_i, y_i
 
@@ -215,7 +215,7 @@ def draw_speckled_shaded_circle(x_0, y_0, radius, density):
     
     N_speckles = int(np.round(density * np.pi * radius**2))
     for i in range(N_speckles):
-        x_i, y_i = sample_random_point_on_circle(radius)
+        x_i, y_i = sample_random_points_on_circle(radius)
         sketch.circle(x_i, y_i, radius=1e-4)
     return sketch
 
@@ -231,6 +231,129 @@ def draw_speckled_shaded_rect(x_0, y_0, width, height, density):
         x_i = np.random.uniform(0, width)
         y_i = np.random.uniform(0, height)
         sketch.circle(x_i, y_i, radius=1e-4)
+    return sketch
+
+
+
+def draw_dash_shading(length, padding, N_tries, f_sample_point, sketch, N_allowed_fails=100):
+    rects = []
+    last_valid = 0
+    for i in range(N_tries):
+        if i - last_valid > N_allowed_fails:  # termination criteria
+            break
+        
+        x_i, y_i = f_sample_point()
+        
+        candidate_rect = Polygon(np.array([[x_i + 0.5 * length + padding, y_i + padding], 
+                                           [x_i + 0.5 * length + padding, y_i - padding],
+                                           [x_i - 0.5 * length - padding, y_i + padding], 
+                                           [x_i - 0.5 * length - padding, y_i - padding]]))
+        theta = np.random.uniform(0, np.pi)
+        candidate_rect = affinity.rotate(candidate_rect, theta, use_radians=True)
+        
+        valid = True
+        for rect in rects:
+            if candidate_rect.intersects(rect):
+                valid = False
+                break
+        if valid:
+            with sketch.pushMatrix():
+                sketch.translate(x_i, y_i)
+                sketch.rotate(theta)
+                sketch.line(-0.5 * length, 0, 0.5 * length, 0)
+                rects.append(candidate_rect)
+    return sketch
+
+
+def draw_dash_shaded_rect(x_0, y_0, width, height, dash_length_gain=0.1, 
+                          padding_gain=0.03, N_tries=3000, N_allowed_fails=500):
+    sketch = get_empty_sketch() 
+    sketch.translate(x_0, y_0)  
+    sketch.rect(0, 0, width, height, mode="center")
+    
+    mean_side_length = 0.5 * (width + height)
+    length = 0.5 * dash_length_gain * mean_side_length  # 0.5 here to normalize relative to circle function
+    padding = 0.5 * padding_gain * mean_side_length
+    
+    def sample_random_point_in_rect():
+        x = np.random.uniform(0.5 * (length - width), 0.5 * (width - length))
+        y = np.random.uniform(0.5 * (length - height), 0.5 * (height - length))
+        return x, y
+    
+    sketch = draw_dash_shading(length, padding, N_tries, f_sample_point=sample_random_point_in_rect, sketch=sketch,
+                               N_allowed_fails=N_allowed_fails)
+    return sketch
+
+
+def draw_dash_shaded_circle(x_0, y_0, radius, dash_length_gain=0.1, padding_gain=0.03, 
+                            N_tries=3000, N_allowed_fails=500):
+    sketch = get_empty_sketch()
+    sketch.translate(x_0, y_0)
+    sketch.circle(0, 0, radius=radius)
+    
+    length = dash_length_gain * radius
+    padding = padding_gain * radius
+    
+    lambda_sample_point= lambda: sample_random_points_on_circle(radius - 0.5 * length)
+    sketch = draw_dash_shading(length, padding, N_tries, f_sample_point=lambda_sample_point, sketch=sketch,
+                               N_allowed_fails=N_allowed_fails)
+    return sketch
+
+
+
+def draw_dot_evenly_shading(f_sample_points, sketch, N_points, radius):
+    xs, ys = f_sample_points(N_points)
+    points = MultiPoint([(x, y) for (x, y) in zip(xs, ys)])
+    # print(points)
+    chosen_points = []
+    
+    # Sample bunch of random points, sample random, remove all inside radius, repeat until none left.
+    while (type(points) == MultiPoint and len(points.geoms) > 0) or (type(points) == Point and not points.is_empty):
+        if type(points) == MultiPoint:
+            points_list = [(p.x, p.y) for p in points.geoms]
+            # print("List", points_list)
+            point = random.choice(points_list)
+        else:  # is Point
+            point = (points.x, points.y)
+        # print("Chosen point", point)
+        chosen_points.append(point)
+        circle = Point(point).buffer(2 * radius)
+        points = points.difference(circle)
+        # print(points)
+    
+    for x, y in chosen_points:
+        sketch.circle(x, y, radius=1e-4)
+
+    return sketch
+
+
+def draw_dot_evenly_shaded_rect(x_0, y_0, width, height, density, dot_radius):
+    sketch = get_empty_sketch() 
+    sketch.translate(x_0, y_0)  
+    sketch.rect(0, 0, width, height, mode="center")
+    
+    N_points = int(np.round(density * width * height))
+    
+    def sample_random_points_in_rect(N):
+        x = np.random.uniform(-0.5 * width, 0.5 * width, size=N)
+        y = np.random.uniform(-0.5 * height, 0.5 * height, size=N)
+        return x, y
+    
+    sketch = draw_dot_evenly_shading(f_sample_points=sample_random_points_in_rect, sketch=sketch,
+                                     N_points=N_points, radius=dot_radius)
+    return sketch
+
+
+def draw_dot_evenly_shaded_circle(x_0, y_0, radius, density, dot_radius):
+    sketch = get_empty_sketch() 
+    sketch.translate(x_0, y_0)  
+    sketch.circle(0, 0, radius=radius)
+    
+    N_points = int(np.round(density * np.pi * radius**2))
+    
+    lambda_sample_point= lambda N: sample_random_points_on_circle(radius, N)
+    sketch = draw_dot_evenly_shading(f_sample_points=lambda_sample_point, sketch=sketch,
+                                     N_points=N_points, radius=dot_radius)
     return sketch
 
 
