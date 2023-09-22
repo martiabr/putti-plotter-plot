@@ -17,7 +17,12 @@ class SixfeetSketch(vsketch.SketchClass):
             for x in range(20):
                 for y in range(10):
                     vsk.circle(0.5 * x, 0.5 * y, radius=1e-2)
-                        
+            
+            vsk.sketch(draw_triangle(0, -1, width=0.5, height=0.5))     
+            vsk.sketch(draw_triangle(1, -1.25, width=0.5, height=1.0))     
+            vsk.sketch(draw_shaded_triangle(2, -1.25, width=0.5, height=1.0, fill_distance=0.1))     
+            vsk.sketch(draw_filled_triangle(3, -1, width=0.5, height=0.5))     
+               
             vsk.sketch(draw_shaded_circle(0, 0, radius=0.375, fill_distance=0.1, angle=np.deg2rad(45)))
             vsk.sketch(draw_shaded_rect(1, 0, width=0.7, height=0.5, fill_distance=0.1, angle=np.deg2rad(45)))
             vsk.sketch(draw_filled_circle(2, 0, radius=0.375))
@@ -28,6 +33,7 @@ class SixfeetSketch(vsketch.SketchClass):
             vsk.sketch(draw_flag(7, 0, 0.1, 1, 0.5, 0.3, right=False, triangular=True))
             vsk.sketch(draw_line(8, 0, 1))
             vsk.sketch(draw_thick_line(9, 0, 1))
+            vsk.sketch(draw_filled_triangle(10, -1, width=6e-2, height=2))     
             
             vsk.sketch(draw_dot_circle(0, 1, radius=0.375, radius_inner=0.15))
             vsk.sketch(draw_partial_filled_circle(1, 1, 0.375, fill_gain=0.5))
@@ -45,7 +51,9 @@ class SixfeetSketch(vsketch.SketchClass):
             vsk.sketch(draw_speckled_shaded_rect(1.5, 3, width=1.0, height=2.5, density=200.0))
             
             vsk.sketch(draw_dot_evenly_shaded_rect(3, 3, width=1.0, height=2.5, density=600, dot_radius=0.03))
+            vsk.sketch(draw_dot_evenly_shaded_rect(4.5, 2.25, width=1.0, height=1.0, density=100, dot_radius=0.03))
             vsk.sketch(draw_dot_evenly_shaded_circle(8.5, 3, radius=0.75, density=600, dot_radius=0.03))
+            
             
 
     def draw(self, vsk: vsketch.Vsketch) -> None:
