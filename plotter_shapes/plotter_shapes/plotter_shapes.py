@@ -17,17 +17,17 @@ def get_empty_sketch(detail=1e-2):
     return sketch
 
 
+def draw_circle(x, y, radius):  
+    sketch = get_empty_sketch()
+    sketch.circle(x, y, radius=radius)
+    return sketch
+
+
 def draw_filled_circle(x, y, radius, line_width=1e-2):
     sketch = get_empty_sketch()
     N = int(radius / line_width)
     for r in np.linspace(radius, 0, N):
         sketch.circle(x, y, radius=r)
-    return sketch
-
-
-def draw_circle(x, y, radius):  
-    sketch = get_empty_sketch()
-    sketch.circle(x, y, radius=radius)
     return sketch
 
         
@@ -123,7 +123,28 @@ def draw_rect(x, y, width, height):
     sketch = get_empty_sketch()
     sketch.rect(x, y, width, height, mode="center")
     return sketch
+
+
+def draw_triangle(x, y, width, height):
+    sketch = get_empty_sketch()
+    sketch.triangle(x - 0.5 * width, y + 0.5 * height, x + 0.5 * width, y + 0.5 * height, x, y - 0.5 * height)
+    return sketch
+
+
+def draw_shaded_triangle(x, y, width, height, fill_distance):
+    sketch = draw_triangle(x, y, width, height)
+    N = np.max((0, int(np.round(width / fill_distance - 1))))
+    fill_distance = width / (N + 1)
+    sketch.translate(x, y)
+    for x in np.linspace(-0.5 * width + fill_distance, 0.5 * width - fill_distance, N, endpoint=True):
+        sketch.line(x, 0.5 * height, x, - 0.5 * height + np.abs(x) * 2 * height / width)
+    return sketch
     
+    
+def draw_filled_triangle(x, y, width, height):
+    sketch = draw_shaded_triangle(x, y, width, height, fill_distance=1e-2)
+    return sketch
+
 
 def draw_dot_circle(x, y, radius, radius_inner):
     sketch = get_empty_sketch()
