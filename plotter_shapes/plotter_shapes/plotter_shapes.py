@@ -162,11 +162,13 @@ def draw_pole(x, y, pole_width, pole_height, radius):
     sketch.translate(0, pole_height + 0.5 * radius)
     return sketch
 
+
 def draw_cross(x, y, size):
     sketch = get_empty_sketch()
     sketch.line(x - 0.5 * size, y, x + 0.5 * size, y)
     sketch.line(x, y - 0.5 * size, x, y + 0.5 * size)
     return sketch
+
 
 def draw_asterix(x, y, size):
     sketch = get_empty_sketch()
@@ -175,6 +177,7 @@ def draw_asterix(x, y, size):
         sketch.line(-0.5 * size, 0, 0.5 * size, 0)
         sketch.rotate(np.pi / 3)
     return sketch
+    
     
 def draw_flag(x, y, pole_width, pole_height, flag_width, flag_height, right=True, triangular=False):
     sketch = get_empty_sketch()
@@ -222,11 +225,20 @@ def draw_thick_line(x, y, length, width=1e-2):
     return draw_filled_rect(x, y - 0.5 * length, width, length)
 
 
-def sample_random_points_on_circle(radius, N=1):
-    theta_i = np.random.uniform(0, 2 * np.pi, N).squeeze()
-    radius_i = radius * np.sqrt(np.random.uniform(0, 1.0, N).squeeze())
-    x_i, y_i = radius_i * np.array([np.cos(theta_i), np.sin(theta_i)])
-    return x_i, y_i
+def sample_random_points_on_circle(radius_circle, N=1):
+    theta = np.random.uniform(0, 2 * np.pi, N).squeeze()
+    radius = radius_circle * np.sqrt(np.random.uniform(0, 1.0, N).squeeze())
+    x, y = radius * np.array([np.cos(theta), np.sin(theta)])
+    return x, y
+
+
+def sample_random_points_on_isoceles_triangle(width, height, N=1):
+    x = np.random.uniform(-0.5 * width, 0.5 * width, N).squeeze()
+    y = np.random.uniform(-0.5 * height, 0.5 * height, N).squeeze()
+    elems_outside = y < - 0.5 * height + np.abs(x) * 2 * height / width
+    y[elems_outside] *= -1
+    x[elems_outside] -= 0.5 * width * np.sign(x[elems_outside])
+    return x, y
 
 
 def draw_speckled_shaded_circle(x_0, y_0, radius, density):
@@ -253,7 +265,6 @@ def draw_speckled_shaded_rect(x_0, y_0, width, height, density):
         y_i = np.random.uniform(0, height)
         sketch.circle(x_i, y_i, radius=1e-4)
     return sketch
-
 
 
 def draw_dash_shading(length, padding, N_tries, f_sample_point, sketch, N_allowed_fails=100):
@@ -321,6 +332,22 @@ def draw_dash_shaded_circle(x_0, y_0, radius, dash_length_gain=0.1, padding_gain
     return sketch
 
 
+def draw_dash_shaded_triangle(x_0, y_0, width, height, dash_length_gain=0.1, padding_gain=0.03, 
+                              N_tries=3000, N_allowed_fails=500):
+    sketch = get_empty_sketch()
+    sketch.sketch(draw_triangle(x_0, y_0, width, height))
+    sketch.translate(x_0, y_0)
+    
+    mean_side_length = 0.5 * (width + height)
+    length = 0.5 * dash_length_gain * mean_side_length  # 0.5 here to normalize relative to circle function
+    padding = 0.5 * padding_gain * mean_side_length
+    
+    lambda_sample_point= lambda: sample_random_points_on_isoceles_triangle(width - length, height - length)
+    sketch = draw_dash_shading(length, padding, N_tries, f_sample_point=lambda_sample_point, sketch=sketch,
+                               N_allowed_fails=N_allowed_fails)
+    return sketch
+
+
 
 def draw_dot_evenly_shading(f_sample_points, sketch, N_points, radius):
     xs, ys = f_sample_points(N_points)
@@ -365,6 +392,19 @@ def draw_dot_evenly_shaded_rect(x_0, y_0, width, height, density, dot_radius):
     return sketch
 
 
+def draw_dot_evenly_shaded_triangle(x_0, y_0, width, height, density, dot_radius):
+    sketch = get_empty_sketch() 
+    sketch.sketch(draw_triangle(x_0, y_0, width, height))
+    sketch.translate(x_0, y_0)  
+    
+    N_points = int(np.round(density * width * height))
+    
+    lambda_sample_point = lambda N: sample_random_points_on_isoceles_triangle(width, height, N)
+    
+    sketch = draw_dot_evenly_shading(f_sample_points=lambda_sample_point, sketch=sketch,
+                                     N_points=N_points, radius=dot_radius)
+    return sketch
+
 def draw_dot_evenly_shaded_circle(x_0, y_0, radius, density, dot_radius):
     sketch = get_empty_sketch() 
     sketch.translate(x_0, y_0)  
@@ -373,6 +413,7 @@ def draw_dot_evenly_shaded_circle(x_0, y_0, radius, density, dot_radius):
     N_points = int(np.round(density * np.pi * radius**2))
     
     lambda_sample_point= lambda N: sample_random_points_on_circle(radius, N)
+    
     sketch = draw_dot_evenly_shading(f_sample_points=lambda_sample_point, sketch=sketch,
                                      N_points=N_points, radius=dot_radius)
     return sketch
@@ -383,4 +424,3 @@ def rotate_and_draw_sketch(vsk, sketch, x=0, y=0, angle=0):
         vsk.translate(x, y)
         vsk.rotate(angle)
         vsk.sketch(sketch)
-        

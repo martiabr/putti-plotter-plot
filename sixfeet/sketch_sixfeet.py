@@ -1,80 +1,8 @@
 import vsketch
 import numpy as np
 from plotter_shapes.plotter_shapes import *
+from plotter_shapes.variable_width_path import draw_variable_width_path  
 
-
-def get_normal(x, y, x_next, y_next):
-    dx, dy = x_next - x, y_next - y
-    return np.array([-dy, dx])
-
-
-def get_unit_normal(x, y, x_next, y_next):
-    normal = get_normal(x, y, x_next, y_next)
-    return normal / np.sqrt(normal[0]**2 + normal[1]**2)
-
-
-def draw_variable_thickness_path(x, y, thickness, normals_distance=1e-1):
-    sketch = get_empty_sketch()
-    n = x.shape
-    
-    # if type(thickness) == float:
-    #     thickness = np.full(n, thickness)
-        
-    assert y.shape == n
-    # assert thickness.shape == n
-    
-    normal = get_unit_normal(x[0], y[0], x[1], y[1])
-    normal_next = None
-    rest = 0.0
-    for i in range(x.shape[0] - 1):
-        normal_next = get_unit_normal(x[i], y[i], x[i+1], y[i+1])
-        # sketch.line(x[i], y[i], x[i] + 0.1*normal[0], y[i] + 0.1*normal[1])
-        
-        dx, dy = x[i+1] - x[i], y[i+1] - y[i]
-        d = np.sqrt(dx**2 + dy**2)
-        n_normals = 0
-        # d < normals_distance -> 0
-        # normals_distance < d < rest + normal_distance -> 1
-        # rest + normal_distance < d < rest + 2*normal_distance -> 2
-        if d > normals_distance:  # at least one
-            n_normals = int(np.floor((d - rest) / normals_distance)) + 1
-        for j in range(n_normals):
-            # x_normal_center, y_normal_center = x[i] + dx * (rest + j / n_normals), y[i] + dy * (rest + j / n_normals)
-            # dx * j / n_normals + rest_x, rest_x = dx / d * rest
-            # h = rest, x = h * cos(theta), y = h * sin(theta), theta = arctan2(dy, dx)
-            d_j = rest + normals_distance * j
-            line_frac = d_j / d
-            x_normal_center, y_normal_center = x[i] + dx / d * d_j, y[i] + dy / d * d_j
-            normal_interp = normal + line_frac * (normal_next - normal)
-            sketch.line(x_normal_center - thickness*normal_interp[0], y_normal_center - thickness*normal_interp[1], 
-                        x_normal_center + thickness*normal_interp[0], y_normal_center + thickness*normal_interp[1])
-        print(f"\n{i} d={d:.6f}, n_normals={n_normals}, rest={rest:.6f}")
-        rest += n_normals * normals_distance - d
-        # if n_normals > 0:
-            # rest += np.fmod(d - rest, (n_normals - 1) * normals_distance)  # new rest
-            # rest = d - rest - (n_normals - 1) * normals_distance
-            # rest = normals_distance - d + (n_normals - 1) * normals_distance
-            # rest = n_normals * normals_distance - d
-
-        # elif n_normals == 1:
-        #     rest = d - rest - normals_distance
-        # else:
-        #     rest += d
-            # rest:
-            # rest = d - rest - (n_normals - 1) * 
-        print(d, (n_normals - 1) * normals_distance, rest)
-        
-        # sketch.line(x[i], y[i], x[i+1], y[i+1])
-        sketch.line(x[i] + thickness*normal[0], y[i] + thickness*normal[1], x[i+1] + thickness*normal_next[0], y[i+1] + thickness*normal_next[1])
-        sketch.line(x[i] - thickness*normal[0], y[i] - thickness*normal[1], x[i+1] - thickness*normal_next[0], y[i+1] - thickness*normal_next[1])
-        
-        normal = normal_next
-    
-    # Extra line on end segment:
-    sketch.line(x[-1] - thickness*normal[0], y[-1] - thickness*normal[1], 
-                x[-1] + thickness*normal[0], y[-1] + thickness*normal[1])
-    return sketch
-        
 
 class SixfeetSketch(vsketch.SketchClass):
     # Sketch parameters:
@@ -189,11 +117,11 @@ class SixfeetSketch(vsketch.SketchClass):
         rotate_and_draw_sketch(vsk, rect, -2.4, -3.4, np.deg2rad(11))
 
     def test_variable_thickness_line(self, vsk):
-        n = 100
+        n = 400
         t = np.linspace(0, 8 * np.pi, n, endpoint=True)
         x, y = 1.0 * np.sqrt(t) * (np.cos(t), np.sin(t))
-        thickness = 0.2
-        vsk.sketch(draw_variable_thickness_path(x, y, thickness, normals_distance=0.1))
+        width = 0.2 + 0.05 * np.sin(2.5 * t)
+        vsk.sketch(draw_variable_width_path(x, y, width, normals_distance=0.02))
     
     def finalize(self, vsk: vsketch.Vsketch) -> None:
         vsk.vpype("linemerge linesimplify reloop linesort")
