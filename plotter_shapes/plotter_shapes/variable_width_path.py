@@ -1,6 +1,7 @@
 import numpy as np
 from plotter_shapes.plotter_shapes import get_empty_sketch
 
+
 def get_normal(x, y, x_next, y_next):
     dx, dy = x_next - x, y_next - y
     return np.array([-dy, dx])

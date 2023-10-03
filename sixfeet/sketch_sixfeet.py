@@ -1,5 +1,6 @@
 import vsketch
 import numpy as np
+from numpy.random import default_rng
 from plotter_shapes.plotter_shapes import *
 from plotter_shapes.variable_width_path import draw_variable_width_path  
 
@@ -10,13 +11,28 @@ class SixfeetSketch(vsketch.SketchClass):
     occult = vsketch.Param(False)
     scale = vsketch.Param(1.0)
     
+    rng = default_rng()
+    WIDTH_FULL = 21
+    HEIGHT_FULL = 29.7
+    width = vsketch.Param(6.0)
+    height = vsketch.Param(6.0)
+    # padding = vsketch.Param(1.0)
+    
+    def draw_shape_composition(self, vsk, shapes):
+        for shape in shapes:
+            # TODO: handle array of shapes in array
+            with vsk.pushMatrix():
+                x, y, theta = self.rng.uniform([-0.5 * self.width, -0.5 * self.height, -np.pi],
+                                               [0.5 * self.width, 0.5 * self.height, np.pi])
+                rotate_and_draw_sketch(vsk, shape, x, y, theta)
+    
     def draw_debug_shapes(self, vsk):
         vsk.stroke(5)
         with vsk.pushMatrix():
             vsk.translate(0,-2)
             
-            for x in range(20):
-                for y in range(10):
+            for x in range(21):
+                for y in range(-3, 10):
                     vsk.circle(0.5 * x, 0.5 * y, radius=1e-2)
             
             vsk.sketch(draw_triangle(0, -1, width=0.5, height=0.5))     
@@ -32,8 +48,8 @@ class SixfeetSketch(vsketch.SketchClass):
             vsk.sketch(draw_rect(5, 0, 0.7, 0.5))
             vsk.sketch(draw_pole(6, 0, 0.1, 1, 0.1))
             vsk.sketch(draw_flag(7, 0, 0.1, 1, 0.5, 0.3, right=False, triangular=True))
-            vsk.sketch(draw_line(8, 0, 1))
-            vsk.sketch(draw_thick_line(9, 0, 1))
+            vsk.sketch(draw_line(8, -0.5, 1))
+            vsk.sketch(draw_thick_line(9, -0.5, 1))
             vsk.sketch(draw_filled_triangle(10, -1, width=6e-2, height=2))     
                         
             vsk.sketch(draw_dot_circle(0, 1, radius=0.375, radius_inner=0.15))
@@ -81,13 +97,50 @@ class SixfeetSketch(vsketch.SketchClass):
         # vsk.sketch(draw_partial_filled_circle(0, 0, 1, fill_gain=0.45))
         
         # self.draw_test_1(vsk)
-        self.test_variable_thickness_line(vsk)
+        self.draw_test_2(vsk)
+        # self.test_variable_thickness_line(vsk)
 
         if self.occult:
             vsk.vpype("occult -i")
     
-    
+    def draw_test_2(self, vsk):
+        shapes = []
+        
+        circle = draw_circle(0, 0, radius=2.8)
+        shapes.append(circle)
+        
+        line = draw_thick_line(0, 0, 4, width=0.1)
+        shapes.append(line)
+        
+        line = draw_line(0, 0, 6)
+        shapes.append(line)
+        
+        rect = draw_dot_evenly_shaded_rect(0, 0, width=1.0, height=3.0, density=200, dot_radius=0.05)
+        shapes.append(rect)
+        
+        shape = get_empty_sketch()
+        tri = draw_filled_triangle(0, 0, width=6e-2, height=5)
+        shape.sketch(tri)
+        rotate_and_draw_sketch(shape, draw_line(0, 0, 1), x=0, y=-1.6, angle=0.47*np.pi)
+        rotate_and_draw_sketch(shape, draw_line(0, 0, 1.2), x=0, y=-1.5, angle=0.47*np.pi)
+        rotate_and_draw_sketch(shape, draw_line(0, 0, 1), x=0.1, y=-1.4, angle=0.47*np.pi)
+        shapes.append(shape)
+        
+        circle = draw_circle(0, 0, radius=0.375)
+        shapes.append(circle)
+        
+        rect = draw_filled_rect(0, 0, 0.5, 1.2)
+        shapes.append(rect)
+        
+        circle = draw_filled_circle(0, 0, radius=0.08)
+        shapes.append(circle)
+        
+        self.draw_shape_composition(vsk, shapes)
+        
     def draw_test_1(self, vsk):
+        circle = draw_circle(-1, -3, radius=2.8)
+        vsk.sketch(circle)
+        
         line = draw_thick_line(0, 0, 4, width=0.1)
         rotate_and_draw_sketch(vsk, line, 2, 0, np.deg2rad(-35))
         
@@ -110,19 +163,24 @@ class SixfeetSketch(vsketch.SketchClass):
         circle = draw_circle(1.5, -4, radius=0.375)
         vsk.sketch(circle)
         
-        circle = draw_circle(-1, -3, radius=2.8)
-        vsk.sketch(circle)
-        
         rect = draw_filled_rect(0, 0, 0.5, 1.2)
         rotate_and_draw_sketch(vsk, rect, -2.4, -3.4, np.deg2rad(11))
+        
+        vsk.sketch(draw_filled_circle(-0.2, -1.5, radius=0.08))
 
     def test_variable_thickness_line(self, vsk):
-        n = 400
+        n = 800
         t = np.linspace(0, 8 * np.pi, n, endpoint=True)
-        x, y = 1.0 * np.sqrt(t) * (np.cos(t), np.sin(t))
-        width = 0.2 + 0.05 * np.sin(2.5 * t)
+        x, y = 0.7 * np.sqrt(t) * (np.cos(t), np.sin(t))
+        width = 0.1 + 0.045 * np.sin(2.5 * t)
         vsk.sketch(draw_variable_width_path(x, y, width, normals_distance=0.02))
-    
+        
+        width = 0.12 + 0.15 * (vsk.noise(1.0*t + 1000) - 0.5) + 0.04 * (vsk.noise(10.0*t) - 0.5)  # this doesnt work completely right. Need to resample to even distance to get noise correct
+        for i in range(5):
+            width[i] *= i / 5
+            width[-i] *= i / 5 
+        vsk.sketch(draw_variable_width_path(x, y + 8, width, normals_distance=0.02))
+        
     def finalize(self, vsk: vsketch.Vsketch) -> None:
         vsk.vpype("linemerge linesimplify reloop linesort")
 

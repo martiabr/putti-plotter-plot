@@ -205,7 +205,7 @@ def draw_flag(x, y, pole_width, pole_height, flag_width, flag_height, right=True
 
 def draw_line(x, y, length):
     sketch = get_empty_sketch()
-    sketch.line(x, y, x, y - length)
+    sketch.line(x, y + 0.5 *length, x, y - 0.5 * length)
     return sketch
 
 
@@ -222,7 +222,7 @@ def draw_dashed_line(x_0, y_0, x, y, dash_size=1e-1, factor=0.5):
     
 
 def draw_thick_line(x, y, length, width=1e-2):
-    return draw_filled_rect(x, y - 0.5 * length, width, length)
+    return draw_filled_rect(x, y, width, length)
 
 
 def sample_random_points_on_circle(radius_circle, N=1):
