@@ -8,15 +8,182 @@ from plotter_shapes.variable_width_path import draw_variable_width_path
 class SixfeetSketch(vsketch.SketchClass):
     # Sketch parameters:
     debug_show_shapes = vsketch.Param(False)
+    debug_draw = vsketch.Param(False)
     occult = vsketch.Param(False)
     scale = vsketch.Param(1.0)
     
     rng = default_rng()
     WIDTH_FULL = 21
     HEIGHT_FULL = 29.7
+    
+    area_type = vsketch.Param("RECT", choices=["RECT", "CIRCLE", "BLOB"])
     width = vsketch.Param(6.0)
     height = vsketch.Param(6.0)
-    # padding = vsketch.Param(1.0)
+
+    # Circle empty:
+    num_circ_min = vsketch.Param(0, min_value=0)
+    num_circ_max = vsketch.Param(5, min_value=0)
+    circ_rad_min = vsketch.Param(0.05, min_value=0)
+    circ_rad_max = vsketch.Param(0.5, min_value=0)
+    
+    # Circle shaded:
+    num_circ_shaded_min = vsketch.Param(0, min_value=0)
+    num_circ_shaded_max = vsketch.Param(5, min_value=0)
+    circ_shaded_rad_min = vsketch.Param(0.05, min_value=0)
+    circ_shaded_rad_max = vsketch.Param(0.5, min_value=0)
+    circ_shaded_fill_dist_min = vsketch.Param(0.05, min_value=0)
+    circ_shaded_fill_dist_max = vsketch.Param(0.2, min_value=0)
+        
+    # Circle fill:
+    num_circ_fill_min = vsketch.Param(0, min_value=0)
+    num_circ_fill_max = vsketch.Param(5, min_value=0)
+    circ_fill_rad_min = vsketch.Param(0.05, min_value=0)
+    circ_fill_rad_max = vsketch.Param(0.5, min_value=0)
+    
+    # Circle dash filled:
+    num_circ_dash_min = vsketch.Param(0, min_value=0)
+    num_circ_dash_max = vsketch.Param(5, min_value=0)
+    circ_dash_rad_min = vsketch.Param(0.05, min_value=0)
+    circ_dash_rad_max = vsketch.Param(0.5, min_value=0)
+    
+    # Circle dot filled:
+    num_circ_dot_min = vsketch.Param(0, min_value=0)
+    num_circ_dot_max = vsketch.Param(5, min_value=0)
+    circ_dot_rad_min = vsketch.Param(0.05, min_value=0)
+    circ_dot_rad_max = vsketch.Param(0.5, min_value=0)
+    circ_dot_dens_min = vsketch.Param(400.0, min_value=0)
+    circ_dot_dens_max = vsketch.Param(800.0, min_value=0)
+    circ_dot_dot_rad_min = vsketch.Param(0.02, min_value=0)
+    circ_dot_dot_rad_max = vsketch.Param(0.06, min_value=0)
+    
+    # Circle half filled:
+    num_circ_half_fill_min = vsketch.Param(0, min_value=0)
+    num_circ_half_fill_max = vsketch.Param(5, min_value=0)
+    circ_half_fill_rad_min = vsketch.Param(0.05, min_value=0)
+    circ_half_fill_rad_max = vsketch.Param(0.5, min_value=0)
+    circ_half_fill_gain_min = vsketch.Param(0.4, min_value=0)
+    circ_half_fill_gain_max = vsketch.Param(0.6, min_value=0)
+    
+    # Circle outer filled:
+    num_circ_outer_fill_min = vsketch.Param(0, min_value=0)
+    num_circ_outer_fill_max = vsketch.Param(5, min_value=0)
+    circ_outer_fill_rad_min = vsketch.Param(0.05, min_value=0)
+    circ_outer_fill_rad_max = vsketch.Param(0.5, min_value=0)
+    circ_outer_fill_gain_min = vsketch.Param(0.0, min_value=0)
+    circ_outer_fill_gain_max = vsketch.Param(0.5, min_value=0)
+    
+    # Line:
+    num_line_min = vsketch.Param(0, min_value=0)
+    num_line_max = vsketch.Param(5, min_value=0)
+    line_length_min = vsketch.Param(1.0, min_value=0)
+    line_length_max = vsketch.Param(5.0, min_value=0)
+    
+    # Thick line:
+    num_thick_line_min = vsketch.Param(0, min_value=0)
+    num_thick_line_max = vsketch.Param(5, min_value=0)
+    thick_line_length_min = vsketch.Param(1.0, min_value=0)
+    thick_line_length_max = vsketch.Param(5.0, min_value=0)
+    
+    # Triangle line:
+    num_tri_line_min = vsketch.Param(0, min_value=0)
+    num_tri_line_max = vsketch.Param(5, min_value=0)
+    tri_line_length_min = vsketch.Param(1.0, min_value=0)
+    tri_line_length_max = vsketch.Param(5.0, min_value=0)
+    tri_line_width_gain_min = vsketch.Param(0.01, min_value=0)
+    tri_line_width_gain_max = vsketch.Param(0.02, min_value=0)
+    
+    # Rect empty:
+    num_rect_min = vsketch.Param(0, min_value=0)
+    num_rect_max = vsketch.Param(5, min_value=0)
+    rect_width_min = vsketch.Param(0.1, min_value=0)
+    rect_width_max = vsketch.Param(1.0, min_value=0)
+    rect_height_gain_min = vsketch.Param(0.5, min_value=0)
+    rect_height_gain_max = vsketch.Param(2.0, min_value=0)
+    
+    # Rect shaded:
+    num_rect_shaded_min = vsketch.Param(0, min_value=0)
+    num_rect_shaded_max = vsketch.Param(5, min_value=0)
+    rect_shaded_width_min = vsketch.Param(0.1, min_value=0)
+    rect_shaded_width_max = vsketch.Param(1.0, min_value=0)
+    rect_shaded_height_gain_min = vsketch.Param(0.5, min_value=0)
+    rect_shaded_height_gain_max = vsketch.Param(2.0, min_value=0)
+    rect_shaded_fill_dist_min = vsketch.Param(0.05, min_value=0)
+    rect_shaded_fill_dist_max = vsketch.Param(0.2, min_value=0)
+    
+    # Rect filled:
+    num_rect_fill_min = vsketch.Param(0, min_value=0)
+    num_rect_fill_max = vsketch.Param(5, min_value=0)
+    rect_fill_width_min = vsketch.Param(0.1, min_value=0)
+    rect_fill_width_max = vsketch.Param(1.0, min_value=0)
+    rect_fill_height_gain_min = vsketch.Param(0.5, min_value=0)
+    rect_fill_height_gain_max = vsketch.Param(2.0, min_value=0)
+    
+    # Rect dash filled:
+    num_rect_dash_min = vsketch.Param(0, min_value=0)
+    num_rect_dash_max = vsketch.Param(5, min_value=0)
+    rect_dash_width_min = vsketch.Param(0.1, min_value=0)
+    rect_dash_width_max = vsketch.Param(1.0, min_value=0)
+    rect_dash_height_gain_min = vsketch.Param(0.5, min_value=0)
+    rect_dash_height_gain_max = vsketch.Param(2.0, min_value=0)
+    
+    # Rect dot filled:
+    num_rect_dot_min = vsketch.Param(0, min_value=0)
+    num_rect_dot_max = vsketch.Param(5, min_value=0)
+    rect_dot_width_min = vsketch.Param(0.1, min_value=0)
+    rect_dot_width_max = vsketch.Param(1.0, min_value=0)
+    rect_dot_height_gain_min = vsketch.Param(0.5, min_value=0)
+    rect_dot_height_gain_max = vsketch.Param(2.0, min_value=0)
+    rect_dot_dens_min = vsketch.Param(400.0, min_value=0)
+    rect_dot_dens_max = vsketch.Param(800.0, min_value=0)
+    rect_dot_rad_min = vsketch.Param(0.02, min_value=0)
+    rect_dot_rad_max = vsketch.Param(0.06, min_value=0)
+    
+    # Triangle empty:
+    num_tri_min = vsketch.Param(0, min_value=0)
+    num_tri_max = vsketch.Param(5, min_value=0)
+    tri_width_min = vsketch.Param(0.1, min_value=0)
+    tri_width_max = vsketch.Param(1.0, min_value=0)
+    tri_height_gain_min = vsketch.Param(0.5, min_value=0)
+    tri_height_gain_max = vsketch.Param(2.0, min_value=0)
+    
+    # Triangle shaded:
+    num_tri_shaded_min = vsketch.Param(0, min_value=0)
+    num_tri_shaded_max = vsketch.Param(5, min_value=0)
+    tri_shaded_width_min = vsketch.Param(0.1, min_value=0)
+    tri_shaded_width_max = vsketch.Param(1.0, min_value=0)
+    tri_shaded_height_gain_min = vsketch.Param(0.5, min_value=0)
+    tri_shaded_height_gain_max = vsketch.Param(2.0, min_value=0)
+    tri_shaded_fill_dist_min = vsketch.Param(0.05, min_value=0)
+    tri_shaded_fill_dist_max = vsketch.Param(0.2, min_value=0)
+    
+    # Triangle filled:
+    num_tri_fill_min = vsketch.Param(0, min_value=0)
+    num_tri_fill_max = vsketch.Param(5, min_value=0)
+    tri_fill_width_min = vsketch.Param(0.1, min_value=0)
+    tri_fill_width_max = vsketch.Param(1.0, min_value=0)
+    tri_fill_height_gain_min = vsketch.Param(0.5, min_value=0)
+    tri_fill_height_gain_max = vsketch.Param(2.0, min_value=0)
+    
+    # Triangle dash filled:
+    num_tri_dash_min = vsketch.Param(0, min_value=0)
+    num_tri_dash_max = vsketch.Param(5, min_value=0)
+    tri_dash_width_min = vsketch.Param(0.1, min_value=0)
+    tri_dash_width_max = vsketch.Param(1.0, min_value=0)
+    tri_dash_height_gain_min = vsketch.Param(0.5, min_value=0)
+    tri_dash_height_gain_max = vsketch.Param(2.0, min_value=0)
+    
+    # Triangle dot filled:
+    num_tri_dot_min = vsketch.Param(0, min_value=0)
+    num_tri_dot_max = vsketch.Param(5, min_value=0)
+    tri_dot_width_min = vsketch.Param(0.1, min_value=0)
+    tri_dot_width_max = vsketch.Param(1.0, min_value=0)
+    tri_dot_height_gain_min = vsketch.Param(0.5, min_value=0)
+    tri_dot_height_gain_max = vsketch.Param(2.0, min_value=0)
+    tri_dot_dens_min = vsketch.Param(400.0, min_value=0)
+    tri_dot_dens_max = vsketch.Param(800.0, min_value=0)
+    tri_dot_rad_min = vsketch.Param(0.02, min_value=0)
+    tri_dot_rad_max = vsketch.Param(0.06, min_value=0)
+    
     
     def draw_shape_composition(self, vsk, shapes):
         for shape in shapes:
@@ -38,7 +205,8 @@ class SixfeetSketch(vsketch.SketchClass):
             vsk.sketch(draw_triangle(0, -1, width=0.5, height=0.5))     
             vsk.sketch(draw_triangle(1, -1.25, width=0.5, height=1.0))     
             vsk.sketch(draw_shaded_triangle(2, -1.25, width=0.5, height=1.0, fill_distance=0.1))     
-            vsk.sketch(draw_filled_triangle(3, -1, width=0.5, height=0.5))     
+            vsk.sketch(draw_filled_triangle(3, -1, width=0.5, height=0.5))
+            vsk.sketch(draw_thick_circle(4, -1, radius=0.375, fill_gain=0.25))
                            
             vsk.sketch(draw_shaded_circle(0, 0, radius=0.375, fill_distance=0.1, angle=np.deg2rad(45)))
             vsk.sketch(draw_shaded_rect(1, 0, width=0.7, height=0.5, fill_distance=0.1, angle=np.deg2rad(45)))
@@ -82,23 +250,137 @@ class SixfeetSketch(vsketch.SketchClass):
         
         if self.debug_show_shapes:
             self.draw_debug_shapes(vsk)
+            
+        ###
         
+        shapes = []
         
-        # rect = draw_dash_shaded_rect(0, 0, width=2.0, height=4.0, dash_length_gain=0.08, 
-        #                             padding_gain=0.05, N_tries=2000, N_allowed_fails=1000)
-        # rotate_and_draw_sketch(vsk, rect, 2, 3, np.deg2rad(2))
+        num_circ = self.rng.integers(self.num_circ_min, self.num_circ_max + 1)
+        radii = self.rng.uniform(self.circ_rad_min, self.circ_rad_max, size=num_circ)
+        for radius in radii:
+            shapes.append(draw_circle(0, 0, radius=radius))
+            
+        num_circ_shaded = self.rng.integers(self.num_circ_shaded_min, self.num_circ_shaded_max + 1)
+        radii = self.rng.uniform(self.circ_shaded_rad_min, self.circ_shaded_rad_max, size=num_circ_shaded)
+        fill_dists = self.rng.uniform(self.circ_shaded_fill_dist_min, self.circ_shaded_fill_dist_max, size=num_circ_shaded)
+        for radius, dist in zip(radii, fill_dists):
+            shapes.append(draw_shaded_circle(0, 0, radius=radius, fill_distance=dist))
+            
+        num_circ_fill = self.rng.integers(self.num_circ_fill_min, self.num_circ_fill_max + 1)
+        radii = self.rng.uniform(self.circ_fill_rad_min, self.circ_fill_rad_max, size=num_circ_fill)
+        for radius in radii:
+            shapes.append(draw_filled_circle(0, 0, radius=radius))
+            
+        num_circ_half_fill = self.rng.integers(self.num_circ_half_fill_min, self.num_circ_half_fill_max + 1)
+        radii = self.rng.uniform(self.circ_half_fill_rad_min, self.circ_half_fill_rad_max, size=num_circ_half_fill)
+        fills = self.rng.uniform(self.circ_half_fill_gain_min, self.circ_half_fill_gain_max, size=num_circ_half_fill)
+        for radius, fill in zip(radii, fills):
+            shapes.append(draw_partial_filled_circle(0, 0, radius=radius, fill_gain=fill))
+            
+        num_circ_outer_fill = self.rng.integers(self.num_circ_outer_fill_min, self.num_circ_outer_fill_max + 1)
+        radii = self.rng.uniform(self.circ_outer_fill_rad_min, self.circ_outer_fill_rad_max, size=num_circ_outer_fill)
+        fills = self.rng.uniform(self.circ_outer_fill_gain_min, self.circ_outer_fill_gain_max, size=num_circ_outer_fill)
+        for radius, fill in zip(radii, fills):
+            shapes.append(draw_thick_circle(0, 0, radius=radius, fill_gain=fill))
+            
+        num_circ_dot_fill = self.rng.integers(self.num_circ_dot_min, self.num_circ_dot_max + 1)
+        radii = self.rng.uniform(self.circ_dot_rad_min, self.circ_dot_rad_max, size=num_circ_dot_fill)
+        dot_radii = self.rng.uniform(self.circ_dot_dot_rad_min, self.circ_dot_dot_rad_max, size=num_circ_dot_fill)
+        densities = self.rng.uniform(self.circ_dot_dens_min, self.circ_dot_dens_max, size=num_circ_dot_fill)
+        for rad, dot_rad, density in zip(radii, dot_radii, densities):
+            shapes.append(draw_dot_evenly_shaded_circle(0, 0, radius=rad, density=density, dot_radius=dot_rad))
+            
+        num_lines = self.rng.integers(self.num_line_min, self.num_line_max + 1)
+        lengths = self.rng.uniform(self.line_length_min, self.line_length_max, size=num_lines)
+        for length in lengths:
+            shapes.append(draw_line(0, 0, length=length))
+            
+        num_thick_lines = self.rng.integers(self.num_thick_line_min, self.num_thick_line_max + 1)
+        lengths = self.rng.uniform(self.thick_line_length_min, self.thick_line_length_max, size=num_thick_lines)
+        for length in lengths:
+            shapes.append(draw_thick_line(0, 0, length=length))
+            
+        num_tri_lines = self.rng.integers(self.num_tri_line_min, self.num_tri_line_max + 1)
+        lengths = self.rng.uniform(self.tri_line_length_min, self.tri_line_length_max, size=num_tri_lines)
+        widths = self.rng.uniform(self.tri_line_width_gain_min, self.tri_line_width_gain_max, size=num_tri_lines) * lengths
+        for length, width in zip(lengths, widths):
+            shapes.append(draw_triangle_line(0, 0, length=length, width=width))
+
+        num_rect = self.rng.integers(self.num_rect_min, self.num_rect_max + 1)
+        widths = self.rng.uniform(self.rect_width_min, self.rect_width_max, size=num_rect)
+        heights = self.rng.uniform(self.rect_height_gain_min, self.rect_height_gain_max, size=num_rect) * widths
+        for width, height in zip(widths, heights):
+            shapes.append(draw_rect(0, 0, width=width, height=height))
+            
+        num_rect_shaded = self.rng.integers(self.num_rect_shaded_min, self.num_rect_shaded_max + 1)
+        widths = self.rng.uniform(self.rect_shaded_width_min, self.rect_shaded_width_max, size=num_rect_shaded)
+        heights = self.rng.uniform(self.rect_shaded_height_gain_min, self.rect_shaded_height_gain_max, size=num_rect_shaded) * widths
+        fill_dists = self.rng.uniform(self.rect_shaded_fill_dist_min, self.rect_shaded_fill_dist_max, size=num_rect_shaded)
+        for width, height, dist in zip(widths, heights, fill_dists):
+            shapes.append(draw_shaded_rect(0, 0, width=width, height=height, fill_distance=dist))
+            
+        num_rect_fill = self.rng.integers(self.num_rect_fill_min, self.num_rect_fill_max + 1)
+        widths = self.rng.uniform(self.rect_fill_width_min, self.rect_fill_width_max, size=num_rect_fill)
+        heights = self.rng.uniform(self.rect_fill_height_gain_min, self.rect_fill_height_gain_max, size=num_rect_fill) * widths
+        for width, height in zip(widths, heights):
+            shapes.append(draw_filled_rect(0, 0, width=width, height=height))
         
-        # line = draw_thick_line(0, 0, 3, width=5e-2)
-        # rotate_and_draw_sketch(vsk, line, 0, 0, np.deg2rad(145))
+        num_rect_dot_fill = self.rng.integers(self.num_rect_dot_min, self.num_rect_dot_max + 1)
+        widths = self.rng.uniform(self.rect_dot_width_min, self.rect_dot_width_max, size=num_rect_dot_fill)
+        heights = self.rng.uniform(self.rect_dot_height_gain_min, self.rect_dot_height_gain_max, size=num_rect_dot_fill) * widths
+        dot_radii = self.rng.uniform(self.rect_dot_rad_min, self.rect_dot_rad_max, size=num_rect_dot_fill)
+        densities = self.rng.uniform(self.rect_dot_dens_min, self.rect_dot_dens_max, size=num_rect_dot_fill)
+        for width, height, rad, dens in zip(widths, heights, dot_radii, densities):
+            shapes.append(draw_dot_evenly_shaded_rect(0, 0,  width=width, height=height, density=dens, dot_radius=rad))
         
-        # line = draw_line(0, 0, 2)
-        # rotate_and_draw_sketch(vsk, line, 0, 0, np.deg2rad(-35))
+        # num_rect_dash_fill = self.rng.integers(self.num_rect_dash_min, self.num_rect_dash_max + 1)
+        # widths = self.rng.uniform(self.rect_dash_width_min, self.rect_dash_width_max, size=num_rect_dash_fill)
+        # heights = self.rng.uniform(self.rect_dash_height_gain_min, self.rect_dash_height_gain_max, size=num_rect_dash_fill) * widths
+        # for width, height in zip(widths, heights):
+        #     shapes.append(draw_dash_shaded_rect(0, 0,  width=width, height=height))
         
-        # vsk.sketch(draw_partial_filled_circle(0, 0, 1, fill_gain=0.45))
+        num_tri = self.rng.integers(self.num_tri_min, self.num_tri_max + 1)
+        widths = self.rng.uniform(self.tri_width_min, self.tri_width_max, size=num_tri)
+        heights = self.rng.uniform(self.tri_height_gain_min, self.tri_height_gain_max, size=num_tri) * widths
+        for width, height in zip(widths, heights):
+            shapes.append(draw_triangle(0, 0, width=width, height=height))
+            
+        num_tri_shaded = self.rng.integers(self.num_tri_shaded_min, self.num_tri_shaded_max + 1)
+        widths = self.rng.uniform(self.tri_shaded_width_min, self.tri_shaded_width_max, size=num_tri_shaded)
+        heights = self.rng.uniform(self.tri_shaded_height_gain_min, self.tri_shaded_height_gain_max, size=num_tri_shaded) * widths
+        fill_dists = self.rng.uniform(self.tri_shaded_fill_dist_min, self.tri_shaded_fill_dist_max, size=num_tri_shaded)
+        for width, height, dist in zip(widths, heights, fill_dists):
+            shapes.append(draw_shaded_triangle(0, 0, width=width, height=height, fill_distance=dist))
+           
+        num_tri_fill = self.rng.integers(self.num_tri_fill_min, self.num_tri_fill_max + 1)
+        widths = self.rng.uniform(self.tri_fill_width_min, self.tri_fill_width_max, size=num_tri_fill)
+        heights = self.rng.uniform(self.tri_fill_height_gain_min, self.tri_fill_height_gain_max, size=num_tri_fill) * widths
+        for width, height in zip(widths, heights):
+            shapes.append(draw_filled_triangle(0, 0, width=width, height=height))   
+        
+        num_tri_dot_fill = self.rng.integers(self.num_tri_dot_min, self.num_tri_dot_max + 1)
+        widths = self.rng.uniform(self.tri_dot_width_min, self.tri_dot_width_max, size=num_tri_dot_fill)
+        heights = self.rng.uniform(self.tri_dot_height_gain_min, self.tri_dot_height_gain_max, size=num_tri_dot_fill) * widths
+        dot_radii = self.rng.uniform(self.tri_dot_rad_min, self.tri_dot_rad_max, size=num_tri_dot_fill)
+        densities = self.rng.uniform(self.tri_dot_dens_min, self.tri_dot_dens_max, size=num_tri_dot_fill)
+        for width, height, rad, dens in zip(widths, heights, dot_radii, densities):
+            shapes.append(draw_dot_evenly_shaded_triangle(0, 0,  width=width, height=height, density=dens, dot_radius=rad))
+           
+           
+            
+        # TODO: randomize order
+
+            
+        self.draw_shape_composition(vsk, shapes)
+        
+        ###
         
         # self.draw_test_1(vsk)
-        self.draw_test_2(vsk)
+        # self.draw_test_2(vsk)
         # self.test_variable_thickness_line(vsk)
+        
+        if self.debug_draw:
+            self.draw_debug_info(vsk)
 
         if self.occult:
             vsk.vpype("occult -i")
@@ -180,7 +462,15 @@ class SixfeetSketch(vsketch.SketchClass):
             width[i] *= i / 5
             width[-i] *= i / 5 
         vsk.sketch(draw_variable_width_path(x, y + 8, width, normals_distance=0.02))
-        
+    
+    def draw_debug_info(self, vsk):
+        vsk.stroke(2)
+        vsk.line(-0.5 * self.width, -0.5 * self.height, 0.5 * self.width, -0.5 * self.height)
+        vsk.line(-0.5 * self.width, 0.5 * self.height, 0.5 * self.width, 0.5 * self.height)
+        vsk.line(-0.5 * self.width, -0.5 * self.height, -0.5 * self.width, 0.5 * self.height)
+        vsk.line(0.5 * self.width, -0.5 * self.height, 0.5 * self.width, 0.5 * self.height)
+        vsk.stroke(1)
+    
     def finalize(self, vsk: vsketch.Vsketch) -> None:
         vsk.vpype("linemerge linesimplify reloop linesort")
 
