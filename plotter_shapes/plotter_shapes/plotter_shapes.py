@@ -23,12 +23,16 @@ def draw_circle(x, y, radius):
     return sketch
 
 
-def draw_filled_circle(x, y, radius, line_width=1e-2):
+def draw_filled_circle(x, y, radius, line_width=1e-2, fill_gain=1.0):
     sketch = get_empty_sketch()
-    N = int(radius / line_width)
-    for r in np.linspace(radius, 0, N):
+    N = int(fill_gain * radius / line_width)
+    for r in np.linspace(radius, radius * (1.0 - fill_gain), N):
         sketch.circle(x, y, radius=r)
     return sketch
+
+
+def draw_thick_circle(x, y, radius, fill_gain=0.5, line_width=1e-2):
+    return(draw_filled_circle(x, y, radius, fill_gain=fill_gain, line_width=line_width))
 
         
 def draw_shaded_circle(x_0, y_0, radius, fill_distance, angle=0.0, fill_gain=1.0):
@@ -225,6 +229,10 @@ def draw_thick_line(x, y, length, width=1e-2):
     return draw_filled_rect(x, y, width, length)
 
 
+def draw_triangle_line(x, y, length, width=1e-2):
+    return draw_filled_triangle(x, y, width=width, height=length)
+
+
 def sample_random_points_on_circle(radius_circle, N=1):
     theta = np.random.uniform(0, 2 * np.pi, N).squeeze()
     radius = radius_circle * np.sqrt(np.random.uniform(0, 1.0, N).squeeze())
@@ -346,7 +354,6 @@ def draw_dash_shaded_triangle(x_0, y_0, width, height, dash_length_gain=0.1, pad
     sketch = draw_dash_shading(length, padding, N_tries, f_sample_point=lambda_sample_point, sketch=sketch,
                                N_allowed_fails=N_allowed_fails)
     return sketch
-
 
 
 def draw_dot_evenly_shading(f_sample_points, sketch, N_points, radius):

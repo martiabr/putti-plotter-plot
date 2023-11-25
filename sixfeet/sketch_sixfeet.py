@@ -1,6 +1,8 @@
 import vsketch
 import numpy as np
 from numpy.random import default_rng
+import random
+import winsound
 from plotter_shapes.plotter_shapes import *
 from plotter_shapes.variable_width_path import draw_variable_width_path  
 
@@ -367,8 +369,8 @@ class SixfeetSketch(vsketch.SketchClass):
             shapes.append(draw_dot_evenly_shaded_triangle(0, 0,  width=width, height=height, density=dens, dot_radius=rad))
            
            
-            
-        # TODO: randomize order
+        if self.occult:
+            random.shuffle(shapes)
 
             
         self.draw_shape_composition(vsk, shapes)
@@ -384,6 +386,8 @@ class SixfeetSketch(vsketch.SketchClass):
 
         if self.occult:
             vsk.vpype("occult -i")
+            
+        winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS) 
     
     def draw_test_2(self, vsk):
         shapes = []
