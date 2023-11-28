@@ -1,5 +1,4 @@
 # IDEAS:
-
 - [ ] **Bauhaus** - random shapes, (parallel) lines, multi-color, ... Possibly based on randomly generated quadtree looking grid?
 - [ ] **Kandinsky:** similar to Bauhaus but more focus on lines, circles and multi-color
 - [ ] **6 Feet beneath the moon:** white on black shaded polygons, circles and lines 
