@@ -3,8 +3,10 @@ import numpy as np
 from numpy.random import default_rng
 from enum import Enum
 import shapely as sh
+import random
 from shapely import Polygon, MultiPolygon, Point, MultiPoint, LineString
 from plotter_shapes.plotter_shapes import get_empty_sketch
+from plotter_util.plotter_util import pick_random_element
 
 
 # Look at KSP space stations
@@ -28,9 +30,7 @@ from plotter_shapes.plotter_shapes import get_empty_sketch
 # - Possibly a spacecraft docked in a bay?
 # - Need to look at more future oriented space stations for more ideas
 
-# Separate dungeon generator and the actual drawing
-
-# Somehow have weights to try to force symmetries?
+####
 
 # Algorithm:
 # - list of structures
@@ -59,6 +59,18 @@ from plotter_shapes.plotter_shapes import get_empty_sketch
         # side and look it up. As the structure is added and open points are removed we also delete the side if it is empty.
         # Afterwards weights could be added if necessary. But weighting each side and each point the same should work ok.
 
+# TODO:
+# - [x] width, height
+# - [x] check on bounding geom
+# - [x] check on outer bb
+# - [ ] add weights to encourage going in same direction
+# - [ ] add picking between different structure types with different probs
+# - [ ] add end stop structure type
+
+
+def normalize_vec_to_sum_one(vec):
+    return vec / np.sum(vec)
+
 
 def get_points_iterable(points):
     if points.is_empty:
@@ -85,8 +97,21 @@ def direction_to_unit_vector(direction):
         raise Exception("Wrong direction.")
 
 
+def direction_to_angle(direction):
+    if direction == Direction.RIGHT:
+        return 0.0
+    elif direction == Direction.UP:
+        return 0.5 * np.pi
+    elif direction == Direction.LEFT:
+        return np.pi
+    elif direction == Direction.DOWN:
+        return 1.5 * np.pi
+    else:
+        raise Exception("Wrong direction.")
+ 
+
 class Structure:
-    def __init__(self, x, y, width, height, direction):
+    def __init__(self, x, y, width, height, direction, add_open_points=True):
         self.x = x
         self.y = y
         self.width = width
@@ -95,11 +120,34 @@ class Structure:
         unit_vector = direction_to_unit_vector(self.direction)
         self.x_center, self.y_center = 0.5 * np.array([self.width, self.height]) * unit_vector + np.array([self.x, self.y])
 
-        self.open_points = self.init_open_points()
+        self.open_points = self.init_open_points() if add_open_points else None
 
-    def get_bounding_box(self):
-        return sh.box(self.x_center - 0.5 * self.width, self.y_center - 0.5 * self.height,
-                      self.x_center + 0.5 * self.width, self.y_center + 0.5 * self.height)
+    @classmethod
+    def sample_bb_lengths(cls, rng):
+        """Default sampling of bounding box size"""
+        height = rng.uniform(cls.height_min, cls.height_max)
+        width = height * rng.uniform(cls.width_gain_min, cls.width_gain_max)
+        
+        if dir in (Direction.RIGHT, Direction.LEFT):
+            length_x, length_y = width, height
+        else:
+            length_x, length_y = height, width
+            
+        return length_x, length_y
+    
+    @classmethod
+    def update(cls, height_min, height_max, width_gain_min,
+                       width_gain_max):
+        """Default update of class variables"""
+        cls.height_min = height_min
+        cls.height_max = height_max
+        cls.width_gain_min = width_gain_min
+        cls.width_gain_max = width_gain_max
+    
+    def get_bounding_box(self, shrink=0.0):
+        assert shrink < 0.5 * min((self.width, self.height))
+        return sh.box(self.x_center - 0.5 * self.width + shrink, self.y_center - 0.5 * self.height + shrink,
+                      self.x_center + 0.5 * self.width - shrink, self.y_center + 0.5 * self.height - shrink)
     
     def init_open_points(self, dist=2e-1):
         # TODO: add margin on ends of linspaces, we dont want to draw stuff all the way to the end...
@@ -159,20 +207,35 @@ class Structure:
 class Capsule(Structure):
     def __init__(self, x, y, width, height, direction):
         super().__init__(x, y, width, height, direction)
+                
+    def draw(self):
+        return None
+    
+
+class DockingBay(Structure):
+    def __init__(self, x, y, width, height, direction):
+        super().__init__(x, y, width, height, direction, add_open_points=False)
         
     def draw(self):
         return None
         
 
 class StructureGenerator:
-    def __init__(self, width, height):
+    def __init__(self, width, height, prob_structures):
         self.width = width
         self.height = height
         
+        self.rng = default_rng()
+        
         self.structures = []
-        self.bounding_geometry = []
-        # self.open_sides = []
+        self.bounding_geometry = Point()  # empty geometry
+        
+        self.structure_types = [Capsule, DockingBay]
+        self.prob_structures = prob_structures
     
+    def get_bounding_box(self):
+        return sh.box(-0.5 * self.width, -0.5 * self.height, 0.5 * self.width, 0.5 * self.height)
+        
     def add_structure(self, structure, prev_structure=None):
         self.structures.append(structure)
         
@@ -180,33 +243,78 @@ class StructureGenerator:
         bb = structure.get_bounding_box()
         self.bounding_geometry = sh.union(self.bounding_geometry, bb)
         
-        # # Add open sides of new structure to all open sides: 
-        # sides = structure.sample_open_points()
-        # self.open_sides.extend(sides)
-        
         # Remove no longer open points from previous structure:
         # TODO: optional margin around the BB when removing points
         if prev_structure is not None:
             line = structure.get_edge_line()
             prev_structure.open_points[structure.direction] = sh.difference(prev_structure.open_points[structure.direction], line)
-        
+            if prev_structure.open_points[structure.direction].is_empty:  # remove side if all points are removed
+                prev_structure.open_points.pop(structure.direction, None)
+    
+    def get_open_sides(self):
+        sides = []
+        for idx, structure in enumerate(self.structures):
+            for direction in structure.open_points.keys():
+                sides.append((idx, direction))
+        return sides
+    
     def generate(self, num_tries, num_consec_fails_max=50):
+        # TODO: add consec fails termination
         x, y, = 0.0, 0.0  # start in zero
-        structure = Capsule(x, y, 5.0, 2.5, Direction.RIGHT)
-        self.add_structure(structure)
-        
-        x, y = 5.0, 0.0
-        structure_2 = Capsule(x, y, 4.0, 2.0, Direction.RIGHT)
-        self.add_structure(structure_2, prev_structure=structure)
-        
-        x, y = 7.0, -1.0
-        structure_3 = Capsule(x, y, 2.0, 3.0, Direction.UP)
-        self.add_structure(structure_3, prev_structure=structure_2)
-        
-    def draw_bounding_boxes(self, vsk):
+        prev_structure = None
+        for i in range(num_tries):
+            if i > 0:
+                sides = self.get_open_sides()
+                idx, dir = random.choice(sides)
+                prev_structure = self.structures[idx]
+                point = random.choice(get_points_iterable(prev_structure.open_points[dir]))
+                x, y = point.x, point.y
+            else:
+                dir = random.choice(list(Direction))
+                
+            # TODO: pick between different structures
+            structure_class = pick_random_element(self.structure_types, self.prob_structures)
+            print(structure_class)
+            
+            # Pick random width and height:
+            length_x, length_y = structure_class.sample_bb_lengths(self.rng)
+            
+            structure = structure_class(x, y, length_x, length_y, dir)
+            
+            # Check if structure fits in bounding geometry:
+            intersects_bounding_geom = self.bounding_geometry.intersects(structure.get_bounding_box(shrink=1e-4))
+            
+            # Check if structure fits in outer bounding box:
+            inside_outer_bb = self.get_bounding_box().contains(structure.get_bounding_box())
+            
+            # TODO: check if it fits on edge line of prev_structure?
+            
+            if inside_outer_bb and not intersects_bounding_geom:
+                self.add_structure(structure, prev_structure=prev_structure)
+
+    def draw_outer_bounding_box(self, vsk):
         vsk.stroke(2)
-        for structure in self.structures:
+        vsk.rect(0, 0, self.width, self.height, mode="center")
+        vsk.stroke(1)
+        
+    def draw_bounding_boxes(self, vsk, arrow_length=3e-1, text_offset=0.2):
+        vsk.stroke(2)
+        for idx, structure in enumerate(self.structures):
             vsk.sketch(structure.draw_bounding_box())
+            
+            text_offset_curr = text_offset if structure.direction == Direction.UP else -text_offset
+            vsk.text(f"{idx}.{type(structure).__name__[:2]}", structure.x_center, 
+                     structure.y_center + text_offset_curr, size=0.15, align="center")
+            
+            with vsk.pushMatrix():  # draw arrow to show direction
+                angle = direction_to_angle(structure.direction)
+                vsk.translate(structure.x_center, structure.y_center)
+                vsk.rotate(-angle)
+                vsk.line(0, 0, arrow_length, 0.0)
+                vsk.line(arrow_length, 0.0, arrow_length - 0.3 * arrow_length / np.sqrt(2),
+                         0.3 * arrow_length / np.sqrt(2))
+                vsk.line(arrow_length, 0.0, arrow_length - 0.3 * arrow_length / np.sqrt(2),
+                         -0.3 * arrow_length / np.sqrt(2))
         vsk.stroke(1)
             
     def draw_open_points(self, vsk):
@@ -222,30 +330,61 @@ class StructureGenerator:
             
 
 class SpacestationSketch(vsketch.SketchClass):
+    WIDTH_FULL = 21
+    HEIGHT_FULL = 29.7
+    
     debug = vsketch.Param(True)
     occult = vsketch.Param(False)
     scale = vsketch.Param(1.0)
     
     n_x = vsketch.Param(4, min_value=1)
     n_y = vsketch.Param(6, min_value=1)
-    grid_dist_x = vsketch.Param(8.1)
-    grid_dist_y = vsketch.Param(8.4)
+    grid_dist_x = vsketch.Param(8.0)
+    grid_dist_y = vsketch.Param(8.0)
     
-    WIDTH_FULL = 21
-    HEIGHT_FULL = 29.7
+    prob_capsule = vsketch.Param(0.8, min_value=0.0, max_value=1.0)
+    prob_docking_bay = vsketch.Param(0.2, min_value=0.0, max_value=1.0)
+        
+    capsule_height_min = vsketch.Param(0.4, min_value=0)
+    capsule_height_max = vsketch.Param(2.0, min_value=0)
+    capsule_width_gain_min = vsketch.Param(1.0, min_value=0)
+    capsule_width_gain_max = vsketch.Param(3.0, min_value=0)
     
-    rng = default_rng()
+    dock_height_min = vsketch.Param(0.4, min_value=0)
+    dock_height_max = vsketch.Param(2.0, min_value=0)
+    dock_width_gain_min = vsketch.Param(1.0, min_value=0)
+    dock_width_gain_max = vsketch.Param(3.0, min_value=0)
 
-    def draw(self, vsk: vsketch.Vsketch) -> None:
+    def init_drawing(self, vsk):
         vsk.size("a4", landscape=False)
         vsk.scale("cm")
         vsk.scale(self.scale, self.scale)
+        print("\n")
         
-        generator = StructureGenerator(50.0, 50.0)
-        generator.generate(num_tries=2)
+    def init_probs(self):
+        self.prob_structures = normalize_vec_to_sum_one(np.array([self.prob_capsule, self.prob_docking_bay]))
+    
+    def init_structures(self):
+        Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
+                       self.capsule_width_gain_max)
+        DockingBay.update(self.dock_height_min, self.dock_height_max, self.dock_width_gain_min,
+                          self.dock_width_gain_max)
+        
+    def draw(self, vsk: vsketch.Vsketch) -> None:
+        self.init_probs()
+        
+        self.init_structures()
+
+        self.init_drawing(vsk)
+        
+        width = 15.0
+        height = 25.0
+        generator = StructureGenerator(width, height, self.prob_structures)
+        generator.generate(num_tries=20)
         
         if self.debug:
-            vsk.circle(0, 0, radius=1e-1)
+            vsk.circle(0, 0, radius=1e-1)  # origin
+            generator.draw_outer_bounding_box(vsk)
             generator.draw_bounding_boxes(vsk)
             generator.draw_open_points(vsk)
 
