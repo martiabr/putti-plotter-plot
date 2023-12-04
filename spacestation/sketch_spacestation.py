@@ -64,9 +64,9 @@ from plotter_util.plotter_util import pick_random_element
 - [x] width, height
 - [x] check on bounding geom
 - [x] check on outer bb
+- [x] add picking between different structure types with different probs
+- [x] add end stop structure type
 - [ ] add weights to encourage going in same direction
-- [ ] add picking between different structure types with different probs
-- [ ] add end stop structure type
 - [ ] add solar panel
 - [ ] add system for connections between capsules
 - [ ] for structure types like solar panel and capsule, add subclasses where the variables are overriden. 
@@ -75,7 +75,8 @@ from plotter_util.plotter_util import pick_random_element
       E.g. single panel vs. double panel vs. single/double panel w/wo arm
 - [ ] Add constraint system. To make it look more like a space station we might want to force symmetries. 
       E.g. if we add a solar panel on one side it should be a high prob that a solar panel will be created on opposite side.
-      .
+- [ ] Remove all the different open points, just choose center. Easy way to force symmetries.
+- [ ] Docking bay should not be larger than capsule it is connected to.
 """
 
 """ Connections:
@@ -135,7 +136,7 @@ def direction_to_angle(direction):
  
 
 class Structure:
-    def __init__(self, x, y, width, height, direction, add_open_points=True):
+    def __init__(self, x, y, width, height, direction, allow_open_points=True):
         self.x = x
         self.y = y
         self.width = width
@@ -144,10 +145,11 @@ class Structure:
         unit_vector = direction_to_unit_vector(self.direction)
         self.x_center, self.y_center = 0.5 * np.array([self.width, self.height]) * unit_vector + np.array([self.x, self.y])
 
-        self.open_points = self.init_open_points() if add_open_points else None
+        self.allow_open_points = allow_open_points
+        self.open_points = self.init_open_points() if self.allow_open_points else None
 
     @classmethod
-    def sample_bb_lengths(cls, rng):
+    def sample_bb_lengths(cls, dir, rng):
         """Default sampling of bounding box size"""
         height = rng.uniform(cls.height_min, cls.height_max)
         width = height * rng.uniform(cls.width_gain_min, cls.width_gain_max)
@@ -238,7 +240,7 @@ class Capsule(Structure):
 
 class DockingBay(Structure):
     def __init__(self, x, y, width, height, direction):
-        super().__init__(x, y, width, height, direction, add_open_points=False)
+        super().__init__(x, y, width, height, direction, allow_open_points=False)
         
     def draw(self):
         return None
@@ -278,8 +280,9 @@ class StructureGenerator:
     def get_open_sides(self):
         sides = []
         for idx, structure in enumerate(self.structures):
-            for direction in structure.open_points.keys():
-                sides.append((idx, direction))
+            if structure.allow_open_points:
+                for direction in structure.open_points.keys():
+                    sides.append((idx, direction))
         return sides
     
     def generate(self, num_tries, num_consec_fails_max=50):
@@ -293,15 +296,16 @@ class StructureGenerator:
                 prev_structure = self.structures[idx]
                 point = random.choice(get_points_iterable(prev_structure.open_points[dir]))
                 x, y = point.x, point.y
+                
+                structure_class = pick_random_element(self.structure_types, self.prob_structures)
             else:
+                structure_class = Capsule  # first placed structure must be capsule
                 dir = random.choice(list(Direction))
                 
-            # TODO: pick between different structures
-            structure_class = pick_random_element(self.structure_types, self.prob_structures)
-            print(structure_class)
+            # print(structure_class)
             
             # Pick random width and height:
-            length_x, length_y = structure_class.sample_bb_lengths(self.rng)
+            length_x, length_y = structure_class.sample_bb_lengths(dir, self.rng)
             
             structure = structure_class(x, y, length_x, length_y, dir)
             
@@ -344,9 +348,10 @@ class StructureGenerator:
     def draw_open_points(self, vsk):
         vsk.stroke(3)
         for structure in self.structures:
-            for points in structure.open_points.values():
-                for point in get_points_iterable(points):
-                    vsk.circle(point.x, point.y, radius=2e-2)
+            if structure.allow_open_points:
+                for points in structure.open_points.values():
+                    for point in get_points_iterable(points):
+                        vsk.circle(point.x, point.y, radius=2e-2)
         vsk.stroke(1)
         
     def draw(self, vsk):
@@ -369,15 +374,15 @@ class SpacestationSketch(vsketch.SketchClass):
     prob_capsule = vsketch.Param(0.8, min_value=0.0, max_value=1.0)
     prob_docking_bay = vsketch.Param(0.2, min_value=0.0, max_value=1.0)
         
-    capsule_height_min = vsketch.Param(0.4, min_value=0)
+    capsule_height_min = vsketch.Param(1.0, min_value=0)
     capsule_height_max = vsketch.Param(2.0, min_value=0)
     capsule_width_gain_min = vsketch.Param(1.0, min_value=0)
     capsule_width_gain_max = vsketch.Param(3.0, min_value=0)
     
-    dock_height_min = vsketch.Param(0.4, min_value=0)
+    dock_height_min = vsketch.Param(1.0, min_value=0)
     dock_height_max = vsketch.Param(2.0, min_value=0)
-    dock_width_gain_min = vsketch.Param(1.0, min_value=0)
-    dock_width_gain_max = vsketch.Param(3.0, min_value=0)
+    dock_width_gain_min = vsketch.Param(0.1, min_value=0)
+    dock_width_gain_max = vsketch.Param(0.2, min_value=0)
 
     def init_drawing(self, vsk):
         vsk.size("a4", landscape=False)
