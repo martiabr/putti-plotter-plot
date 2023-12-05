@@ -1,15 +1,8 @@
 # IDEAS:
-- [ ] **Bauhaus** - random shapes, (parallel) lines, multi-color, ... Possibly based on randomly generated quadtree looking grid?
-- [ ] **Kandinsky:** similar to Bauhaus but more focus on lines, circles and multi-color
-- [ ] **6 Feet beneath the moon:** white on black shaded polygons, circles and lines 
-- [ ] **Experiment with curves/paths of thick lines by shading or filling.** Polygon or set of lines, circles or bezier curves. Noise on thickness for cool effect. Inspiration: Broken Record podcast logo.
-- [ ] "Shoelace" chaos plot. Could be textured with piano, guitar, trumpet styled lines for a music theme. The general challenge is how to get the depth correct. And how to generate a line that is chaotic but still evenly fills the domain. 
-- [ ] **Nonlinear transforms:** Transform grid lines by some nonlinear transform - conformal mapping type stuff. Little code and quick to draw but could look cool. One way to do this is to update the Truchet tiles with noise.
 - [ ] **Generative control panels** (reuse code from robots) (think old nuclear reactor, ultrasound machines, ...)
-- [ ] Generative train network
-- [ ] Play around with variable width line tool
-- [x] Play with attractors, chaotic differential equations in XY plane, also possibly nonlinear diff eqs that are time-varying. Lorenz is the natural place to start
-- [x] Random walks with different constraints/weight functions on position, velocity, acceleration, jerk. Could for instance penalize deviation from some trajectory such as circle or more crazy orbits
+- [ ] **Experiment with curves/paths of thick lines by shading or filling.** Polygon or set of lines, circles or bezier curves. Noise on thickness for cool effect. Inspiration: Broken Record podcast logo.
+- [ ] **"Shoelace" chaos plot:** Could be textured with piano, guitar, trumpet styled lines for a music theme. The general challenge is how to get the depth correct. And how to generate a line that is chaotic but still evenly fills the domain. 
+- [ ] Generative train network / tube map
 - Grids of objects. Can be as simple as polygons or circles with randomly sampled sizes. Or e.g. create a cactus creator algorithm that generates random cacti (or any other random fun object). Or even just some abstract shapes consisting of points, lines and boxes.
   - [x] Rocket generator would be awesome
   - [x] Robots
@@ -17,11 +10,18 @@
   - Cats
   - [ ] Minimalist **planet generator** in grid. Randomization of size and shape, moons, rings, cities (just lines representing skyscrapers). Possibly experiement with shading but might be difficult.
   - [ ] **Space stations**. Can use some procedural dungeon generator type code. Think capsules, tubes, solar panels etc. Possibly in irregular grid. Somehow get the algo to fill the rect it has been assigned instead of growing out randomly.
+- [ ] Nonlinear transforms: Transform grid lines by some nonlinear transform - conformal mapping type stuff. Little code and quick to draw but could look cool. One way to do this is to update the Truchet tiles with noise.
+- [ ] Revisit WFC with cooler tiles
+- [ ] Revisit Bauhaus/Kandinsky art with algorithm for building these artpieces instead of just random sampling
+- [x] **Bauhaus** - random shapes, (parallel) lines, multi-color, ... Possibly based on randomly generated quadtree looking grid?
+- [x] **Kandinsky:** similar to Bauhaus but more focus on lines, circles and multi-color
+- [x] **6 Feet beneath the moon:** white on black shaded polygons, circles and lines 
 - Flow fields. Should write general functionality for plotting FFs and then easily change out Perlin noise or nonlinear differential equations etc.
+- [x] Play with attractors, chaotic differential equations in XY plane, also possibly nonlinear diff eqs that are time-varying. Lorenz is the natural place to start
+- [x] Random walks with different constraints/weight functions on position, velocity, acceleration, jerk. Could for instance penalize deviation from some trajectory such as circle or more crazy orbits
 - Trigonometric parametric curves.
 - Fun with hexagons. E.g. hexagon perspective pattern with fills?
 - Download height map data and generate contour plots for fun geographical locations. Tilezen is one data source. Could try to generate the contour lines custom with Bezier curves and math, or maybe use matplotlib and export to svg. Maybe mpl first to see how it could look and possibly expand. Can retrieve the contour lines from mpl and do things with them if wanted. 
-- Experiment with occult plugin to do 2D occlusion. 
 - [x] Occult -> 3d isometric drawing with towers, bridges, stairs, ... typical doodle but randomized and parametrized. Possibly procedural algorithm involved?
 - Experiment with shapely and occult to do 3D occlusion
 - Flow imager

@@ -1,4 +1,3 @@
-
 Look at KSP space stations
 Centrifuge?
 Can variable width line be used at all?
@@ -56,17 +55,17 @@ Elements in the space stations:
 - [x] add weights to encourage going in same direction
 - [x] Add extra open point on first capsule
 - [x] Remove all the different open points, just choose center. Easy way to force symmetries.
-- [ ] Docking bay should not be larger than capsule it is connected to. This applies to all things?
-- [x] add solar panel
-- [ ] do solar panel width/height sampling better
+- [x] Add solar panel
+- [ ] Docking bay should not be larger than capsule it is connected to. This should apply to some types. Not solar and capsule, but dock and similar things. The easy solution to this is just to either 1. apply a min to the height sampling, or perhaps better is 2. have height gain that applies to the prev structure height. 
 - [ ] add system for connections between capsules
+- [ ] Width matching
+- [ ] do solar panel width/height sampling better
 - [ ] for structure types like solar panel and capsule, add subclasses where the variables are overriden. 
       Then it would be possible to first have probs for capsule, solar panel, extra thing etc. 
       And all the little variations of each type can be hidden away inside a second prob density for each type.
       E.g. single panel vs. double panel vs. single/double panel w/wo arm
 - [ ] Add constraint system. To make it look more like a space station we might want to force symmetries. 
       E.g. if we add a solar panel on one side it should be a high prob that a solar panel will be created on opposite side.
-- [ ] Try to help to avoid getting stuck?
 
 ### Adding weights:
 Atm we loop over the structures, add all sides to a list, with idx. However, the weights must be maintained over time.
@@ -84,3 +83,6 @@ Depending on the width of the connection, different styles can be drawn. E.g. if
 
 Or we include connection as a separate structure type (subclass of capsule)?
 Want to include many different types, also connection with a flat part.
+Yes, connection is a separate type, with the special behaviour that it only adds a single open point, in same direction as it has.
+To do this right we also need the constraint system. As 1. connection can only be placed on capsule type and 2. only capsule can be placed on connection type (?)
+Furthermore, we need the height matching logic to work. The procedure here will be: 1. prev structure side will match height of prev structure, 2.other side will be randomly sampled based on max/min height + sampled gain on prev height. Then the bb size is determined from max of these two. 

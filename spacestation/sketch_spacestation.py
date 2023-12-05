@@ -22,7 +22,15 @@ def get_points_iterable(points):
         return [points]
 
 
-Direction = Enum("Direction", "RIGHT UP LEFT DOWN")
+# Direction = Enum("Direction", "RIGHT UP LEFT DOWN")
+class Direction(Enum):
+    RIGHT = 0
+    UP = 1
+    LEFT = 2
+    DOWN = 3
+    
+    def __str__(self):
+        return self.name
 
 
 def direction_to_unit_vector(direction):
@@ -58,8 +66,8 @@ class Structure:
         self.width = width
         self.height = height
         self.direction = direction
-        unit_vector = direction_to_unit_vector(self.direction)
-        self.x_center, self.y_center = 0.5 * np.array([self.width, self.height]) * unit_vector + np.array([self.x, self.y])
+        dir_unit_vec = direction_to_unit_vector(self.direction)
+        self.x_center, self.y_center = 0.5 * np.array([self.width, self.height]) * dir_unit_vec + np.array([self.x, self.y])
 
         self.allow_open_points = allow_open_points
         self.allow_all_dirs = allow_all_dirs
@@ -92,7 +100,6 @@ class Structure:
                       self.x_center + 0.5 * self.width - shrink, self.y_center + 0.5 * self.height - shrink)
     
     def init_open_points(self, dist=2e-1, allow_all_dirs=False):
-        # TODO: add margin on ends of linspaces, we dont want to draw stuff all the way to the end...
         sides = {}
         if self.direction != Direction.RIGHT or allow_all_dirs:
             sides[Direction.LEFT] = MultiPoint([(self.x_center - 0.5 * self.width, self.y_center)])
@@ -103,6 +110,7 @@ class Structure:
         if self.direction != Direction.DOWN or allow_all_dirs:
             sides[Direction.UP] = MultiPoint([(self.x_center, self.y_center - 0.5 * self.height)])
         
+        # TODO: add margin on ends of linspaces, we dont want to draw stuff all the way to the end...
         # if self.direction in (Direction.RIGHT, Direction.LEFT):
         #     n_points_x = int(np.round(self.width / dist))
         #     points_x = 0.5 * np.linspace(-self.width, self.width, num=n_points_x, endpoint=True) + self.x_center
