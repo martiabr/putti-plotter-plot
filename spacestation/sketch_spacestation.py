@@ -67,7 +67,8 @@ class Structure:
         self.height = height
         self.direction = direction
         dir_unit_vec = direction_to_unit_vector(self.direction)
-        self.x_center, self.y_center = 0.5 * np.array([self.width, self.height]) * dir_unit_vec + np.array([self.x, self.y])
+        self.x_center, self.y_center = 0.5 * np.array([self.width, self.height]) * dir_unit_vec + \
+                                       np.array([self.x, self.y])
 
         self.allow_open_points = allow_open_points
         self.allow_all_dirs = allow_all_dirs
@@ -220,19 +221,22 @@ class StructureGenerator:
         sides, weights = [], []
         for idx, structure in enumerate(self.structures):
             if structure.allow_open_points:
-                for direction in structure.open_points.keys():
-                    if direction == structure.direction:
+                for dir in structure.open_points.keys():
+                    if dir == structure.direction:
                         weights.append(self.weight_continue_same_dir)
                     else:
                         weights.append(1.0)
-                    sides.append((idx, direction))
+                    sides.append((idx, dir))
         return sides, weights
     
     def generate(self, num_tries, num_consec_fails_max=50):
-        # TODO: add consec fails termination
         x, y, = 0.0, 0.0  # start in zero
         prev_structure = None
+        consec_fails = 0
         for i in range(num_tries):
+            if consec_fails >= num_consec_fails_max:  # number of consecutive fails termination criteria
+                break
+            
             if i > 0:
                 # Sample random (but weighted) side:
                 sides, side_weights = self.get_open_sides()
@@ -265,7 +269,10 @@ class StructureGenerator:
             # TODO: check if it fits on edge line of prev_structure?
             
             if inside_outer_bb and not intersects_bounding_geom:
+                consec_fails = 0
                 self.add_structure(structure, prev_structure=prev_structure)
+            else:
+                consec_fails += 1
 
     def draw_outer_bounding_box(self, vsk):
         vsk.stroke(2)
@@ -313,8 +320,11 @@ class SpacestationSketch(vsketch.SketchClass):
     occult = vsketch.Param(False)
     scale = vsketch.Param(1.0)
     
-    n_x = vsketch.Param(4, min_value=1)
-    n_y = vsketch.Param(6, min_value=1)
+    num_tries = vsketch.Param(20, min_value=1)
+    num_consec_fails_max = vsketch.Param(50, min_value=1)
+    
+    n_x = vsketch.Param(1, min_value=1)
+    n_y = vsketch.Param(1, min_value=1)
     grid_dist_x = vsketch.Param(8.0)
     grid_dist_y = vsketch.Param(8.0)
     
@@ -346,7 +356,8 @@ class SpacestationSketch(vsketch.SketchClass):
         print("\n")
         
     def init_probs(self):
-        self.prob_structures = normalize_vec_to_sum_one(np.array([self.prob_capsule, self.prob_docking_bay, self.prob_solar_panel]))
+        probs = np.array([self.prob_capsule, self.prob_docking_bay, self.prob_solar_panel])
+        self.prob_structures = normalize_vec_to_sum_one(probs)
     
     def init_structures(self):
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
@@ -358,15 +369,14 @@ class SpacestationSketch(vsketch.SketchClass):
         
     def draw(self, vsk: vsketch.Vsketch) -> None:
         self.init_probs()
-        
         self.init_structures()
-
         self.init_drawing(vsk)
         
         width = 20.0
         height = 28.5
-        generator = StructureGenerator(width, height, self.prob_structures, weight_continue_same_dir=self.weight_continue_same_dir)
-        generator.generate(num_tries=20)
+        generator = StructureGenerator(width, height, self.prob_structures, 
+                                       weight_continue_same_dir=self.weight_continue_same_dir)
+        generator.generate(num_tries=self.num_tries, num_consec_fails_max=self.num_consec_fails_max)
         
         if self.debug:
             vsk.circle(0, 0, radius=1e-1)  # origin

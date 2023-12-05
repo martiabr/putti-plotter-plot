@@ -7,17 +7,20 @@ Here we can also add a shapely geometry directly to the shape. So we can just cr
 Elements in the space stations:
 - Solar panels (single panel directly outwards, double panels directly outwards, or single/double panel on arm, or many panels on either side of an arm)
   - Different connection types
+  - Add arm only for connecting solar panels like the ISS?
 - Capsules of different sizes and designs
   - Antennas, windows, cargo doors
 - Circular inflatable modules?
-- Docking ports
+- Docking ports/bays, 
+  - 1. actual structures
+  - 2. visual flair on capsule variations
 - Bars like in Freedom 
 - Centrifuge ring (but hard to draw in 2d, either 4 modules or just a ring. Try to get 3d effect with nonuniform lines, should be also to figure out that math)
 - Crew capsules/cabins (capsules with windows)
 - Robot arms, antennas, ...
 - communication dish tower
 - Possibly a spacecraft docked in a bay?
-- Need to look at more future oriented space stations for more ideas
+
 
 ### Algorithm:
 - list of structures
@@ -66,6 +69,7 @@ Elements in the space stations:
       E.g. single panel vs. double panel vs. single/double panel w/wo arm
 - [ ] Add constraint system. To make it look more like a space station we might want to force symmetries. 
       E.g. if we add a solar panel on one side it should be a high prob that a solar panel will be created on opposite side.
+- [ ] Way to only sample a subset of all structure types. Otherwise things will look very chaotic. E.g. there is a 20% chance of having inflatable capsule as an option for a drawing, but a separate prob for actually drawing it when picking the next structure to add. Another example would to be only pick n out of m solar panel types for one drawing, again to make the single drawing more cohesive.
 
 ### Adding weights:
 Atm we loop over the structures, add all sides to a list, with idx. However, the weights must be maintained over time.
