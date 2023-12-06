@@ -13,6 +13,10 @@ def normalize_vec_to_sum_one(vec):
     return vec / np.sum(vec)
 
 
+def normalize_mat_to_row_sum_one(mat):
+    return mat / np.sum(mat, axis=-1)[:,None]
+
+
 def get_points_iterable(points):
     if points.is_empty:
         return []
@@ -280,6 +284,10 @@ class StationGenerator:
                 # probs = np.tile(self.prob_modules, (self.n_module_types, 1))
                 # print(probs)
                 
+                # Ok, this is what we do.
+                # We give two matrices - probs from-to in parallel directions, and probs from-to in normal directions. This way we can for instance have larger prob on solar panels in normal direction from capsules.
+                # only thing as that the rows for solar panel etc. will be redundant and not used... We could have nans instead and then this implies we dont go from this? This simplfies the interface somewhat.
+                
                 module_class = pick_random_element(self.module_types, self.prob_modules)
             else:
                 module_class = Capsule  # first placed module must be capsule
@@ -405,6 +413,20 @@ class SpacestationSketch(vsketch.SketchClass):
         width = 20.0
         height = 28.5
         module_types = [Capsule, DockingBay, SolarPanel]
+        
+        probs_parallel = np.array([[1.0, 3.0, 0.2, 1.0],
+                                   [1.0, 0.0, 0.0, 0.0],
+                                   4 * [np.nan],
+                                   4 * [np.nan]])
+        probs_parallel = normalize_mat_to_row_sum_one(probs_parallel)
+        
+        probs_normal = np.array([[1.0, 3.0, 1.0, 1.0],
+                                 4 * [np.nan],
+                                 4 * [np.nan],
+                                 4 * [np.nan]])
+        probs_normal = normalize_mat_to_row_sum_one(probs_normal)
+        
+        
         generator = StationGenerator(width, height, module_types, self.prob_modules, 
                                        weight_continue_same_dir=self.weight_continue_same_dir)
         generator.generate(num_tries=self.num_tries, num_consec_fails_max=self.num_consec_fails_max)
