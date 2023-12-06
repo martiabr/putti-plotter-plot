@@ -59,12 +59,9 @@ Elements in the space stations:
 - [x] Add extra open point on first capsule
 - [x] Remove all the different open points, just choose center. Easy way to force symmetries.
 - [x] Add solar panel
-- [ ] Docking bay should not be larger than capsule it is connected to. This should apply to some types. Not solar and capsule, but dock and similar things. The easy solution to this is just to either 1. apply a min to the height sampling, or perhaps better is 2. have height gain that applies to the prev structure height. 
-- [x] add solar panel
-- [ ] Docking bay should not be larger than capsule it is connected to. This applies to all things?
-- [ ] do solar panel width/height sampling better
-- [ ] add system for connections between capsules
-- [ ] Width matching
+- [x] add system for connections between capsules
+- [ ] Docking bay should not be larger than capsule it is connected to. This should apply to some types. Not solar and capsule, but dock and similar things. The easy solution to this is just to either 1. apply a max to the height sampling, or perhaps better is 2. have height gain that applies to the prev structure height. 
+- [ ] Connection width matching
 - [ ] do solar panel width/height sampling better
 - [ ] for structure types like solar panel and capsule, add subclasses where the variables are overriden. 
       Then it would be possible to first have probs for capsule, solar panel, extra thing etc. 
@@ -106,4 +103,5 @@ We have capsules, connectors, solar panels and other stuff. That is it really. S
 Ok, this is what we do.
 We give two matrices - probs from-to in parallel directions, and probs from-to in normal directions. This way we can for instance have larger prob on solar panels in normal direction from capsules.
 only thing as that the rows for solar panel etc. will be redundant and not used... We could have nans instead and then this implies we dont go from this? This simplfies the interface somewhat.
-                
+
+# Width matching:

@@ -256,7 +256,6 @@ class StationGenerator:
             probs = self.probs_modules_normal[from_module_idx]
         else:
             probs = self.probs_modules_parallel[from_module_idx]
-        print(type(from_module), from_module_idx, probs)
         return pick_random_element(self.module_types, probs)
     
     def generate(self, num_tries, num_consec_fails_max=50):
