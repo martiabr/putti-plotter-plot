@@ -59,7 +59,7 @@ def direction_to_angle(direction):
         raise Exception("Wrong direction.")
  
 
-class Structure:
+class Module:
     def __init__(self, x, y, width, height, direction, allow_open_points=True, allow_all_dirs=False):
         self.x = x
         self.y = y
@@ -161,15 +161,23 @@ class Structure:
         return sketch
 
 
-class Capsule(Structure):
+class Capsule(Module):
     def __init__(self, x, y, width, height, direction):
         super().__init__(x, y, width, height, direction)
                 
     def draw(self):
         return None
+
+
+class Connector(Module):
+    def __init__(self, x, y, width, height, direction):
+        super().__init__(x, y, width, height, direction, allow_open_points=False)
+        
+    def draw(self):
+        return None
     
 
-class DockingBay(Structure):
+class DockingBay(Module):
     def __init__(self, x, y, width, height, direction):
         super().__init__(x, y, width, height, direction, allow_open_points=False)
         
@@ -177,7 +185,7 @@ class DockingBay(Structure):
         return None
     
     
-class SolarPanel(Structure):
+class SolarPanel(Module):
     def __init__(self, x, y, width, height, direction):
         super().__init__(x, y, width, height, direction, allow_open_points=False)
         
@@ -185,44 +193,45 @@ class SolarPanel(Structure):
         return None
         
 
-class StructureGenerator:
-    def __init__(self, width, height, prob_structures, weight_continue_same_dir=1.0):
+class StationGenerator:
+    def __init__(self, width, height, module_types, prob_modules, weight_continue_same_dir=1.0):
         self.width = width
         self.height = height
         self.weight_continue_same_dir = weight_continue_same_dir
         
         self.rng = default_rng()
         
-        self.structures = []
+        self.modules = []
         self.bounding_geometry = Point()  # empty geometry
         
-        self.structure_types = [Capsule, DockingBay, SolarPanel]
-        self.prob_structures = prob_structures
+        self.module_types = module_types
+        self.n_module_types = len(self.module_types)
+        self.prob_modules = prob_modules
     
     def get_bounding_box(self):
         return sh.box(-0.5 * self.width, -0.5 * self.height, 0.5 * self.width, 0.5 * self.height)
         
-    def add_structure(self, structure, prev_structure=None):
-        self.structures.append(structure)
+    def add_module(self, module, prev_module=None):
+        self.modules.append(module)
         
-        # Add bounding box of new structure to overall bounding geometry:
-        bb = structure.get_bounding_box()
+        # Add bounding box of new module to overall bounding geometry:
+        bb = module.get_bounding_box()
         self.bounding_geometry = sh.union(self.bounding_geometry, bb)
         
-        # Remove no longer open points from previous structure:
+        # Remove no longer open points from previous module:
         # TODO: optional margin around the BB when removing points
-        if prev_structure is not None:
-            line = structure.get_edge_line()
-            prev_structure.open_points[structure.direction] = sh.difference(prev_structure.open_points[structure.direction], line)
-            if prev_structure.open_points[structure.direction].is_empty:  # remove side if all points are removed
-                prev_structure.open_points.pop(structure.direction, None)
+        if prev_module is not None:
+            line = module.get_edge_line()
+            prev_module.open_points[module.direction] = sh.difference(prev_module.open_points[module.direction], line)
+            if prev_module.open_points[module.direction].is_empty:  # remove side if all points are removed
+                prev_module.open_points.pop(module.direction, None)
     
     def get_open_sides(self):
         sides, weights = [], []
-        for idx, structure in enumerate(self.structures):
-            if structure.allow_open_points:
-                for dir in structure.open_points.keys():
-                    if dir == structure.direction:
+        for idx, module in enumerate(self.modules):
+            if module.allow_open_points:
+                for dir in module.open_points.keys():
+                    if dir == module.direction:
                         weights.append(self.weight_continue_same_dir)
                     else:
                         weights.append(1.0)
@@ -231,7 +240,7 @@ class StructureGenerator:
     
     def generate(self, num_tries, num_consec_fails_max=50):
         x, y, = 0.0, 0.0  # start in zero
-        prev_structure = None
+        prev_module = None
         consec_fails = 0
         for i in range(num_tries):
             if consec_fails >= num_consec_fails_max:  # number of consecutive fails termination criteria
@@ -246,31 +255,52 @@ class StructureGenerator:
                 side_probs = normalize_vec_to_sum_one(side_weights)
                 idx, dir = pick_random_element(sides, side_probs)
                 
-                prev_structure = self.structures[idx]
-                point = random.choice(get_points_iterable(prev_structure.open_points[dir]))
+                prev_module = self.modules[idx]
+                point = random.choice(get_points_iterable(prev_module.open_points[dir]))
                 x, y = point.x, point.y
                 
-                structure_class = pick_random_element(self.structure_types, self.prob_structures)
+                # TODO: here we call a function that does more complex picking of module to add
+                # One way to do it is to just have a matrix where row=from module, col=to module with probs
+                # Then if from=capsule, to=connector has some prob. If from=connector then to=connector is 0 prob but to=capsule has large prob. And if from is something else, then to=connector is 0.
+                # Look at WFC, did something like this there
+                # Should have a default value for every module that the matrix is filled up with
+                # Then augment with extra probs like from=connector and to=connector is 0 etc.
+                # How to do this in a principled way?
+                # You have 1. a list of default probs which are independent of from, and 2. a list of (from, to, prob) which you loop over to overwrite.
+                # However, how important is this really? 
+                # We have capsules, connectors, solar panels and other stuff. That is it really. So you can just give this 4x4 matrix, it is not so difficult...
+                
+                # probs = np.array([1, 1, 1, 0.5, 0.5,
+                #                   0.25, 0.25, 0.25, 0.25,
+                #                   0.25, 0.25, 0.25, 0.25,
+                #                   0.10, 0.10, 0.10, 0.10,
+                #                   1, 0.5])
+                # probs = probs / np.sum(probs)
+                # probs = np.zeros((self.n_module_types, self.n_module_types))
+                # probs = np.tile(self.prob_modules, (self.n_module_types, 1))
+                # print(probs)
+                
+                module_class = pick_random_element(self.module_types, self.prob_modules)
             else:
-                structure_class = Capsule  # first placed structure must be capsule
+                module_class = Capsule  # first placed module must be capsule
                 dir = random.choice(list(Direction))
                 
             # Pick random width and height:
-            length_x, length_y = structure_class.sample_bb_lengths(dir, self.rng)
+            length_x, length_y = module_class.sample_bb_lengths(dir, self.rng)
             
-            structure = structure_class(x, y, length_x, length_y, dir)
+            module = module_class(x, y, length_x, length_y, dir)
             
-            # Check if structure fits in bounding geometry:
-            intersects_bounding_geom = self.bounding_geometry.intersects(structure.get_bounding_box(shrink=1e-4))
+            # Check if module fits in bounding geometry:
+            intersects_bounding_geom = self.bounding_geometry.intersects(module.get_bounding_box(shrink=1e-4))
             
-            # Check if structure fits in outer bounding box:
-            inside_outer_bb = self.get_bounding_box().contains(structure.get_bounding_box())
+            # Check if module fits in outer bounding box:
+            inside_outer_bb = self.get_bounding_box().contains(module.get_bounding_box())
             
-            # TODO: check if it fits on edge line of prev_structure?
+            # TODO: check if it fits on edge line of prev_module?
             
             if inside_outer_bb and not intersects_bounding_geom:
                 consec_fails = 0
-                self.add_structure(structure, prev_structure=prev_structure)
+                self.add_module(module, prev_module=prev_module)
             else:
                 consec_fails += 1
 
@@ -281,16 +311,16 @@ class StructureGenerator:
         
     def draw_bounding_boxes(self, vsk, arrow_length=3e-1, text_offset=0.2):
         vsk.stroke(2)
-        for idx, structure in enumerate(self.structures):
-            vsk.sketch(structure.draw_bounding_box())
+        for idx, module in enumerate(self.modules):
+            vsk.sketch(module.draw_bounding_box())
             
-            text_offset_curr = text_offset if structure.direction == Direction.UP else -text_offset
-            vsk.text(f"{idx}.{type(structure).__name__[:2]}", structure.x_center, 
-                     structure.y_center + text_offset_curr, size=0.15, align="center")
+            text_offset_curr = text_offset if module.direction == Direction.UP else -text_offset
+            vsk.text(f"{idx}.{type(module).__name__[:2]}", module.x_center, 
+                     module.y_center + text_offset_curr, size=0.15, align="center")
             
             with vsk.pushMatrix():  # draw arrow to show direction
-                angle = direction_to_angle(structure.direction)
-                vsk.translate(structure.x_center, structure.y_center)
+                angle = direction_to_angle(module.direction)
+                vsk.translate(module.x_center, module.y_center)
                 vsk.rotate(-angle)
                 vsk.line(0, 0, arrow_length, 0.0)
                 vsk.line(arrow_length, 0.0, arrow_length - 0.3 * arrow_length / np.sqrt(2),
@@ -301,9 +331,9 @@ class StructureGenerator:
             
     def draw_open_points(self, vsk):
         vsk.stroke(3)
-        for structure in self.structures:
-            if structure.allow_open_points:
-                for points in structure.open_points.values():
+        for module in self.modules:
+            if module.allow_open_points:
+                for points in module.open_points.values():
                     for point in get_points_iterable(points):
                         vsk.circle(point.x, point.y, radius=2e-2)
         vsk.stroke(1)
@@ -357,9 +387,9 @@ class SpacestationSketch(vsketch.SketchClass):
         
     def init_probs(self):
         probs = np.array([self.prob_capsule, self.prob_docking_bay, self.prob_solar_panel])
-        self.prob_structures = normalize_vec_to_sum_one(probs)
+        self.prob_modules = normalize_vec_to_sum_one(probs)
     
-    def init_structures(self):
+    def init_modules(self):
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
                        self.capsule_width_gain_max)
         DockingBay.update(self.dock_height_min, self.dock_height_max, self.dock_width_gain_min,
@@ -369,12 +399,13 @@ class SpacestationSketch(vsketch.SketchClass):
         
     def draw(self, vsk: vsketch.Vsketch) -> None:
         self.init_probs()
-        self.init_structures()
+        self.init_modules()
         self.init_drawing(vsk)
         
         width = 20.0
         height = 28.5
-        generator = StructureGenerator(width, height, self.prob_structures, 
+        module_types = [Capsule, DockingBay, SolarPanel]
+        generator = StationGenerator(width, height, module_types, self.prob_modules, 
                                        weight_continue_same_dir=self.weight_continue_same_dir)
         generator.generate(num_tries=self.num_tries, num_consec_fails_max=self.num_consec_fails_max)
         

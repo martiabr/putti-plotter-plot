@@ -2,7 +2,8 @@
 - [ ] **Generative control panels** (reuse code from robots) (think old nuclear reactor, ultrasound machines, ...)
 - [ ] **Experiment with curves/paths of thick lines by shading or filling.** Polygon or set of lines, circles or bezier curves. Noise on thickness for cool effect. Inspiration: Broken Record podcast logo.
 - [ ] **"Shoelace" chaos plot:** Could be textured with piano, guitar, trumpet styled lines for a music theme. The general challenge is how to get the depth correct. And how to generate a line that is chaotic but still evenly fills the domain. 
-- [ ] Generative train network / tube map
+  - Approaches to this: 1. WFC, 2. Walk
+- [ ] Generative train network / tube map (WFC?)
 - Grids of objects. Can be as simple as polygons or circles with randomly sampled sizes. Or e.g. create a cactus creator algorithm that generates random cacti (or any other random fun object). Or even just some abstract shapes consisting of points, lines and boxes.
   - [x] Rocket generator would be awesome
   - [x] Robots
@@ -13,9 +14,9 @@
 - [ ] Nonlinear transforms: Transform grid lines by some nonlinear transform - conformal mapping type stuff. Little code and quick to draw but could look cool. One way to do this is to update the Truchet tiles with noise.
 - [ ] Revisit WFC with cooler tiles
 - [ ] Revisit Bauhaus/Kandinsky art with algorithm for building these artpieces instead of just random sampling
-- [x] **Bauhaus** - random shapes, (parallel) lines, multi-color, ... Possibly based on randomly generated quadtree looking grid?
-- [x] **Kandinsky:** similar to Bauhaus but more focus on lines, circles and multi-color
-- [x] **6 Feet beneath the moon:** white on black shaded polygons, circles and lines 
+- [x] Bauhaus - random shapes, (parallel) lines, multi-color, ... Possibly based on randomly generated quadtree looking grid?
+- [x] Kandinsky: similar to Bauhaus but more focus on lines, circles and multi-color
+- [x] 6 Feet beneath the moon: white on black shaded polygons, circles and lines 
 - Flow fields. Should write general functionality for plotting FFs and then easily change out Perlin noise or nonlinear differential equations etc.
 - [x] Play with attractors, chaotic differential equations in XY plane, also possibly nonlinear diff eqs that are time-varying. Lorenz is the natural place to start
 - [x] Random walks with different constraints/weight functions on position, velocity, acceleration, jerk. Could for instance penalize deviation from some trajectory such as circle or more crazy orbits
