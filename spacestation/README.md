@@ -60,6 +60,9 @@ Elements in the space stations:
 - [x] Remove all the different open points, just choose center. Easy way to force symmetries.
 - [x] Add solar panel
 - [ ] Docking bay should not be larger than capsule it is connected to. This should apply to some types. Not solar and capsule, but dock and similar things. The easy solution to this is just to either 1. apply a min to the height sampling, or perhaps better is 2. have height gain that applies to the prev structure height. 
+- [x] add solar panel
+- [ ] Docking bay should not be larger than capsule it is connected to. This applies to all things?
+- [ ] do solar panel width/height sampling better
 - [ ] add system for connections between capsules
 - [ ] Width matching
 - [ ] do solar panel width/height sampling better
@@ -90,3 +93,17 @@ Want to include many different types, also connection with a flat part.
 Yes, connection is a separate type, with the special behaviour that it only adds a single open point, in same direction as it has.
 To do this right we also need the constraint system. As 1. connection can only be placed on capsule type and 2. only capsule can be placed on connection type (?)
 Furthermore, we need the height matching logic to work. The procedure here will be: 1. prev structure side will match height of prev structure, 2.other side will be randomly sampled based on max/min height + sampled gain on prev height. Then the bb size is determined from max of these two. 
+
+One way to do it is to just have a matrix where row=from module, col=to module with probs
+Then if from=capsule, to=connector has some prob. If from=connector then to=connector is 0 prob but to=capsule has large prob. And if from is something else, then to=connector is 0.
+Should have a default value for every module that the matrix is filled up with
+Then augment with extra probs like from=connector and to=connector is 0 etc.
+How to do this in a principled way?
+You have 1. a list of default probs which are independent of from, and 2. a list of (from, to, prob) which you loop over to overwrite.
+However, how important is this really? 
+We have capsules, connectors, solar panels and other stuff. That is it really. So you can just give this 4x4 matrix, it is not so difficult...
+
+Ok, this is what we do.
+We give two matrices - probs from-to in parallel directions, and probs from-to in normal directions. This way we can for instance have larger prob on solar panels in normal direction from capsules.
+only thing as that the rows for solar panel etc. will be redundant and not used... We could have nans instead and then this implies we dont go from this? This simplfies the interface somewhat.
+                

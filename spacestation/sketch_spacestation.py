@@ -166,8 +166,8 @@ class Module:
 
 
 class Capsule(Module):
-    def __init__(self, x, y, width, height, direction):
-        super().__init__(x, y, width, height, direction)
+    def __init__(self, x, y, width, height, direction, allow_all_dirs=False):
+        super().__init__(x, y, width, height, direction, allow_all_dirs=allow_all_dirs)
                 
     def draw(self):
         return None
@@ -175,15 +175,7 @@ class Capsule(Module):
 
 class Connector(Module):
     def __init__(self, x, y, width, height, direction):
-        super().__init__(x, y, width, height, direction, allow_open_points=False)
-        
-    def draw(self):
-        return None
-    
-
-class DockingBay(Module):
-    def __init__(self, x, y, width, height, direction):
-        super().__init__(x, y, width, height, direction, allow_open_points=False)
+        super().__init__(x, y, width, height, direction)
         
     def draw(self):
         return None
@@ -197,6 +189,14 @@ class SolarPanel(Module):
         return None
         
 
+class DockingBay(Module):
+    def __init__(self, x, y, width, height, direction):
+        super().__init__(x, y, width, height, direction, allow_open_points=False)
+        
+    def draw(self):
+        return None
+    
+    
 class StationGenerator:
     def __init__(self, width, height, module_types, prob_modules, weight_continue_same_dir=1.0):
         self.width = width
@@ -248,12 +248,14 @@ class StationGenerator:
         consec_fails = 0
         for i in range(num_tries):
             if consec_fails >= num_consec_fails_max:  # number of consecutive fails termination criteria
+                print("Termination: number of consecutive fails reached.")
                 break
             
             if i > 0:
                 # Sample random (but weighted) side:
                 sides, side_weights = self.get_open_sides()
                 if len(side_weights) == 0:  # exit if no options left
+                    print("Termination: no side options left.")
                     break
                 
                 side_probs = normalize_vec_to_sum_one(side_weights)
@@ -264,30 +266,6 @@ class StationGenerator:
                 x, y = point.x, point.y
                 
                 # TODO: here we call a function that does more complex picking of module to add
-                # One way to do it is to just have a matrix where row=from module, col=to module with probs
-                # Then if from=capsule, to=connector has some prob. If from=connector then to=connector is 0 prob but to=capsule has large prob. And if from is something else, then to=connector is 0.
-                # Look at WFC, did something like this there
-                # Should have a default value for every module that the matrix is filled up with
-                # Then augment with extra probs like from=connector and to=connector is 0 etc.
-                # How to do this in a principled way?
-                # You have 1. a list of default probs which are independent of from, and 2. a list of (from, to, prob) which you loop over to overwrite.
-                # However, how important is this really? 
-                # We have capsules, connectors, solar panels and other stuff. That is it really. So you can just give this 4x4 matrix, it is not so difficult...
-                
-                # probs = np.array([1, 1, 1, 0.5, 0.5,
-                #                   0.25, 0.25, 0.25, 0.25,
-                #                   0.25, 0.25, 0.25, 0.25,
-                #                   0.10, 0.10, 0.10, 0.10,
-                #                   1, 0.5])
-                # probs = probs / np.sum(probs)
-                # probs = np.zeros((self.n_module_types, self.n_module_types))
-                # probs = np.tile(self.prob_modules, (self.n_module_types, 1))
-                # print(probs)
-                
-                # Ok, this is what we do.
-                # We give two matrices - probs from-to in parallel directions, and probs from-to in normal directions. This way we can for instance have larger prob on solar panels in normal direction from capsules.
-                # only thing as that the rows for solar panel etc. will be redundant and not used... We could have nans instead and then this implies we dont go from this? This simplfies the interface somewhat.
-                
                 module_class = pick_random_element(self.module_types, self.prob_modules)
             else:
                 module_class = Capsule  # first placed module must be capsule
@@ -296,7 +274,10 @@ class StationGenerator:
             # Pick random width and height:
             length_x, length_y = module_class.sample_bb_lengths(dir, self.rng)
             
-            module = module_class(x, y, length_x, length_y, dir)
+            if i > 0:
+                module = module_class(x, y, length_x, length_y, dir)
+            else:
+                module = module_class(x, y, length_x, length_y, dir, allow_all_dirs=True)
             
             # Check if module fits in bounding geometry:
             intersects_bounding_geom = self.bounding_geometry.intersects(module.get_bounding_box(shrink=1e-4))
@@ -368,42 +349,51 @@ class SpacestationSketch(vsketch.SketchClass):
     
     weight_continue_same_dir = vsketch.Param(6.0, min_value=0.0)
     
-    prob_capsule = vsketch.Param(0.7, min_value=0.0, max_value=1.0)
-    prob_docking_bay = vsketch.Param(0.1, min_value=0.0, max_value=1.0)
+    prob_capsule = vsketch.Param(0.6, min_value=0.0, max_value=1.0)
+    prob_connector = vsketch.Param(0.6, min_value=0.0, max_value=1.0)
     prob_solar_panel = vsketch.Param(0.2, min_value=0.0, max_value=1.0)
+    prob_docking_bay = vsketch.Param(0.1, min_value=0.0, max_value=1.0)
         
     capsule_height_min = vsketch.Param(1.0, min_value=0)
     capsule_height_max = vsketch.Param(2.0, min_value=0)
     capsule_width_gain_min = vsketch.Param(1.0, min_value=0)
     capsule_width_gain_max = vsketch.Param(3.0, min_value=0)
     
-    dock_height_min = vsketch.Param(1.0, min_value=0)
-    dock_height_max = vsketch.Param(2.0, min_value=0)
-    dock_width_gain_min = vsketch.Param(0.1, min_value=0)
-    dock_width_gain_max = vsketch.Param(0.2, min_value=0)
+    connector_height_min = vsketch.Param(1.0, min_value=0)
+    connector_height_max = vsketch.Param(2.0, min_value=0)
+    connector_width_gain_min = vsketch.Param(0.2, min_value=0)
+    connector_width_gain_max = vsketch.Param(0.4, min_value=0)
     
     solar_height_min = vsketch.Param(0.8, min_value=0)
     solar_height_max = vsketch.Param(1.6, min_value=0)
     solar_width_gain_min = vsketch.Param(4.0, min_value=0)
     solar_width_gain_max = vsketch.Param(8.0, min_value=0)
+    
+    dock_height_min = vsketch.Param(1.0, min_value=0)
+    dock_height_max = vsketch.Param(2.0, min_value=0)
+    dock_width_gain_min = vsketch.Param(0.1, min_value=0)
+    dock_width_gain_max = vsketch.Param(0.2, min_value=0)
+    
 
     def init_drawing(self, vsk):
         vsk.size("a4", landscape=False)
         vsk.scale("cm")
         vsk.scale(self.scale, self.scale)
-        print("\n")
+        print("\nRunning...")
         
     def init_probs(self):
-        probs = np.array([self.prob_capsule, self.prob_docking_bay, self.prob_solar_panel])
+        probs = np.array([self.prob_capsule, self.prob_connector, self.prob_solar_panel, self.prob_docking_bay])
         self.prob_modules = normalize_vec_to_sum_one(probs)
     
     def init_modules(self):
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
                        self.capsule_width_gain_max)
-        DockingBay.update(self.dock_height_min, self.dock_height_max, self.dock_width_gain_min,
-                          self.dock_width_gain_max)
+        Connector.update(self.connector_height_min, self.connector_height_max, self.connector_width_gain_min,
+                          self.connector_width_gain_max)
         SolarPanel.update(self.solar_height_min, self.solar_height_max, self.solar_width_gain_min,
                           self.solar_width_gain_max)
+        DockingBay.update(self.dock_height_min, self.dock_height_max, self.dock_width_gain_min,
+                          self.dock_width_gain_max)
         
     def draw(self, vsk: vsketch.Vsketch) -> None:
         self.init_probs()
@@ -412,7 +402,7 @@ class SpacestationSketch(vsketch.SketchClass):
         
         width = 20.0
         height = 28.5
-        module_types = [Capsule, DockingBay, SolarPanel]
+        module_types = [Capsule, Connector, SolarPanel, DockingBay]
         
         probs_parallel = np.array([[1.0, 3.0, 0.2, 1.0],
                                    [1.0, 0.0, 0.0, 0.0],
@@ -426,7 +416,7 @@ class SpacestationSketch(vsketch.SketchClass):
                                  4 * [np.nan]])
         probs_normal = normalize_mat_to_row_sum_one(probs_normal)
         
-        
+
         generator = StationGenerator(width, height, module_types, self.prob_modules, 
                                        weight_continue_same_dir=self.weight_continue_same_dir)
         generator.generate(num_tries=self.num_tries, num_consec_fails_max=self.num_consec_fails_max)
