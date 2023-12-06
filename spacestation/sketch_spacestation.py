@@ -61,10 +61,14 @@ def direction_to_angle(direction):
         return 1.5 * np.pi
     else:
         raise Exception("Wrong direction.")
- 
+    
 
+def directions_are_normal(dir_1, dir_2):
+    return (dir_1 in (Direction.RIGHT, Direction.LEFT) and dir_2 in (Direction.UP, Direction.DOWN)) or \
+           (dir_1 in (Direction.UP, Direction.DOWN) and dir_2 in (Direction.RIGHT, Direction.LEFT))
+    
 class Module:
-    def __init__(self, x, y, width, height, direction, allow_open_points=True, allow_all_dirs=False):
+    def __init__(self, x, y, width, height, direction, allow_all_dirs=False):
         self.x = x
         self.y = y
         self.width = width
@@ -74,9 +78,8 @@ class Module:
         self.x_center, self.y_center = 0.5 * np.array([self.width, self.height]) * dir_unit_vec + \
                                        np.array([self.x, self.y])
 
-        self.allow_open_points = allow_open_points
         self.allow_all_dirs = allow_all_dirs
-        self.open_points = self.init_open_points(allow_all_dirs=self.allow_all_dirs) if self.allow_open_points else None
+        self.open_points = self.init_open_points(allow_all_dirs=self.allow_all_dirs)
         
     @classmethod
     def sample_bb_lengths(cls, dir, rng):
@@ -176,6 +179,7 @@ class Capsule(Module):
 class Connector(Module):
     def __init__(self, x, y, width, height, direction):
         super().__init__(x, y, width, height, direction)
+        self.open_points = dict(zip([self.direction], [self.open_points[self.direction]]))  # connector type can only build forward
         
     def draw(self):
         return None
@@ -183,22 +187,25 @@ class Connector(Module):
     
 class SolarPanel(Module):
     def __init__(self, x, y, width, height, direction):
-        super().__init__(x, y, width, height, direction, allow_open_points=False)
-        
+        super().__init__(x, y, width, height, direction)
+        self.open_points = None
+    
     def draw(self):
         return None
         
 
 class DockingBay(Module):
     def __init__(self, x, y, width, height, direction):
-        super().__init__(x, y, width, height, direction, allow_open_points=False)
-        
+        super().__init__(x, y, width, height, direction)
+        self.open_points = None
+     
     def draw(self):
         return None
     
     
 class StationGenerator:
-    def __init__(self, width, height, module_types, prob_modules, weight_continue_same_dir=1.0):
+    def __init__(self, width, height, module_types, probs_modules_parallel, probs_modules_normal, 
+                 weight_continue_same_dir=1.0):
         self.width = width
         self.height = height
         self.weight_continue_same_dir = weight_continue_same_dir
@@ -210,7 +217,10 @@ class StationGenerator:
         
         self.module_types = module_types
         self.n_module_types = len(self.module_types)
-        self.prob_modules = prob_modules
+        self.module_type_to_idx = dict(zip(self.module_types, range(self.n_module_types)))
+        
+        self.probs_modules_parallel = probs_modules_parallel
+        self.probs_modules_normal = probs_modules_normal
     
     def get_bounding_box(self):
         return sh.box(-0.5 * self.width, -0.5 * self.height, 0.5 * self.width, 0.5 * self.height)
@@ -233,18 +243,25 @@ class StationGenerator:
     def get_open_sides(self):
         sides, weights = [], []
         for idx, module in enumerate(self.modules):
-            if module.allow_open_points:
+            if module.open_points is not None:
                 for dir in module.open_points.keys():
-                    if dir == module.direction:
-                        weights.append(self.weight_continue_same_dir)
-                    else:
-                        weights.append(1.0)
+                    weight = self.weight_continue_same_dir if dir == module.direction else 1.0
+                    weights.append(weight)
                     sides.append((idx, dir))
         return sides, weights
     
+    def pick_random_module(self, from_module, dir):
+        from_module_idx = self.module_type_to_idx[type(from_module)]
+        if directions_are_normal(dir, from_module.direction):
+            probs = self.probs_modules_normal[from_module_idx]
+        else:
+            probs = self.probs_modules_parallel[from_module_idx]
+        print(type(from_module), from_module_idx, probs)
+        return pick_random_element(self.module_types, probs)
+    
     def generate(self, num_tries, num_consec_fails_max=50):
         x, y, = 0.0, 0.0  # start in zero
-        prev_module = None
+        from_module = None
         consec_fails = 0
         for i in range(num_tries):
             if consec_fails >= num_consec_fails_max:  # number of consecutive fails termination criteria
@@ -257,16 +274,16 @@ class StationGenerator:
                 if len(side_weights) == 0:  # exit if no options left
                     print("Termination: no side options left.")
                     break
-                
                 side_probs = normalize_vec_to_sum_one(side_weights)
                 idx, dir = pick_random_element(sides, side_probs)
                 
-                prev_module = self.modules[idx]
-                point = random.choice(get_points_iterable(prev_module.open_points[dir]))
+                from_module = self.modules[idx]
+                point = random.choice(get_points_iterable(from_module.open_points[dir]))
                 x, y = point.x, point.y
                 
                 # TODO: here we call a function that does more complex picking of module to add
-                module_class = pick_random_element(self.module_types, self.prob_modules)
+                module_class = self.pick_random_module(from_module, dir)
+                # module_class = pick_random_element(self.module_types, self.prob_modules)
             else:
                 module_class = Capsule  # first placed module must be capsule
                 dir = random.choice(list(Direction))
@@ -274,6 +291,7 @@ class StationGenerator:
             # Pick random width and height:
             length_x, length_y = module_class.sample_bb_lengths(dir, self.rng)
             
+            # Init the module:
             if i > 0:
                 module = module_class(x, y, length_x, length_y, dir)
             else:
@@ -289,7 +307,7 @@ class StationGenerator:
             
             if inside_outer_bb and not intersects_bounding_geom:
                 consec_fails = 0
-                self.add_module(module, prev_module=prev_module)
+                self.add_module(module, prev_module=from_module)
             else:
                 consec_fails += 1
 
@@ -321,7 +339,7 @@ class StationGenerator:
     def draw_open_points(self, vsk):
         vsk.stroke(3)
         for module in self.modules:
-            if module.allow_open_points:
+            if module.open_points is not None:
                 for points in module.open_points.values():
                     for point in get_points_iterable(points):
                         vsk.circle(point.x, point.y, radius=2e-2)
@@ -349,10 +367,15 @@ class SpacestationSketch(vsketch.SketchClass):
     
     weight_continue_same_dir = vsketch.Param(6.0, min_value=0.0)
     
-    prob_capsule = vsketch.Param(0.6, min_value=0.0, max_value=1.0)
-    prob_connector = vsketch.Param(0.6, min_value=0.0, max_value=1.0)
-    prob_solar_panel = vsketch.Param(0.2, min_value=0.0, max_value=1.0)
-    prob_docking_bay = vsketch.Param(0.1, min_value=0.0, max_value=1.0)
+    prob_capsule_capsule_parallel = vsketch.Param(1.0, min_value=0)
+    prob_capsule_connector_parallel = vsketch.Param(2.0, min_value=0)
+    prob_capsule_solar_parallel = vsketch.Param(0.4, min_value=0)
+    prob_capsule_dock_parallel = vsketch.Param(1.0, min_value=0)
+
+    prob_capsule_capsule_normal = vsketch.Param(1.0, min_value=0)
+    prob_capsule_connector_normal = vsketch.Param(3.0, min_value=0)
+    prob_capsule_solar_normal = vsketch.Param(1.0, min_value=0)
+    prob_capsule_dock_normal = vsketch.Param(1.0, min_value=0)
         
     capsule_height_min = vsketch.Param(1.0, min_value=0)
     capsule_height_max = vsketch.Param(2.0, min_value=0)
@@ -382,8 +405,21 @@ class SpacestationSketch(vsketch.SketchClass):
         print("\nRunning...")
         
     def init_probs(self):
-        probs = np.array([self.prob_capsule, self.prob_connector, self.prob_solar_panel, self.prob_docking_bay])
-        self.prob_modules = normalize_vec_to_sum_one(probs)
+        # probs = np.array([self.prob_capsule, self.prob_connector, self.prob_solar_panel, self.prob_docking_bay])
+        # self.prob_modules = normalize_vec_to_sum_one(probs)
+        probs_parallel = np.array([[self.prob_capsule_capsule_parallel, self.prob_capsule_connector_parallel,
+                                    self.prob_capsule_solar_parallel, self.prob_capsule_dock_parallel],
+                                   [1.0, 0.0, 0.0, 0.0],
+                                   4 * [np.nan],
+                                   4 * [np.nan]])
+        self.probs_modules_parallel = normalize_mat_to_row_sum_one(probs_parallel)
+        
+        probs_normal = np.array([[self.prob_capsule_capsule_normal, self.prob_capsule_connector_normal,
+                                  self.prob_capsule_solar_normal, self.prob_capsule_dock_normal],
+                                 4 * [np.nan],
+                                 4 * [np.nan],
+                                 4 * [np.nan]])
+        self.probs_modules_normal = normalize_mat_to_row_sum_one(probs_normal)
     
     def init_modules(self):
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
@@ -404,21 +440,8 @@ class SpacestationSketch(vsketch.SketchClass):
         height = 28.5
         module_types = [Capsule, Connector, SolarPanel, DockingBay]
         
-        probs_parallel = np.array([[1.0, 3.0, 0.2, 1.0],
-                                   [1.0, 0.0, 0.0, 0.0],
-                                   4 * [np.nan],
-                                   4 * [np.nan]])
-        probs_parallel = normalize_mat_to_row_sum_one(probs_parallel)
-        
-        probs_normal = np.array([[1.0, 3.0, 1.0, 1.0],
-                                 4 * [np.nan],
-                                 4 * [np.nan],
-                                 4 * [np.nan]])
-        probs_normal = normalize_mat_to_row_sum_one(probs_normal)
-        
-
-        generator = StationGenerator(width, height, module_types, self.prob_modules, 
-                                       weight_continue_same_dir=self.weight_continue_same_dir)
+        generator = StationGenerator(width, height, module_types, self.probs_modules_parallel, 
+                                     self.probs_modules_normal, weight_continue_same_dir=self.weight_continue_same_dir)
         generator.generate(num_tries=self.num_tries, num_consec_fails_max=self.num_consec_fails_max)
         
         if self.debug:
