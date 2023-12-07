@@ -105,3 +105,6 @@ We give two matrices - probs from-to in parallel directions, and probs from-to i
 only thing as that the rows for solar panel etc. will be redundant and not used... We could have nans instead and then this implies we dont go from this? This simplfies the interface somewhat.
 
 # Width matching:
+Atm we have a class method that samples a random width and height given a direction.
+Here we can add the prev module to limit the max width. Is there any other information that is useful from prev module? Better is maybe just to input a max height directly.
+Then instead of sampling between min, max height we clamp the max to the input max height.

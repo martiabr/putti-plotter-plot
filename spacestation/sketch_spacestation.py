@@ -74,25 +74,34 @@ class Module:
         self.width = width
         self.height = height
         self.direction = direction
+        
+        if self.direction in (Direction.RIGHT, Direction.LEFT):
+            self.length_x, self.length_y = width, height
+        else:
+            self.length_x, self.length_y = height, width            
+        
         dir_unit_vec = direction_to_unit_vector(self.direction)
-        self.x_center, self.y_center = 0.5 * np.array([self.width, self.height]) * dir_unit_vec + \
+        self.x_center, self.y_center = 0.5 * np.array([self.length_x, self.length_y]) * dir_unit_vec + \
                                        np.array([self.x, self.y])
 
         self.allow_all_dirs = allow_all_dirs
         self.open_points = self.init_open_points(allow_all_dirs=self.allow_all_dirs)
         
     @classmethod
-    def sample_bb_lengths(cls, dir, rng):
-        """Default sampling of bounding box size"""
-        height = rng.uniform(cls.height_min, cls.height_max)
+    # def sample_bb_dims(cls, dir, rng, height_from=None):
+    def sample_bb_dims(cls, rng, height_from=None):
+        """Default sampling of bounding box size in local coordinates"""
+        height_max = cls.height_max if height_from is None else np.min((cls.height_max, height_from))
+        height = rng.uniform(cls.height_min, height_max)
         width = height * rng.uniform(cls.width_gain_min, cls.width_gain_max)
+        return width, height
         
-        if dir in (Direction.RIGHT, Direction.LEFT):
-            length_x, length_y = width, height
-        else:
-            length_x, length_y = height, width
+        # if dir in (Direction.RIGHT, Direction.LEFT):
+        #     length_x, length_y = width, height
+        # else:
+        #     length_x, length_y = height, width
             
-        return length_x, length_y
+        # return length_x, length_y
     
     @classmethod
     def update(cls, height_min, height_max, width_gain_min, width_gain_max):
@@ -103,20 +112,20 @@ class Module:
         cls.width_gain_max = width_gain_max
     
     def get_bounding_box(self, shrink=0.0):
-        assert shrink < 0.5 * min((self.width, self.height))
-        return sh.box(self.x_center - 0.5 * self.width + shrink, self.y_center - 0.5 * self.height + shrink,
-                      self.x_center + 0.5 * self.width - shrink, self.y_center + 0.5 * self.height - shrink)
+        assert shrink < 0.5 * min((self.length_x, self.length_y))
+        return sh.box(self.x_center - 0.5 * self.length_x + shrink, self.y_center - 0.5 * self.length_y + shrink,
+                      self.x_center + 0.5 * self.length_x - shrink, self.y_center + 0.5 * self.length_y - shrink)
     
     def init_open_points(self, dist=2e-1, allow_all_dirs=False):
         sides = {}
         if self.direction != Direction.RIGHT or allow_all_dirs:
-            sides[Direction.LEFT] = MultiPoint([(self.x_center - 0.5 * self.width, self.y_center)])
+            sides[Direction.LEFT] = MultiPoint([(self.x_center - 0.5 * self.length_x, self.y_center)])
         if self.direction != Direction.UP or allow_all_dirs:
-            sides[Direction.DOWN] = MultiPoint([(self.x_center, self.y_center + 0.5 * self.height)])
+            sides[Direction.DOWN] = MultiPoint([(self.x_center, self.y_center + 0.5 * self.length_y)])
         if self.direction != Direction.LEFT or allow_all_dirs:
-            sides[Direction.RIGHT] = MultiPoint([(self.x_center + 0.5 * self.width, self.y_center)])
+            sides[Direction.RIGHT] = MultiPoint([(self.x_center + 0.5 * self.length_x, self.y_center)])
         if self.direction != Direction.DOWN or allow_all_dirs:
-            sides[Direction.UP] = MultiPoint([(self.x_center, self.y_center - 0.5 * self.height)])
+            sides[Direction.UP] = MultiPoint([(self.x_center, self.y_center - 0.5 * self.length_y)])
         
         # TODO: add margin on ends of linspaces, we dont want to draw stuff all the way to the end...
         # if self.direction in (Direction.RIGHT, Direction.LEFT):
@@ -154,15 +163,15 @@ class Module:
     
     def get_edge_line(self):
         if self.direction in (Direction.RIGHT, Direction.LEFT):
-            return LineString([[self.x, self.y - 0.5 * self.height], 
-                               [self.x, self.y + 0.5 * self.height]])
+            return LineString([[self.x, self.y - 0.5 * self.length_y], 
+                               [self.x, self.y + 0.5 * self.length_y]])
         else:
-            return LineString([[self.x - 0.5 * self.width, self.y], 
-                               [self.x + 0.5 * self.width, self.y]])
+            return LineString([[self.x - 0.5 * self.length_x, self.y], 
+                               [self.x + 0.5 * self.length_x, self.y]])
     
     def draw_bounding_box(self):
         sketch = get_empty_sketch()
-        sketch.rect(self.x_center, self.y_center, self.width, self.height, mode="center")
+        sketch.rect(self.x_center, self.y_center, self.length_x, self.length_y, mode="center")
         sketch.circle(self.x, self.y, radius=3e-2)
         sketch.circle(self.x_center, self.y_center, radius=3e-2)
         return sketch
@@ -188,7 +197,7 @@ class Connector(Module):
 class SolarPanel(Module):
     def __init__(self, x, y, width, height, direction):
         super().__init__(x, y, width, height, direction)
-        self.open_points = None
+        self.open_points = None  # dont build outwards from this module
     
     def draw(self):
         return None
@@ -197,8 +206,8 @@ class SolarPanel(Module):
 class DockingBay(Module):
     def __init__(self, x, y, width, height, direction):
         super().__init__(x, y, width, height, direction)
-        self.open_points = None
-     
+        self.open_points = None  # dont build outwards from this module
+        
     def draw(self):
         return None
     
@@ -288,21 +297,24 @@ class StationGenerator:
                 dir = random.choice(list(Direction))
                 
             # Pick random width and height:
-            length_x, length_y = module_class.sample_bb_lengths(dir, self.rng)
+            # TODO: if this gets more complicated build args dict and input **args instead
+            if module_class == DockingBay:
+                height_from = from_module.width if directions_are_normal(from_module.direction, dir) else from_module.height
+                width, height = module_class.sample_bb_dims(dir, self.rng, height_from=height_from)
+            else:
+                width, height = module_class.sample_bb_dims(dir, self.rng)
             
             # Init the module:
-            if i > 0:
-                module = module_class(x, y, length_x, length_y, dir)
+            if i == 0:
+                module = module_class(x, y, width, height, dir, allow_all_dirs=True)
             else:
-                module = module_class(x, y, length_x, length_y, dir, allow_all_dirs=True)
+                module = module_class(x, y, width, height, dir)
             
             # Check if module fits in bounding geometry:
             intersects_bounding_geom = self.bounding_geometry.intersects(module.get_bounding_box(shrink=1e-4))
             
             # Check if module fits in outer bounding box:
             inside_outer_bb = self.get_bounding_box().contains(module.get_bounding_box())
-            
-            # TODO: check if it fits on edge line of prev_module?
             
             if inside_outer_bb and not intersects_bounding_geom:
                 consec_fails = 0
