@@ -68,11 +68,12 @@ def directions_are_normal(dir_1, dir_2):
            (dir_1 in (Direction.UP, Direction.DOWN) and dir_2 in (Direction.RIGHT, Direction.LEFT))
     
 class Module:
-    def __init__(self, x, y, width, height, direction, allow_all_dirs=False):
+    def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         self.x = x
         self.y = y
         self.width = width
         self.height = height
+        self.from_height = from_module.height
         self.direction = direction
         
         if self.direction in (Direction.RIGHT, Direction.LEFT):
@@ -88,10 +89,13 @@ class Module:
         self.open_points = self.init_open_points(allow_all_dirs=self.allow_all_dirs)
         
     @classmethod
-    def sample_bb_dims(cls, rng, height_from=None):
+    def sample_bb_dims(cls, rng, from_height, limit_height_by_from_height=False, match_from_height=False):
         """Default sampling of bounding box size in local coordinates"""
-        height_max = cls.height_max if height_from is None else np.min((cls.height_max, height_from))
-        height = rng.uniform(cls.height_min, height_max)
+        if match_from_height:
+            height = from_height
+        else:
+            height_max = np.min((cls.height_max, from_height)) if limit_height_by_from_height else cls.height_max
+            height = rng.uniform(cls.height_min, height_max)
         width = height * rng.uniform(cls.width_gain_min, cls.width_gain_max)
         return width, height
     
@@ -170,18 +174,43 @@ class Module:
 
 
 class Capsule(Module):
-    def __init__(self, x, y, width, height, direction, allow_all_dirs=False):
+    def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         super().__init__(x, y, width, height, direction, allow_all_dirs=allow_all_dirs)
-                
+
+    @classmethod
+    def sample_bb_dims(cls, rng, from_height):
+        return super(Capsule, cls).sample_bb_dims(rng, from_height, match_from_height=True)
+    
     def draw(self):
         return None
 
 
 class Connector(Module):
-    def __init__(self, x, y, width, height, direction):
+    def __init__(self, x, y, width, height, direction, from_module):
+        # width and height have been sampled to match from module.
+        # from height is saved already
+        # to height must be set somewhere...
+        # also sample_bb_dims is a class method and gets us the width and height. 
+        # Meaning here we need to figure out to_height and update width, height, length_x and length_y if it is changed.
+        # Not the nicest but works out ok.
+        # Need to 1. get height as a gain of from height, while 2. clamping to max/min height values
         super().__init__(x, y, width, height, direction)
         self.open_points = dict(zip([self.direction], [self.open_points[self.direction]]))  # connector type can only build forward
         
+    @classmethod
+    def sample_bb_dims(cls, rng, from_height):
+        return super(Connector, cls).sample_bb_dims(rng, from_height, match_from_height=True)
+    
+    @classmethod
+    def update(cls, height_min, height_max, from_height_gain_min, from_height_gain_max, width_gain_min, width_gain_max):
+        """Default update of class variables"""
+        cls.height_min = height_min
+        cls.height_max = height_max
+        cls.from_height_gain_min = from_height_gain_min
+        cls.from_height_gain_max = from_height_gain_max
+        cls.width_gain_min = width_gain_min
+        cls.width_gain_max = width_gain_max
+         
     def draw(self):
         return None
     
@@ -199,7 +228,11 @@ class DockingBay(Module):
     def __init__(self, x, y, width, height, direction):
         super().__init__(x, y, width, height, direction)
         self.open_points = None  # dont build outwards from this module
-        
+    
+    @classmethod
+    def sample_bb_dims(cls, rng, from_height):
+        return super(DockingBay, cls).sample_bb_dims(rng, from_height, limit_height_by_from_height=True)
+    
     def draw(self):
         return None
     
@@ -288,17 +321,26 @@ class StationGenerator:
                 
             # Pick random width and height:
             # TODO: if this gets more complicated build args dict and input **args instead
-            if module_class == DockingBay:
-                height_from = from_module.width if directions_are_normal(from_module.direction, dir) else from_module.height
-                width, height = module_class.sample_bb_dims(self.rng, height_from=height_from)
-            else:
-                width, height = module_class.sample_bb_dims(self.rng)
-            
-            # Init the module:
             if i == 0:
+                width, height = module_class.sample_bb_dims(self.rng, from_height=None)
                 module = module_class(x, y, width, height, dir, allow_all_dirs=True)
             else:
+                if module_class == Capsule and type(from_module) == Connector:
+                    width, height = module_class.sample_bb_dims(self.rng, from_height=from_module.end_height)
+                else:
+                    width, height = module_class.sample_bb_dims(self.rng, from_module.height)
                 module = module_class(x, y, width, height, dir)
+            # if module_class == DockingBay:
+            #     height_from = from_module.width if directions_are_normal(from_module.direction, dir) else from_module.height
+            #     width, height = module_class.sample_bb_dims(self.rng, from_module, height_from=height_from)
+            # else:
+            #     width, height = module_class.sample_bb_dims(self.rng, from_module)
+            
+            # Init the module:
+            # if i == 0:
+            #     module = module_class(x, y, width, height, dir, allow_all_dirs=True)
+            # else:
+            #     module = module_class(x, y, width, height, dir)
             
             # Check if module fits in bounding geometry:
             intersects_bounding_geom = self.bounding_geometry.intersects(module.get_bounding_box(shrink=1e-4))
@@ -385,6 +427,8 @@ class SpacestationSketch(vsketch.SketchClass):
     
     connector_height_min = vsketch.Param(1.0, min_value=0)
     connector_height_max = vsketch.Param(2.0, min_value=0)
+    connector_from_height_gain_min = vsketch.Param(0.833, min_value=0)
+    connector_from_height_gain_max = vsketch.Param(1.2, min_value=0)
     connector_width_gain_min = vsketch.Param(0.2, min_value=0)
     connector_width_gain_max = vsketch.Param(0.4, min_value=0)
     
@@ -425,8 +469,8 @@ class SpacestationSketch(vsketch.SketchClass):
     def init_modules(self):
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
                        self.capsule_width_gain_max)
-        Connector.update(self.connector_height_min, self.connector_height_max, self.connector_width_gain_min,
-                          self.connector_width_gain_max)
+        Connector.update(self.connector_height_min, self.connector_height_max, self.connector_from_height_gain_min,
+                         self.connector_from_height_gain_max, self.connector_width_gain_min, self.connector_width_gain_max)
         SolarPanel.update(self.solar_height_min, self.solar_height_max, self.solar_width_gain_min,
                           self.solar_width_gain_max)
         DockingBay.update(self.dock_height_min, self.dock_height_max, self.dock_width_gain_min,
