@@ -88,20 +88,12 @@ class Module:
         self.open_points = self.init_open_points(allow_all_dirs=self.allow_all_dirs)
         
     @classmethod
-    # def sample_bb_dims(cls, dir, rng, height_from=None):
     def sample_bb_dims(cls, rng, height_from=None):
         """Default sampling of bounding box size in local coordinates"""
         height_max = cls.height_max if height_from is None else np.min((cls.height_max, height_from))
         height = rng.uniform(cls.height_min, height_max)
         width = height * rng.uniform(cls.width_gain_min, cls.width_gain_max)
         return width, height
-        
-        # if dir in (Direction.RIGHT, Direction.LEFT):
-        #     length_x, length_y = width, height
-        # else:
-        #     length_x, length_y = height, width
-            
-        # return length_x, length_y
     
     @classmethod
     def update(cls, height_min, height_max, width_gain_min, width_gain_max):
@@ -289,9 +281,7 @@ class StationGenerator:
                 point = random.choice(get_points_iterable(from_module.open_points[dir]))
                 x, y = point.x, point.y
                 
-                # TODO: here we call a function that does more complex picking of module to add
                 module_class = self.pick_random_module(from_module, dir)
-                # module_class = pick_random_element(self.module_types, self.prob_modules)
             else:
                 module_class = Capsule  # first placed module must be capsule
                 dir = random.choice(list(Direction))
@@ -300,9 +290,9 @@ class StationGenerator:
             # TODO: if this gets more complicated build args dict and input **args instead
             if module_class == DockingBay:
                 height_from = from_module.width if directions_are_normal(from_module.direction, dir) else from_module.height
-                width, height = module_class.sample_bb_dims(dir, self.rng, height_from=height_from)
+                width, height = module_class.sample_bb_dims(self.rng, height_from=height_from)
             else:
-                width, height = module_class.sample_bb_dims(dir, self.rng)
+                width, height = module_class.sample_bb_dims(self.rng)
             
             # Init the module:
             if i == 0:
