@@ -197,6 +197,10 @@ class Connector(Module):
         super().__init__(x, y, width, height, direction)
         self.open_points = dict(zip([self.direction], [self.open_points[self.direction]]))  # connector type can only build forward
         
+        # Determine end height (for drawing)
+        end_height = self.from_height * np.random.uniform(Connector.from_height_gain_min, Connector.from_height_gain_max)
+        self.end_height = np.clip(end_height, Connector.height_min, Connector.height_max)
+        
     @classmethod
     def sample_bb_dims(cls, rng, from_height):
         return super(Connector, cls).sample_bb_dims(rng, from_height, match_from_height=True)
