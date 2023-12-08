@@ -66,14 +66,14 @@ def direction_to_angle(direction):
 def directions_are_normal(dir_1, dir_2):
     return (dir_1 in (Direction.RIGHT, Direction.LEFT) and dir_2 in (Direction.UP, Direction.DOWN)) or \
            (dir_1 in (Direction.UP, Direction.DOWN) and dir_2 in (Direction.RIGHT, Direction.LEFT))
-    
+
+
 class Module:
     def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         self.x = x
         self.y = y
         self.width = width
         self.height = height
-        self.from_height = from_module.height
         self.direction = direction
         
         if self.direction in (Direction.RIGHT, Direction.LEFT):
@@ -182,8 +182,16 @@ class Capsule(Module):
         return super(Capsule, cls).sample_bb_dims(rng, from_height, match_from_height=True)
     
     def draw(self):
-        return None
+        sketch = get_empty_sketch()
+        sketch.rect(self.x_center, self.y_center, self.length_x, self.length_y, mode="center")
+        return sketch
 
+
+class CapsuleVariation1(Capsule):
+    def draw(self):
+        sketch = super().draw()
+        return sketch
+    
 
 class Connector(Module):
     def __init__(self, x, y, width, height, direction, from_module):
@@ -194,12 +202,15 @@ class Connector(Module):
         # Meaning here we need to figure out to_height and update width, height, length_x and length_y if it is changed.
         # Not the nicest but works out ok.
         # Need to 1. get height as a gain of from height, while 2. clamping to max/min height values
-        super().__init__(x, y, width, height, direction)
-        self.open_points = dict(zip([self.direction], [self.open_points[self.direction]]))  # connector type can only build forward
-        
-        # Determine end height (for drawing)
+
+        # Determine from-module height and end-module height (for drawing), and update height accordingly to get correct BB size:
+        self.from_height = from_module.height
         end_height = self.from_height * np.random.uniform(Connector.from_height_gain_min, Connector.from_height_gain_max)
         self.end_height = np.clip(end_height, Connector.height_min, Connector.height_max)
+        height = np.max((height, self.end_height))
+        
+        super().__init__(x, y, width, height, direction)
+        self.open_points = dict(zip([self.direction], [self.open_points[self.direction]]))  # connector type can only build forward
         
     @classmethod
     def sample_bb_dims(cls, rng, from_height):
@@ -216,29 +227,48 @@ class Connector(Module):
         cls.width_gain_max = width_gain_max
          
     def draw(self):
-        return None
+        sketch = get_empty_sketch()
+        return sketch
+    
+    
+class ConnectorVariation1(Connector):
+    def draw(self):
+        sketch = get_empty_sketch()
+        return sketch
     
     
 class SolarPanel(Module):
     def __init__(self, x, y, width, height, direction):
         super().__init__(x, y, width, height, direction)
         self.open_points = None  # dont build outwards from this module
-    
-    def draw(self):
-        return None
-        
 
-class DockingBay(Module):
+
+class SolarPanelSingle(SolarPanel):
+    def draw(self):
+        sketch = get_empty_sketch()
+        return sketch
+    
+
+class SolarPanelDouble(SolarPanel):
+    def draw(self):
+        sketch = get_empty_sketch()
+        return sketch
+    
+
+class Decoration(Module):
     def __init__(self, x, y, width, height, direction):
         super().__init__(x, y, width, height, direction)
         self.open_points = None  # dont build outwards from this module
     
     @classmethod
     def sample_bb_dims(cls, rng, from_height):
-        return super(DockingBay, cls).sample_bb_dims(rng, from_height, limit_height_by_from_height=True)
+        return super(Decoration, cls).sample_bb_dims(rng, from_height, limit_height_by_from_height=True)
     
+
+class DockingBay(Decoration):
     def draw(self):
-        return None
+        sketch = get_empty_sketch()
+        return sketch
     
     
 class StationGenerator:
@@ -246,7 +276,6 @@ class StationGenerator:
                  weight_continue_same_dir=1.0):
         self.width = width
         self.height = height
-        self.weight_continue_same_dir = weight_continue_same_dir
         
         self.rng = default_rng()
         
@@ -254,11 +283,12 @@ class StationGenerator:
         self.bounding_geometry = Point()  # empty geometry
         
         self.module_types = module_types
-        self.n_module_types = len(self.module_types)
-        self.module_type_to_idx = dict(zip(self.module_types, range(self.n_module_types)))
+        self.n_main_module_types = len(self.module_types)
+        self.module_type_to_idx = dict(zip(self.module_types.keys(), range(self.n_main_module_types)))
         
         self.probs_modules_parallel = probs_modules_parallel
         self.probs_modules_normal = probs_modules_normal
+        self.weight_continue_same_dir = weight_continue_same_dir
     
     def get_bounding_box(self):
         return sh.box(-0.5 * self.width, -0.5 * self.height, 0.5 * self.width, 0.5 * self.height)
@@ -289,12 +319,13 @@ class StationGenerator:
         return sides, weights
     
     def pick_random_module(self, from_module, dir):
+        # TODO: update me to work with submodules
         from_module_idx = self.module_type_to_idx[type(from_module)]
         if directions_are_normal(dir, from_module.direction):
             probs = self.probs_modules_normal[from_module_idx]
         else:
             probs = self.probs_modules_parallel[from_module_idx]
-        return pick_random_element(self.module_types, probs)
+        return pick_random_element(self.module_types.keys(), probs)
     
     def generate(self, num_tries, num_consec_fails_max=50):
         x, y, = 0.0, 0.0  # start in zero
@@ -305,7 +336,7 @@ class StationGenerator:
                 print("Termination: number of consecutive fails reached.")
                 break
             
-            if i > 0:
+            if i == 0:
                 # Sample random (but weighted) side:
                 sides, side_weights = self.get_open_sides()
                 if len(side_weights) == 0:  # exit if no options left
@@ -319,33 +350,23 @@ class StationGenerator:
                 x, y = point.x, point.y
                 
                 module_class = self.pick_random_module(from_module, dir)
-            else:
-                module_class = Capsule  # first placed module must be capsule
-                dir = random.choice(list(Direction))
+                # TODO: update pick random module to pick submodule as well
                 
-            # Pick random width and height:
-            # TODO: if this gets more complicated build args dict and input **args instead
-            if i == 0:
-                width, height = module_class.sample_bb_dims(self.rng, from_height=None)
-                module = module_class(x, y, width, height, dir, allow_all_dirs=True)
-            else:
-                if module_class == Capsule and type(from_module) == Connector:
+                # Pick random width and height:
+                # TODO: if this gets more complicated build args dict and input **args instead
+                if issubclass(module_class, Capsule) and isinstance(from_module, Connector):
                     width, height = module_class.sample_bb_dims(self.rng, from_height=from_module.end_height)
                 else:
                     width, height = module_class.sample_bb_dims(self.rng, from_module.height)
                 module = module_class(x, y, width, height, dir)
-            # if module_class == DockingBay:
-            #     height_from = from_module.width if directions_are_normal(from_module.direction, dir) else from_module.height
-            #     width, height = module_class.sample_bb_dims(self.rng, from_module, height_from=height_from)
-            # else:
-            #     width, height = module_class.sample_bb_dims(self.rng, from_module)
-            
-            # Init the module:
-            # if i == 0:
-            #     module = module_class(x, y, width, height, dir, allow_all_dirs=True)
-            # else:
-            #     module = module_class(x, y, width, height, dir)
-            
+            else:
+                # TODO: pick random Capsule submodule!
+                module_class = Capsule  # first placed module must be capsule
+                dir = random.choice(list(Direction))
+                
+                width, height = module_class.sample_bb_dims(self.rng, from_height=None)
+                module = module_class(x, y, width, height, dir, allow_all_dirs=True)
+        
             # Check if module fits in bounding geometry:
             intersects_bounding_geom = self.bounding_geometry.intersects(module.get_bounding_box(shrink=1e-4))
             
@@ -393,7 +414,8 @@ class StationGenerator:
         vsk.stroke(1)
         
     def draw(self, vsk):
-        pass
+        for module in self.modules:
+            vsk.sketch(module.draw())
             
 
 class SpacestationSketch(vsketch.SketchClass):
@@ -477,7 +499,7 @@ class SpacestationSketch(vsketch.SketchClass):
                          self.connector_from_height_gain_max, self.connector_width_gain_min, self.connector_width_gain_max)
         SolarPanel.update(self.solar_height_min, self.solar_height_max, self.solar_width_gain_min,
                           self.solar_width_gain_max)
-        DockingBay.update(self.dock_height_min, self.dock_height_max, self.dock_width_gain_min,
+        Decoration.update(self.dock_height_min, self.dock_height_max, self.dock_width_gain_min,
                           self.dock_width_gain_max)
         
     def draw(self, vsk: vsketch.Vsketch) -> None:
@@ -487,11 +509,17 @@ class SpacestationSketch(vsketch.SketchClass):
         
         width = 20.0
         height = 28.5
-        module_types = [Capsule, Connector, SolarPanel, DockingBay]
+        
+        # module_types = [Capsule, Connector, SolarPanel, Decoration]
+        module_types = {Capsule: [CapsuleVariation1],
+                        Connector: [ConnectorVariation1],
+                        SolarPanel: [SolarPanelSingle, SolarPanelDouble],
+                        Decoration: [DockingBay]}
         
         generator = StationGenerator(width, height, module_types, self.probs_modules_parallel, 
                                      self.probs_modules_normal, weight_continue_same_dir=self.weight_continue_same_dir)
         generator.generate(num_tries=self.num_tries, num_consec_fails_max=self.num_consec_fails_max)
+        generator.draw()
         
         if self.debug:
             vsk.circle(0, 0, radius=1e-1)  # origin
