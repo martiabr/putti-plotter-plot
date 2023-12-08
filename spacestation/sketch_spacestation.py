@@ -284,7 +284,7 @@ class DockingBay(Decoration):
     
     
 class StationGenerator:
-    def __init__(self, width, height, module_types, probs_modules_parallel, probs_modules_normal, prob_connector_parallel_match_height,
+    def __init__(self, width, height, module_types, module_type_probs, probs_modules_parallel, probs_modules_normal, prob_connector_parallel_match_height,
                  weight_continue_same_dir=1.0):
         self.width = width
         self.height = height
@@ -297,6 +297,7 @@ class StationGenerator:
         self.module_types = module_types
         self.n_main_module_types = len(self.module_types)
         self.module_type_to_idx = dict(zip(self.module_types.keys(), range(self.n_main_module_types)))
+        self.module_type_probs = module_type_probs
         
         self.prob_connector_parallel_match_height = prob_connector_parallel_match_height
         self.probs_modules_parallel = probs_modules_parallel
@@ -382,6 +383,7 @@ class StationGenerator:
                 module = module_class(x, y, width, height, dir)
             else:
                 # TODO: pick random Capsule submodule!
+                module_class = pick_random_element(self.module_types[Capsule], self.self.module_type_probs[Capsule])
                 module_class = Capsule  # first placed module must be capsule
                 dir = random.choice(list(Direction))
                 
@@ -459,6 +461,17 @@ class SpacestationSketch(vsketch.SketchClass):
     
     prob_connector_parallel_match_height = vsketch.Param(0.7, min_value=0.0, max_value=1.0)
     
+    
+    prob_capsule_variation_1 = vsketch.Param(1.0, min_value=0.0)
+    
+    prob_connector_variation_1 = vsketch.Param(1.0, min_value=0.0)
+    
+    prob_solar_single = vsketch.Param(1.0, min_value=0.0)
+    prob_solar_double = vsketch.Param(1.0, min_value=0.0)
+    
+    prob_decoration_dock = vsketch.Param(1.0, min_value=0.0)
+    
+    
     prob_capsule_capsule_parallel = vsketch.Param(1.0, min_value=0)
     prob_capsule_connector_parallel = vsketch.Param(2.0, min_value=0)
     prob_capsule_solar_parallel = vsketch.Param(0.4, min_value=0)
@@ -514,8 +527,18 @@ class SpacestationSketch(vsketch.SketchClass):
                                  4 * [np.nan],
                                  4 * [np.nan]])
         self.probs_modules_normal = normalize_mat_to_row_sum_one(probs_normal)
+        
+        self.module_type_probs = {Capsule: normalize_vec_to_sum_one([self.prob_capsule_variation_1]),
+                                  Connector: normalize_vec_to_sum_one([self.prob_connector_variation_1]),
+                                  SolarPanel: normalize_vec_to_sum_one([self.prob_solar_single, self.prob_solar_double]),
+                                  Decoration: normalize_vec_to_sum_one([self.prob_decoration_dock])}
     
     def init_modules(self):
+        self.module_types = {Capsule: [CapsuleVariation1],
+                             Connector: [ConnectorVariation1],
+                             SolarPanel: [SolarPanelSingle, SolarPanelDouble],
+                             Decoration: [DockingBay]}
+                
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
                        self.capsule_width_gain_max)
         Connector.update(self.connector_height_min, self.connector_height_max, self.connector_from_height_gain_min,
@@ -533,14 +556,9 @@ class SpacestationSketch(vsketch.SketchClass):
         width = 20.0
         height = 28.5
         
-        # module_types = [Capsule, Connector, SolarPanel, Decoration]
-        module_types = {Capsule: [CapsuleVariation1],
-                        Connector: [ConnectorVariation1],
-                        SolarPanel: [SolarPanelSingle, SolarPanelDouble],
-                        Decoration: [DockingBay]}
-        
-        generator = StationGenerator(width, height, module_types, self.probs_modules_parallel, 
-                                     self.probs_modules_normal, self.prob_connector_parallel_match_height, weight_continue_same_dir=self.weight_continue_same_dir)
+        generator = StationGenerator(width, height, self.module_types, self.probs_modules_parallel, 
+                                     self.probs_modules_normal, self.prob_connector_parallel_match_height, 
+                                     weight_continue_same_dir=self.weight_continue_same_dir)
         generator.generate(num_tries=self.num_tries, num_consec_fails_max=self.num_consec_fails_max)
         generator.draw()
         
