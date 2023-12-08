@@ -203,18 +203,30 @@ class Connector(Module):
         # Not the nicest but works out ok.
         # Need to 1. get height as a gain of from height, while 2. clamping to max/min height values
 
-        # Determine from-module height and end-module height (for drawing), and update height accordingly to get correct BB size:
-        self.from_height = from_module.height
-        end_height = self.from_height * np.random.uniform(Connector.from_height_gain_min, Connector.from_height_gain_max)
+        # Determine end-module height (for drawing), and update height accordingly to get correct BB size:
+        dirs_normal = directions_are_normal(direction, from_module.direction)
+        self.from_height = from_module.width if dirs_normal else from_module.height
+        if dirs_normal:
+            end_height = np.random.uniform(Connector.height_min, Connector.height_max)
+        else:
+            end_height = self.from_height * np.random.uniform(Connector.from_height_gain_min, Connector.from_height_gain_max)
         self.end_height = np.clip(end_height, Connector.height_min, Connector.height_max)
         height = np.max((height, self.end_height))
+        
+        # Problem: connectors can be added in all directions of capsule. 
+        # On the width side we dont want to match the width, just sample uniform between max and min connector height, but with limiting to width of the capsule.
+        # On the height side we want some prob of matching height and some prob of just doing like width, except limiting to height of capsule.
+        # This requires some more restructuring:
+        # When calling sample_bb_dims we do the checks and input from_height and bool vals to match what is written above.
+        # ALso here we need to update the from_height, end_height and height slightly?
         
         super().__init__(x, y, width, height, direction)
         self.open_points = dict(zip([self.direction], [self.open_points[self.direction]]))  # connector type can only build forward
         
-    @classmethod
-    def sample_bb_dims(cls, rng, from_height):
-        return super(Connector, cls).sample_bb_dims(rng, from_height, match_from_height=True)
+    # @classmethod
+    # def sample_bb_dims(cls, rng, from_height, limit_height_by_from_height=False, match_from_height=False):
+    #     return super(Connector, cls).sample_bb_dims(rng, from_height, limit_height_by_from_height=limit_height_by_from_height,
+    #                                                 match_from_height=match_from_height)
     
     @classmethod
     def update(cls, height_min, height_max, from_height_gain_min, from_height_gain_max, width_gain_min, width_gain_max):
@@ -272,7 +284,7 @@ class DockingBay(Decoration):
     
     
 class StationGenerator:
-    def __init__(self, width, height, module_types, probs_modules_parallel, probs_modules_normal, 
+    def __init__(self, width, height, module_types, probs_modules_parallel, probs_modules_normal, prob_connector_parallel_match_height,
                  weight_continue_same_dir=1.0):
         self.width = width
         self.height = height
@@ -286,6 +298,7 @@ class StationGenerator:
         self.n_main_module_types = len(self.module_types)
         self.module_type_to_idx = dict(zip(self.module_types.keys(), range(self.n_main_module_types)))
         
+        self.prob_connector_parallel_match_height = prob_connector_parallel_match_height
         self.probs_modules_parallel = probs_modules_parallel
         self.probs_modules_normal = probs_modules_normal
         self.weight_continue_same_dir = weight_continue_same_dir
@@ -356,6 +369,14 @@ class StationGenerator:
                 # TODO: if this gets more complicated build args dict and input **args instead
                 if issubclass(module_class, Capsule) and isinstance(from_module, Connector):
                     width, height = module_class.sample_bb_dims(self.rng, from_height=from_module.end_height)
+                elif issubclass(module_class, Connector):
+                    are_normal = directions_are_normal(dir, from_module.dir)
+                    if are_normal:
+                        width, height = module_class.sample_bb_dims(self.rng, from_module.width, limit_height_by_from_height=True)
+                    elif self.rng.random() < self.prob_connector_parallel_match_height:
+                        width, height = module_class.sample_bb_dims(self.rng, from_module.height, match_from_height=True)
+                    else:
+                        width, height = module_class.sample_bb_dims(self.rng, from_module.height, limit_height_by_from_height=True)
                 else:
                     width, height = module_class.sample_bb_dims(self.rng, from_module.height)
                 module = module_class(x, y, width, height, dir)
@@ -435,6 +456,8 @@ class SpacestationSketch(vsketch.SketchClass):
     grid_dist_y = vsketch.Param(8.0)
     
     weight_continue_same_dir = vsketch.Param(6.0, min_value=0.0)
+    
+    prob_connector_parallel_match_height = vsketch.Param(0.7, min_value=0.0, max_value=1.0)
     
     prob_capsule_capsule_parallel = vsketch.Param(1.0, min_value=0)
     prob_capsule_connector_parallel = vsketch.Param(2.0, min_value=0)
@@ -517,7 +540,7 @@ class SpacestationSketch(vsketch.SketchClass):
                         Decoration: [DockingBay]}
         
         generator = StationGenerator(width, height, module_types, self.probs_modules_parallel, 
-                                     self.probs_modules_normal, weight_continue_same_dir=self.weight_continue_same_dir)
+                                     self.probs_modules_normal, self.prob_connector_parallel_match_height, weight_continue_same_dir=self.weight_continue_same_dir)
         generator.generate(num_tries=self.num_tries, num_consec_fails_max=self.num_consec_fails_max)
         generator.draw()
         
