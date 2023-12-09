@@ -26,7 +26,6 @@ def get_points_iterable(points):
         return [points]
 
 
-# Direction = Enum("Direction", "RIGHT UP LEFT DOWN")
 class Direction(Enum):
     RIGHT = 0
     UP = 1
@@ -243,8 +242,8 @@ class SolarPanel(Module):
         
         self.num_panels_y = np.random.randint(self.panel_num_y_min, self.panel_num_y_max + 1)
         
-        panel_dist_approx = np.random.uniform(self.panel_dist_x_min, self.panel_dist_x_max)
-        self.num_panels_x = int(np.round(self.width / panel_dist_approx))
+        self.panel_dist_approx = np.random.uniform(self.panel_dist_x_min, self.panel_dist_x_max)
+        self.num_panels_x = int(np.round(self.width / self.panel_dist_approx))
         self.panel_dist = self.width / self.num_panels_x
         
     @classmethod
@@ -278,10 +277,18 @@ class SolarPanelDouble(SolarPanel):
         self.connector_height = np.random.uniform(self.connector_height_min, self.connector_height_max)
         self.panel_dist = np.random.uniform(self.panel_dist_min, self.panel_dist_max)
         self.panel_inset = np.random.uniform(self.panel_inset_min, self.panel_inset_max)
+        self.draw_multi_beams = np.random.rand() < self.multi_beams_prob
+        self.n_beams_extra = np.random.randint(self.n_beams_extra_min, self.n_beams_extra_max + 1)
+        
+        if self.draw_multi_beams:
+            self.width_per_beam = self.width / (self.n_beams_extra + 1)
+            self.num_panels_x = int(np.round((self.width_per_beam) / self.panel_dist_approx))
+            self.panel_dist = self.width_per_beam / self.num_panels_x
         
     @classmethod
     def update(cls, connector_width_min, connector_width_max, connector_height_min, 
-               connector_height_max, panel_dist_min, panel_dist_max, panel_inset_min, panel_inset_max):
+               connector_height_max, panel_dist_min, panel_dist_max, panel_inset_min, panel_inset_max,
+               multi_beams_prob, n_beams_extra_min, n_beams_extra_max):
         cls.connector_width_min = connector_width_min
         cls.connector_width_max = connector_width_max
         cls.connector_height_min = connector_height_min
@@ -290,6 +297,9 @@ class SolarPanelDouble(SolarPanel):
         cls.panel_dist_max = panel_dist_max
         cls.panel_inset_min = panel_inset_min
         cls.panel_inset_max = panel_inset_max
+        cls.multi_beams_prob = multi_beams_prob
+        cls.n_beams_extra_min = n_beams_extra_min
+        cls.n_beams_extra_max = n_beams_extra_max
         
     def draw(self):
         sketch = get_empty_sketch()
@@ -301,21 +311,37 @@ class SolarPanelDouble(SolarPanel):
         sketch.translate(self.connector_width, 0)
         
         # The inner beam:
-        sketch.rect(0.5 * self.connector_height, 0, self.connector_height, self.height, mode="center")
+        if not self.draw_multi_beams:
+            sketch.rect(0.5 * self.connector_height, 0, self.connector_height, self.height, mode="center")
         sketch.translate(self.connector_height, 0)
         
         # The panels:
-        panel_width = self.width - self.connector_width - 2 * self.connector_height
-        for y in np.linspace(0.5 * self.panel_dist, 0.5 * self.height - self.panel_inset, self.num_panels_y + 1):
-            sketch.line(0, -y, panel_width, -y)
-            sketch.line(0, y, panel_width, y)
-        for x in np.linspace(0, panel_width, self.num_panels_x + 1):
-            sketch.line(x, 0.5 * self.panel_dist, x, 0.5 * self.height - self.panel_inset)
-            sketch.line(x, -0.5 * self.height + self.panel_inset, x, -0.5 * self.panel_dist)
-        sketch.translate(panel_width, 0)
+        if self.draw_multi_beams:
+            panel_width = self.width - self.connector_width - self.connector_height
+            beam_dist = panel_width / (self.n_beams_extra + 1)
+            for x_beam in np.linspace(0, panel_width - beam_dist, self.n_beams_extra + 1):
+                for y in np.linspace(0.5 * self.panel_dist, 0.5 * self.height - self.panel_inset, self.num_panels_y + 1):
+                    sketch.line(x_beam, -y, x_beam + beam_dist - self.connector_height, -y)
+                    sketch.line(x_beam, y, x_beam + beam_dist - self.connector_height, y)
+                
+                for x in np.linspace(0, beam_dist - self.connector_height, self.num_panels_x + 1):
+                    sketch.line(x_beam + x, 0.5 * self.panel_dist, x_beam + x, 0.5 * self.height - self.panel_inset)
+                    sketch.line(x_beam + x, -0.5 * self.height + self.panel_inset, x_beam + x, -0.5 * self.panel_dist)
+                
+                sketch.rect(x_beam - 0.5 * self.connector_height, 0, self.connector_height, self.height, mode="center")
+            sketch.translate(panel_width - self.connector_height, 0)
+        else:
+            panel_width = self.width - self.connector_width - 2 * self.connector_height
+            for y in np.linspace(0.5 * self.panel_dist, 0.5 * self.height - self.panel_inset, self.num_panels_y + 1):
+                sketch.line(0, -y, panel_width, -y)
+                sketch.line(0, y, panel_width, y)
+            
+            for x in np.linspace(0, panel_width, self.num_panels_x + 1):
+                sketch.line(x, 0.5 * self.panel_dist, x, 0.5 * self.height - self.panel_inset)
+                sketch.line(x, -0.5 * self.height + self.panel_inset, x, -0.5 * self.panel_dist)
+            sketch.translate(panel_width, 0)
         
-        # The outer beam:
-        sketch.rect(0.5 * self.connector_height, 0, self.connector_height, self.height, mode="center")
+        sketch.rect(0.5 * self.connector_height, 0, self.connector_height, self.height, mode="center")  # outer beam
         return sketch
     
 
@@ -332,6 +358,9 @@ class Decoration(Module):
 class DockingBay(Decoration):
     def draw(self):
         sketch = get_empty_sketch()
+        
+        # (black rect) + (white shape of rect + trapezoid + rect) + (black smaller rect)
+        
         return sketch
     
     
@@ -564,6 +593,9 @@ class SpacestationSketch(vsketch.SketchClass):
     solar_panel_double_panel_dist_max = vsketch.Param(0.3, min_value=0)    
     solar_panel_double_inset_min = vsketch.Param(0.0, min_value=0)
     solar_panel_double_inset_max = vsketch.Param(0.1, min_value=0)
+    solar_panel_double_multi_beam_prob = vsketch.Param(0.3, min_value=0)
+    solar_panel_double_n_beams_extra_min = vsketch.Param(1, min_value=0)
+    solar_panel_double_n_beams_extra_max = vsketch.Param(5, min_value=0)
     
     dock_height_min = vsketch.Param(1.0, min_value=0)
     dock_height_max = vsketch.Param(2.0, min_value=0)
@@ -617,7 +649,8 @@ class SpacestationSketch(vsketch.SketchClass):
         SolarPanelDouble.update(self.solar_panel_double_connector_width_min, self.solar_panel_double_connector_width_max, 
                                 self.solar_panel_double_connector_height_min, self.solar_panel_double_connector_height_max, 
                                 self.solar_panel_double_panel_dist_min, self.solar_panel_double_panel_dist_max, 
-                                self.solar_panel_double_inset_min, self.solar_panel_double_inset_max)
+                                self.solar_panel_double_inset_min, self.solar_panel_double_inset_max, self.solar_panel_double_multi_beam_prob,
+                                self.solar_panel_double_n_beams_extra_min, self.solar_panel_double_n_beams_extra_max)
         
         Decoration.update(self.dock_height_min, self.dock_height_max, self.dock_width_gain_min,
                           self.dock_width_gain_max)

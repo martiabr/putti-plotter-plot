@@ -61,15 +61,18 @@ Elements in the space stations:
 - [x] Add solar panel
 - [x] add system for connections between capsules
 - [x] Docking bay should not be larger than capsule it is connected to. This should apply to some types. Not solar and capsule, but dock and similar things. The easy solution to this is just to either 1. apply a max to the height sampling, or perhaps better is 2. have height gain that applies to the prev structure height. 
-- [ ] Connection width matching.  
-- [ ] for structure types like solar panel and capsule, add subclasses where the variables are overriden. 
+- [x] Connection width matching.  
+- [x] for structure types like solar panel and capsule, add subclasses where the variables are overriden. 
       Then it would be possible to first have probs for capsule, solar panel, extra thing etc. 
       And all the little variations of each type can be hidden away inside a second prob density for each type.
       E.g. single panel vs. double panel vs. single/double panel w/wo arm
-- [ ] Add constraint system. To make it look more like a space station we might want to force symmetries. 
+- [x] Add constraint system. To make it look more like a space station we might want to force symmetries. 
       E.g. if we add a solar panel on one side it should be a high prob that a solar panel will be created on opposite side.
 - [ ] do solar panel width/height sampling better
 - [ ] Way to only sample a subset of all structure types. Otherwise things will look very chaotic. E.g. there is a 20% chance of having inflatable capsule as an option for a drawing, but a separate prob for actually drawing it when picking the next structure to add. Another example would to be only pick n out of m solar panel types for one drawing, again to make the single drawing more cohesive.
+- [ ] double panel variation with more beams, probably just as prob in same class
+- [ ] capula, docking bay, connector type with flat side + trapezoid side, decoration: just a line sticking out,
+- [ ] two double panels sticking out from arm
 
 ### Adding weights:
 Atm we loop over the structures, add all sides to a list, with idx. However, the weights must be maintained over time.
