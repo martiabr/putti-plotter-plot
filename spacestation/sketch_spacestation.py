@@ -257,24 +257,65 @@ class SolarPanel(Module):
         cls.panel_dist_x_max = panel_dist_x_max
 
 
-class SolarPanelSingle(SolarPanel):        
+class SolarPanelSingle(SolarPanel):
     def draw(self):
         sketch = super().draw()
-        with sketch.pushMatrix():
-            sketch.translate(self.x, self.y)
-            sketch.rotate(-direction_to_angle(self.direction))
+        sketch.translate(self.x, self.y)
+        sketch.rotate(-direction_to_angle(self.direction))
+        
+        for y in np.linspace(-0.5 * self.height, 0.5 * self.height, self.num_panels_y + 1):
+            sketch.line(0, y, self.width, y)
             
-            for y in np.linspace(-0.5 * self.height, 0.5 * self.height, self.num_panels_y + 1):
-                sketch.line(0, y, self.width, y)
-                
-            for x in np.linspace(0, self.width, self.num_panels_x + 1):
-                sketch.line(x, -0.5 * self.height, x, 0.5 * self.height)
+        for x in np.linspace(0, self.width, self.num_panels_x + 1):
+            sketch.line(x, -0.5 * self.height, x, 0.5 * self.height)
         return sketch
     
 
 class SolarPanelDouble(SolarPanel):
+    def __init__(self, x, y, width, height, direction, from_module):
+        super().__init__(x, y, width, height, direction, from_module)
+        self.connector_width = np.random.uniform(self.connector_width_min, self.connector_width_max)
+        self.connector_height = np.random.uniform(self.connector_height_min, self.connector_height_max)
+        self.panel_dist = np.random.uniform(self.panel_dist_min, self.panel_dist_max)
+        self.panel_inset = np.random.uniform(self.panel_inset_min, self.panel_inset_max)
+        
+    @classmethod
+    def update(cls, connector_width_min, connector_width_max, connector_height_min, 
+               connector_height_max, panel_dist_min, panel_dist_max, panel_inset_min, panel_inset_max):
+        cls.connector_width_min = connector_width_min
+        cls.connector_width_max = connector_width_max
+        cls.connector_height_min = connector_height_min
+        cls.connector_height_max = connector_height_max
+        cls.panel_dist_min = panel_dist_min
+        cls.panel_dist_max = panel_dist_max
+        cls.panel_inset_min = panel_inset_min
+        cls.panel_inset_max = panel_inset_max
+        
     def draw(self):
         sketch = get_empty_sketch()
+        sketch.translate(self.x, self.y)
+        sketch.rotate(-direction_to_angle(self.direction))
+
+        # Connector:
+        sketch.rect(0.5 * self.connector_width, 0, self.connector_width, self.connector_height, mode="center")
+        sketch.translate(self.connector_width, 0)
+        
+        # The inner beam:
+        sketch.rect(0.5 * self.connector_height, 0, self.connector_height, self.height, mode="center")
+        sketch.translate(self.connector_height, 0)
+        
+        # The panels:
+        panel_width = self.width - self.connector_width - 2 * self.connector_height
+        for y in np.linspace(0.5 * self.panel_dist, 0.5 * self.height - self.panel_inset, self.num_panels_y + 1):
+            sketch.line(0, -y, panel_width, -y)
+            sketch.line(0, y, panel_width, y)
+        for x in np.linspace(0, panel_width, self.num_panels_x + 1):
+            sketch.line(x, 0.5 * self.panel_dist, x, 0.5 * self.height - self.panel_inset)
+            sketch.line(x, -0.5 * self.height + self.panel_inset, x, -0.5 * self.panel_dist)
+        sketch.translate(panel_width, 0)
+        
+        # The outer beam:
+        sketch.rect(0.5 * self.connector_height, 0, self.connector_height, self.height, mode="center")
         return sketch
     
 
@@ -471,7 +512,7 @@ class SpacestationSketch(vsketch.SketchClass):
     
     weight_continue_same_dir = vsketch.Param(6.0, min_value=0.0)
     
-    prob_connector_parallel_match_height = vsketch.Param(0.7, min_value=0.0, max_value=1.0)
+    prob_connector_parallel_match_height = vsketch.Param(0.9, min_value=0.0, max_value=1.0)
     
     # Module probs:
     prob_capsule_variation_1 = vsketch.Param(1.0, min_value=0.0)
@@ -506,14 +547,23 @@ class SpacestationSketch(vsketch.SketchClass):
     connector_width_gain_min = vsketch.Param(0.2, min_value=0)
     connector_width_gain_max = vsketch.Param(0.4, min_value=0)
     
-    solar_height_min = vsketch.Param(0.8, min_value=0)
-    solar_height_max = vsketch.Param(1.6, min_value=0)
+    solar_height_min = vsketch.Param(1.4, min_value=0)
+    solar_height_max = vsketch.Param(1.9, min_value=0)
     solar_width_gain_min = vsketch.Param(4.0, min_value=0)
-    solar_width_gain_max = vsketch.Param(8.0, min_value=0)
+    solar_width_gain_max = vsketch.Param(7.0, min_value=0)
     solar_panel_dist_x_min = vsketch.Param(0.10, min_value=0)
     solar_panel_dist_x_max = vsketch.Param(0.20, min_value=0)
-    solar_panel_num_y_min = vsketch.Param(1, min_value=0)
+    solar_panel_num_y_min = vsketch.Param(2, min_value=0)
     solar_panel_num_y_max = vsketch.Param(4, min_value=0)
+
+    solar_panel_double_connector_width_min = vsketch.Param(0.12, min_value=0)
+    solar_panel_double_connector_width_max = vsketch.Param(0.3, min_value=0)  
+    solar_panel_double_connector_height_min = vsketch.Param(0.05, min_value=0)
+    solar_panel_double_connector_height_max = vsketch.Param(0.2, min_value=0)  
+    solar_panel_double_panel_dist_min = vsketch.Param(0.1, min_value=0)
+    solar_panel_double_panel_dist_max = vsketch.Param(0.3, min_value=0)    
+    solar_panel_double_inset_min = vsketch.Param(0.0, min_value=0)
+    solar_panel_double_inset_max = vsketch.Param(0.1, min_value=0)
     
     dock_height_min = vsketch.Param(1.0, min_value=0)
     dock_height_max = vsketch.Param(2.0, min_value=0)
@@ -557,10 +607,18 @@ class SpacestationSketch(vsketch.SketchClass):
                 
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
                        self.capsule_width_gain_max)
+        
         Connector.update(self.connector_height_min, self.connector_height_max, self.connector_from_height_gain_min,
                          self.connector_from_height_gain_max, self.connector_width_gain_min, self.connector_width_gain_max)
+        
         SolarPanel.update(self.solar_height_min, self.solar_height_max, self.solar_width_gain_min,
-                          self.solar_width_gain_max, self.solar_panel_num_y_min, self.solar_panel_num_y_max, self.solar_panel_dist_x_min, self.solar_panel_dist_x_max)
+                          self.solar_width_gain_max, self.solar_panel_num_y_min, self.solar_panel_num_y_max, 
+                          self.solar_panel_dist_x_min, self.solar_panel_dist_x_max)
+        SolarPanelDouble.update(self.solar_panel_double_connector_width_min, self.solar_panel_double_connector_width_max, 
+                                self.solar_panel_double_connector_height_min, self.solar_panel_double_connector_height_max, 
+                                self.solar_panel_double_panel_dist_min, self.solar_panel_double_panel_dist_max, 
+                                self.solar_panel_double_inset_min, self.solar_panel_double_inset_max)
+        
         Decoration.update(self.dock_height_min, self.dock_height_max, self.dock_width_gain_min,
                           self.dock_width_gain_max)
         
