@@ -70,8 +70,11 @@ Elements in the space stations:
       E.g. if we add a solar panel on one side it should be a high prob that a solar panel will be created on opposite side.
 - [ ] do solar panel width/height sampling better
 - [ ] Way to only sample a subset of all structure types. Otherwise things will look very chaotic. E.g. there is a 20% chance of having inflatable capsule as an option for a drawing, but a separate prob for actually drawing it when picking the next structure to add. Another example would to be only pick n out of m solar panel types for one drawing, again to make the single drawing more cohesive.
-- [ ] double panel variation with more beams, probably just as prob in same class
-- [ ] capula, docking bay, connector type with flat side + trapezoid side, decoration: just a line sticking out,
+- [x] double panel variation with more beams, probably just as prob in same class
+- [ ] capula
+- [x] docking bay
+- [ ] connector type with flat side + trapezoid side
+- [ ] decoration: just a line sticking out,
 - [ ] two double panels sticking out from arm
 
 ### Adding weights:
