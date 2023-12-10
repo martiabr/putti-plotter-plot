@@ -195,11 +195,52 @@ class Capsule(Module):
     def sample_bb_dims(cls, rng, from_height, match_from_height=False):
         return super(Capsule, cls).sample_bb_dims(rng, from_height, match_from_height=match_from_height)
     
+    
 class CapsuleVariation1(Capsule):
     def draw(self):
         sketch = super().draw()
         return sketch
-    
+
+
+class SquareCapsule(Capsule):
+    def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
+        super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
+        # self.draw_dot = np.random.rand() < self.dot_prob
+        # self.dot_radius = np.random.uniform(self.dot_radius_min, self.dot_radius_max)
+        
+    @classmethod
+    def update(cls, height_min, height_max):
+        cls.height_min = height_min
+        cls.height_max = height_max
+        cls.width_gain_min, cls.width_gain_max = 1.0, 1.0
+
+    def draw(self):
+        sketch = get_empty_sketch()
+        sketch.translate(self.x_center, self.y_center)
+        sketch.rect(0, 0, self.height, self.width, mode="center")
+        
+        self.border_gain = 0.2
+        self.corner_radius = 0.1
+        border_size = self.border_gain * self.width
+        sketch.rect(0, 0, self.height - border_size, self.width - border_size, mode="center")
+        sketch.rect(0, 0, self.height - border_size, self.width - border_size, mode="center", tl=self.corner_radius)
+        
+        outer_circle_rad = 0.5 * 0.6 * self.width
+        sketch.circle(0, 0, radius=outer_circle_rad)
+        
+        inner_circle_rad = 0.5 * 0.4 * self.width
+        sketch.circle(0, 0, radius=inner_circle_rad)
+        
+        with sketch.pushMatrix():
+            sketch.rotate(0.25 * np.pi)
+            sketch.line(0, inner_circle_rad, 0, -inner_circle_rad)
+            sketch.line(inner_circle_rad, 0, -inner_circle_rad, 0)
+        
+        
+        # TODO: rounded corner prob
+        
+        return sketch    
+
 
 class Connector(Module):
     def __init__(self, x, y, width, height, direction, from_module):
@@ -240,7 +281,7 @@ class ConnectorVariation1(Connector):
     def draw(self):
         sketch = super().draw()
         return sketch
-    
+ 
     
 class SolarPanel(Module):
     def __init__(self, x, y, width, height, direction, from_module):
@@ -448,8 +489,6 @@ class DockingBay(Decoration):
         
         sketch.sketch(draw_filled_rect(0.5 * self.end_frac * self.width, 0, self.width * self.end_frac, self.end_height))
         
-        # (black rect) + (white shape of rect + trapezoid + rect) + (black smaller rect)
-        
         return sketch
     
     
@@ -635,6 +674,7 @@ class SpacestationSketch(vsketch.SketchClass):
     
     # Module probs:
     prob_capsule_variation_1 = vsketch.Param(1.0, min_value=0.0)
+    prob_capsule_square = vsketch.Param(0.2, min_value=0.0)
     
     prob_connector_variation_1 = vsketch.Param(1.0, min_value=0.0)
     
@@ -660,6 +700,13 @@ class SpacestationSketch(vsketch.SketchClass):
     capsule_height_max = vsketch.Param(2.0, min_value=0)
     capsule_width_gain_min = vsketch.Param(1.0, min_value=0)
     capsule_width_gain_max = vsketch.Param(3.0, min_value=0)
+    
+    capsule_square_height_min = vsketch.Param(0.6, min_value=0)
+    capsule_square_height_max = vsketch.Param(1.6, min_value=0)
+    capsule_square_border_prob = vsketch.Param(0.6, min_value=0)
+    capsule_square_border_gain_min = vsketch.Param(0.05, min_value=0)
+    capsule_square_border_gain_max = vsketch.Param(0.2, min_value=0)
+    capsule_square_rounded_prob = vsketch.Param(0.3, min_value=0)
     
     connector_height_min = vsketch.Param(1.0, min_value=0)
     connector_height_max = vsketch.Param(2.0, min_value=0)
@@ -744,20 +791,21 @@ class SpacestationSketch(vsketch.SketchClass):
                                  4 * [np.nan]])
         self.probs_modules_normal = normalize_mat_to_row_sum_one(probs_normal)
         
-        self.module_type_probs = {Capsule: normalize_vec_to_sum_one([self.prob_capsule_variation_1]),
+        self.module_type_probs = {Capsule: normalize_vec_to_sum_one([self.prob_capsule_variation_1, self.prob_capsule_square]),
                                   Connector: normalize_vec_to_sum_one([self.prob_connector_variation_1]),
                                   SolarPanel: normalize_vec_to_sum_one([self.prob_solar_single, self.prob_solar_double]),
                                   Decoration: normalize_vec_to_sum_one([self.prob_dectoration_antenna, self.prob_decoration_dock_black,
                                                                         self.prob_decoration_dock])}
     
     def init_modules(self):
-        self.module_types = {Capsule: [CapsuleVariation1],
+        self.module_types = {Capsule: [CapsuleVariation1, SquareCapsule],
                              Connector: [ConnectorVariation1],
                              SolarPanel: [SolarPanelSingle, SolarPanelDouble],
                              Decoration: [Antenna, DockingBayBlack, DockingBay]}
                 
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
                        self.capsule_width_gain_max)
+        SquareCapsule.update(self.capsule_square_height_min, self.capsule_square_height_max)
         
         Connector.update(self.connector_height_min, self.connector_height_max, self.connector_from_height_gain_min,
                          self.connector_from_height_gain_max, self.connector_width_gain_min, self.connector_width_gain_max)
