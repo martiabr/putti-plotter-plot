@@ -176,7 +176,16 @@ class Module:
         sketch = get_empty_sketch()
         sketch.rect(self.x_center, self.y_center, self.length_x, self.length_y, mode="center")
         return sketch
-
+    
+    def init_sketch(self, center=False):
+        sketch = get_empty_sketch()
+        if center:
+            sketch.translate(self.x_center, self.y_center)
+        else:
+            sketch.translate(self.x, self.y)
+        sketch.rotate(-direction_to_angle(self.direction))
+        return sketch
+    
 
 class Capsule(Module):
     def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
@@ -219,9 +228,7 @@ class Connector(Module):
         cls.width_gain_max = width_gain_max
          
     def draw(self):
-        sketch = get_empty_sketch()
-        sketch.translate(self.x_center, self.y_center)
-        sketch.rotate(-direction_to_angle(self.direction))
+        sketch = self.init_sketch(center=True)
         sketch.polygon([(-0.5 * self.width, -0.5 * self.start_height), 
                         (0.5 * self.width, -0.5 * self.end_height), 
                         (0.5 * self.width, 0.5 * self.end_height),
@@ -258,9 +265,7 @@ class SolarPanel(Module):
 
 class SolarPanelSingle(SolarPanel):
     def draw(self):
-        sketch = super().draw()
-        sketch.translate(self.x, self.y)
-        sketch.rotate(-direction_to_angle(self.direction))
+        sketch = self.init_sketch()
         
         for y in np.linspace(-0.5 * self.height, 0.5 * self.height, self.num_panels_y + 1):
             sketch.line(0, y, self.width, y)
@@ -302,9 +307,7 @@ class SolarPanelDouble(SolarPanel):
         cls.n_beams_extra_max = n_beams_extra_max
         
     def draw(self):
-        sketch = get_empty_sketch()
-        sketch.translate(self.x, self.y)
-        sketch.rotate(-direction_to_angle(self.direction))
+        sketch = self.init_sketch()
 
         # Connector:
         sketch.rect(0.5 * self.connector_width, 0, self.connector_width, self.connector_height, mode="center")
@@ -354,13 +357,35 @@ class Decoration(Module):
     def sample_bb_dims(cls, rng, from_height):
         return super(Decoration, cls).sample_bb_dims(rng, from_height, limit_height_by_from_height=True)
     
-    
+
+class Antenna(Decoration):
+    def __init__(self, x, y, width, height, direction, from_module):
+        super().__init__(x, y, width, height, direction, from_module)
+        self.draw_dot = np.random.rand() < self.dot_prob
+        self.dot_radius = np.random.uniform(self.dot_radius_min, self.dot_radius_max)
+        
+    @classmethod
+    def update(cls, height_min, height_max, width_gain_min, width_gain_max, dot_prob, dot_radius_min, 
+               dot_radius_max):
+        super(Antenna, cls).update(height_min, height_max, width_gain_min, width_gain_max)
+        cls.dot_prob = dot_prob
+        cls.dot_radius_min = dot_radius_min
+        cls.dot_radius_max = dot_radius_max
+
+    def draw(self):
+        sketch = self.init_sketch()
+
+        if self.draw_dot:
+            sketch.line(0, 0, self.width - 2 * self.dot_radius, 0)
+            sketch.circle(self.width - self.dot_radius, 0, radius=self.dot_radius)
+        else:
+            sketch.line(0, 0, self.width, 0)
+        return sketch
+
 
 class DockingBayBlack(Decoration):
     def draw(self):
-        sketch = get_empty_sketch()
-        sketch.translate(self.x, self.y)
-        sketch.rotate(-direction_to_angle(self.direction))
+        sketch = self.init_sketch()
         sketch.sketch(draw_filled_rect(0.5 * self.width, 0, self.width, self.height))
         return sketch
     
@@ -368,6 +393,7 @@ class DockingBayBlack(Decoration):
 class DockingBay(Decoration):
     def __init__(self, x, y, width, height, direction, from_module):
         super().__init__(x, y, width, height, direction, from_module)
+        self.union_middle = np.random.rand() < self.union_middle_prob
         self.flat_end_height = self.height * np.random.uniform(self.flat_end_height_gain_min, self.flat_end_height_gain_max)
         self.end_height = self.flat_end_height * np.random.uniform(self.end_height_gain_min, self.end_height_gain_max)
         self.start_frac = np.random.uniform(self.start_frac_min, self.start_frac_max)
@@ -376,11 +402,12 @@ class DockingBay(Decoration):
         self.flat_end_frac = np.random.uniform(self.flat_end_frac_min, self.flat_end_frac_max)
         
     @classmethod
-    def update(cls, height_min, height_max, width_gain_min, width_gain_max, 
+    def update(cls, height_min, height_max, width_gain_min, width_gain_max, union_middle_prob, 
                flat_end_height_gain_min, flat_end_height_gain_max, end_height_gain_min, end_height_gain_max, 
                start_frac_min, start_frac_max, end_frac_min, end_frac_max, 
                flat_start_frac_min, flat_start_frac_max, flat_end_frac_min, flat_end_frac_max):
         super(DockingBay, cls).update(height_min, height_max, width_gain_min, width_gain_max)
+        cls.union_middle_prob = union_middle_prob
         cls.flat_end_height_gain_min = flat_end_height_gain_min
         cls.flat_end_height_gain_max = flat_end_height_gain_max
         cls.end_height_gain_min = end_height_gain_min
@@ -395,22 +422,28 @@ class DockingBay(Decoration):
         cls.flat_end_frac_max = flat_end_frac_max
         
     def draw(self):
-        sketch = get_empty_sketch()
-        sketch.translate(self.x, self.y)
-        sketch.rotate(-direction_to_angle(self.direction))
+        sketch = self.init_sketch()
         
         sketch.sketch(draw_filled_rect(0.5 * self.width * self.start_frac, 0, self.width * self.start_frac, self.height))
         sketch.translate(self.width * self.start_frac, 0)
         
         width_middle = self.width * (1.0 - self.start_frac - self.end_frac)
-        main_shape = sketch.createShape()
-        main_shape.rect(0.5 * self.flat_start_frac * width_middle, 0, (self.flat_start_frac + 1e-3) * width_middle, self.height, mode="center")
-        main_shape.polygon([(self.flat_start_frac * width_middle, 0.5 * self.height), 
-                            ((1.0 - self.flat_end_frac) * width_middle, 0.5 * self.flat_end_height),
-                            ((1.0 - self.flat_end_frac) * width_middle, -0.5 * self.flat_end_height),
-                            (self.flat_start_frac * width_middle, -0.5 * self.height)], close=True)
-        main_shape.rect((1.0 - 0.5 * self.flat_end_frac - 1e-3) * width_middle, 0, self.flat_end_frac * width_middle, self.flat_end_height, mode="center")
-        sketch.shape(main_shape)
+        if self.union_middle:
+            main_shape = sketch.createShape()
+            main_shape.rect(0.5 * self.flat_start_frac * width_middle, 0, (self.flat_start_frac + 1e-3) * width_middle, self.height, mode="center")
+            main_shape.polygon([(self.flat_start_frac * width_middle, 0.5 * self.height), 
+                                ((1.0 - self.flat_end_frac) * width_middle, 0.5 * self.flat_end_height),
+                                ((1.0 - self.flat_end_frac) * width_middle, -0.5 * self.flat_end_height),
+                                (self.flat_start_frac * width_middle, -0.5 * self.height)], close=True)
+            main_shape.rect((1.0 - 0.5 * self.flat_end_frac - 1e-3) * width_middle, 0, self.flat_end_frac * width_middle, self.flat_end_height, mode="center")
+            sketch.shape(main_shape)
+        else:
+            sketch.rect(0.5 * self.flat_start_frac * width_middle, 0, (self.flat_start_frac + 1e-3) * width_middle, self.height, mode="center")
+            sketch.polygon([(self.flat_start_frac * width_middle, 0.5 * self.height), 
+                                ((1.0 - self.flat_end_frac) * width_middle, 0.5 * self.flat_end_height),
+                                ((1.0 - self.flat_end_frac) * width_middle, -0.5 * self.flat_end_height),
+                                (self.flat_start_frac * width_middle, -0.5 * self.height)], close=True)
+            sketch.rect((1.0 - 0.5 * self.flat_end_frac - 1e-3) * width_middle, 0, self.flat_end_frac * width_middle, self.flat_end_height, mode="center")
         sketch.translate(width_middle, 0)
         
         sketch.sketch(draw_filled_rect(0.5 * self.end_frac * self.width, 0, self.width * self.end_frac, self.end_height))
@@ -583,6 +616,7 @@ class SpacestationSketch(vsketch.SketchClass):
     WIDTH_FULL = 21
     HEIGHT_FULL = 29.7
     
+    draw_modules = vsketch.Param(True)
     debug = vsketch.Param(True)
     occult = vsketch.Param(False)
     scale = vsketch.Param(1.0)
@@ -607,6 +641,7 @@ class SpacestationSketch(vsketch.SketchClass):
     prob_solar_single = vsketch.Param(1.0, min_value=0.0)
     prob_solar_double = vsketch.Param(1.0, min_value=0.0)
     
+    prob_dectoration_antenna = vsketch.Param(0.5, min_value=0.0)
     prob_decoration_dock_black = vsketch.Param(1.0, min_value=0.0)
     prob_decoration_dock = vsketch.Param(3.0, min_value=0.0)
     
@@ -654,6 +689,14 @@ class SpacestationSketch(vsketch.SketchClass):
     solar_panel_double_n_beams_extra_min = vsketch.Param(1, min_value=0)
     solar_panel_double_n_beams_extra_max = vsketch.Param(5, min_value=0)
 
+    antenna_height_min = vsketch.Param(0.1, min_value=0)
+    antenna_height_max = vsketch.Param(0.15, min_value=0)
+    antenna_width_gain_min = vsketch.Param(1.0, min_value=0)
+    antenna_width_gain_max = vsketch.Param(3.0, min_value=0)
+    antenna_dot_prob = vsketch.Param(0.5, min_value=0)
+    antenna_dot_radius_min = vsketch.Param(0.01, min_value=0)
+    antenna_dot_radius_max = vsketch.Param(0.03, min_value=0)
+    
     dock_black_height_min = vsketch.Param(0.3, min_value=0)
     dock_black_height_max = vsketch.Param(1.0, min_value=0)
     dock_black_width_gain_min = vsketch.Param(0.07, min_value=0)
@@ -663,6 +706,7 @@ class SpacestationSketch(vsketch.SketchClass):
     dock_height_max = vsketch.Param(2.0, min_value=0)
     dock_width_gain_min = vsketch.Param(0.4, min_value=0)
     dock_width_gain_max = vsketch.Param(0.7, min_value=0)
+    dock_union_middle_prob = vsketch.Param(0.5, min_value=0) 
     dock_flat_end_height_gain_min = vsketch.Param(0.45, min_value=0)
     dock_flat_end_height_gain_max = vsketch.Param(0.6, min_value=0)
     dock_end_height_gain_min = vsketch.Param(0.7, min_value=0)
@@ -703,13 +747,14 @@ class SpacestationSketch(vsketch.SketchClass):
         self.module_type_probs = {Capsule: normalize_vec_to_sum_one([self.prob_capsule_variation_1]),
                                   Connector: normalize_vec_to_sum_one([self.prob_connector_variation_1]),
                                   SolarPanel: normalize_vec_to_sum_one([self.prob_solar_single, self.prob_solar_double]),
-                                  Decoration: normalize_vec_to_sum_one([self.prob_decoration_dock_black, self.prob_decoration_dock])}
+                                  Decoration: normalize_vec_to_sum_one([self.prob_dectoration_antenna, self.prob_decoration_dock_black,
+                                                                        self.prob_decoration_dock])}
     
     def init_modules(self):
         self.module_types = {Capsule: [CapsuleVariation1],
                              Connector: [ConnectorVariation1],
                              SolarPanel: [SolarPanelSingle, SolarPanelDouble],
-                             Decoration: [DockingBayBlack, DockingBay]}
+                             Decoration: [Antenna, DockingBayBlack, DockingBay]}
                 
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
                        self.capsule_width_gain_max)
@@ -725,11 +770,15 @@ class SpacestationSketch(vsketch.SketchClass):
                                 self.solar_panel_double_panel_dist_min, self.solar_panel_double_panel_dist_max, 
                                 self.solar_panel_double_inset_min, self.solar_panel_double_inset_max, self.solar_panel_double_multi_beam_prob,
                                 self.solar_panel_double_n_beams_extra_min, self.solar_panel_double_n_beams_extra_max)
-        
+
+        Antenna.update(self.antenna_height_min, self.antenna_height_max, self.antenna_width_gain_min,
+                       self.antenna_width_gain_max, self.antenna_dot_prob, self.antenna_dot_radius_min,
+                       self.antenna_dot_radius_max)        
         DockingBayBlack.update(self.dock_black_height_min, self.dock_black_height_max, self.dock_black_width_gain_min,
                                self.dock_black_width_gain_max)
         DockingBay.update(self.dock_height_min, self.dock_height_max, self.dock_width_gain_min,
-                          self.dock_width_gain_max, self.dock_flat_end_height_gain_min, self.dock_flat_end_height_gain_max, 
+                          self.dock_width_gain_max, self.dock_union_middle_prob, self.dock_flat_end_height_gain_min, 
+                          self.dock_flat_end_height_gain_max, 
                           self.dock_end_height_gain_min, self.dock_end_height_gain_max, self.dock_start_frac_min, 
                           self.dock_start_frac_max, self.dock_end_frac_min, self.dock_end_frac_max,
                           self.dock_flat_start_frac_min, self.dock_flat_start_frac_max, self.dock_flat_end_frac_min,
@@ -747,7 +796,7 @@ class SpacestationSketch(vsketch.SketchClass):
                                      self.probs_modules_normal, self.prob_connector_parallel_match_height, 
                                      weight_continue_same_dir=self.weight_continue_same_dir)
         generator.generate(num_tries=self.num_tries, num_consec_fails_max=self.num_consec_fails_max)
-        generator.draw(vsk)
+        if self.draw_modules: generator.draw(vsk)
         
         if self.debug:
             vsk.circle(0, 0, radius=1e-1)  # origin
