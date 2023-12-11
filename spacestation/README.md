@@ -75,7 +75,14 @@ Elements in the space stations:
 - [x] docking bay
 - [ ] square capsule with big window/docking bay?
 - [ ] connector type with flat side + trapezoid side
-- [ ] decoration: just a line sticking out, optional dot
+- [x] decoration: just a line sticking out, optional dot
+- [ ] multi window capsule
+- [ ] multi small window capsule (long and narrow capsule)
+- [ ] really rounded corners inflatable capsule (actually decoration since no building out from it)
+- [ ] improve single solar panel with arm/connector
+- [ ] double normal line capsule - just 2x2 normal lines vs. 2xline shaded vs. 2xblack vs. 2xn normal lines
+- [ ] long construction beam type connectors
+- [ ] other solar panel arm variations 
 - [ ] two double panels sticking out from arm
 
 ### Adding weights:

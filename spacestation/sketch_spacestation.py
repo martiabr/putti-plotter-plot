@@ -205,40 +205,58 @@ class CapsuleVariation1(Capsule):
 class SquareCapsule(Capsule):
     def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
-        # self.draw_dot = np.random.rand() < self.dot_prob
-        # self.dot_radius = np.random.uniform(self.dot_radius_min, self.dot_radius_max)
+        self.draw_cross = np.random.rand() < self.cross_prob
+        self.draw_rounded_corners = np.random.rand() < self.rounded_corners_prob
+        self.corner_radius = 0.5 * self.width * np.random.uniform(self.corner_radius_gain_min, self.corner_radius_gain_max)
+        self.border_size = self.width * np.random.uniform(self.border_gain_min, self.border_gain_max)
+        self.outer_circle_radius = 0.5 * self.width * np.random.uniform(self.outer_circle_gain_min, self.outer_circle_gain_max)
+        self.inner_circle_radius = self.outer_circle_radius * np.random.uniform(self.inner_circle_gain_min, self.inner_circle_gain_max)
         
     @classmethod
-    def update(cls, height_min, height_max):
+    def update(cls, height_min, height_max, border_prob, cross_prob, rounded_corners_prob, corner_radius_gain_min, corner_radius_gain_max,
+               border_gain_min, border_gain_max, outer_circle_gain_min, outer_circle_gain_max, inner_circle_gain_min,
+               inner_circle_gain_max):
         cls.height_min = height_min
         cls.height_max = height_max
         cls.width_gain_min, cls.width_gain_max = 1.0, 1.0
-
+        cls.border_prob = border_prob
+        cls.cross_prob = cross_prob
+        cls.rounded_corners_prob = rounded_corners_prob
+        cls.corner_radius_gain_min = corner_radius_gain_min
+        cls.corner_radius_gain_max = corner_radius_gain_max
+        cls.border_gain_min = border_gain_min
+        cls.border_gain_max = border_gain_max
+        cls.outer_circle_gain_min = outer_circle_gain_min
+        cls.outer_circle_gain_max = outer_circle_gain_max
+        cls.inner_circle_gain_min = inner_circle_gain_min
+        cls.inner_circle_gain_max = inner_circle_gain_max
+        
     def draw(self):
         sketch = get_empty_sketch()
         sketch.translate(self.x_center, self.y_center)
-        sketch.rect(0, 0, self.height, self.width, mode="center")
         
-        self.border_gain = 0.2
-        self.corner_radius = 0.1
-        border_size = self.border_gain * self.width
-        sketch.rect(0, 0, self.height - border_size, self.width - border_size, mode="center")
-        sketch.rect(0, 0, self.height - border_size, self.width - border_size, mode="center", tl=self.corner_radius)
+        if self.draw_rounded_corners:
+            sketch.rect(0, 0, self.height, self.width, self.corner_radius, mode="center")
+            if self.border_prob:
+                sketch.rect(0, 0, self.height - self.border_size, self.width - self.border_size, self.corner_radius, mode="center")
+        else:
+            sketch.rect(0, 0, self.height, self.width, mode="center")
+            # self.border_gain = 0.2
+            # self.corner_radius = 0.1
+            if self.border_prob:
+                sketch.rect(0, 0, self.height - self.border_size, self.width - self.border_size, mode="center")
         
-        outer_circle_rad = 0.5 * 0.6 * self.width
-        sketch.circle(0, 0, radius=outer_circle_rad)
+        # outer_circle_rad = 0.5 * 0.6 * self.width
+        # self.inner_circle_rad = 0.5 * 0.4 * self.width
+        sketch.circle(0, 0, radius=self.outer_circle_rad)
+        sketch.circle(0, 0, radius=self.inner_circle_rad)
         
-        inner_circle_rad = 0.5 * 0.4 * self.width
-        sketch.circle(0, 0, radius=inner_circle_rad)
-        
-        with sketch.pushMatrix():
-            sketch.rotate(0.25 * np.pi)
-            sketch.line(0, inner_circle_rad, 0, -inner_circle_rad)
-            sketch.line(inner_circle_rad, 0, -inner_circle_rad, 0)
-        
-        
-        # TODO: rounded corner prob
-        
+        if self.draw_cross:
+            with sketch.pushMatrix():
+                sketch.rotate(0.25 * np.pi)
+                sketch.line(0, self.inner_circle_rad, 0, -self.inner_circle_rad)
+                sketch.line(self.inner_circle_rad, 0, -self.inner_circle_rad, 0)
+
         return sketch    
 
 
@@ -704,9 +722,16 @@ class SpacestationSketch(vsketch.SketchClass):
     capsule_square_height_min = vsketch.Param(0.6, min_value=0)
     capsule_square_height_max = vsketch.Param(1.6, min_value=0)
     capsule_square_border_prob = vsketch.Param(0.6, min_value=0)
-    capsule_square_border_gain_min = vsketch.Param(0.05, min_value=0)
-    capsule_square_border_gain_max = vsketch.Param(0.2, min_value=0)
-    capsule_square_rounded_prob = vsketch.Param(0.3, min_value=0)
+    capsule_square_border_gain_min = vsketch.Param(0.95, min_value=0)
+    capsule_square_border_gain_max = vsketch.Param(0.8, min_value=0)
+    capsule_square_rounded_corners_prob = vsketch.Param(0.3, min_value=0)
+    capsule_square_cross_prob = vsketch.Param(0.5, min_value=0)
+    capsule_square_corner_radius_gain_min = vsketch.Param(0.05, min_value=0)
+    capsule_square_corner_radius_gain_max = vsketch.Param(0.2, min_value=0)
+    capsule_square_outer_circle_gain_min = vsketch.Param(0.5, min_value=0)
+    capsule_square_outer_circle_gain_max = vsketch.Param(0.7, min_value=0)
+    capsule_square_inner_circle_gain_min = vsketch.Param(0.6, min_value=0)
+    capsule_square_inner_circle_gain_max = vsketch.Param(0.95, min_value=0)
     
     connector_height_min = vsketch.Param(1.0, min_value=0)
     connector_height_max = vsketch.Param(2.0, min_value=0)
@@ -775,8 +800,6 @@ class SpacestationSketch(vsketch.SketchClass):
         print("\nRunning...")
         
     def init_probs(self):
-        # probs = np.array([self.prob_capsule, self.prob_connector, self.prob_solar_panel, self.prob_docking_bay])
-        # self.prob_modules = normalize_vec_to_sum_one(probs)
         probs_parallel = np.array([[self.prob_capsule_capsule_parallel, self.prob_capsule_connector_parallel,
                                     self.prob_capsule_solar_parallel, self.prob_capsule_dock_parallel],
                                    [1.0, 0.0, 0.0, 0.0],
@@ -802,14 +825,22 @@ class SpacestationSketch(vsketch.SketchClass):
                              Connector: [ConnectorVariation1],
                              SolarPanel: [SolarPanelSingle, SolarPanelDouble],
                              Decoration: [Antenna, DockingBayBlack, DockingBay]}
-                
+        
+        # Capsules:     
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
                        self.capsule_width_gain_max)
-        SquareCapsule.update(self.capsule_square_height_min, self.capsule_square_height_max)
+        SquareCapsule.update(self.capsule_square_height_min, self.capsule_square_height_max, self.capsule_square_border_prob, 
+                             self.capsule_square_border_gain_min, self.capsule_square_border_gain_max, self.capsule_square_rounded_corners_prob, 
+                             self.capsule_square_cross_prob, self.capsule_square_corner_radius_gain_min, 
+                             self.capsule_square_corner_radius_gain_max, self.capsule_square_outer_circle_gain_min, 
+                             self.capsule_square_outer_circle_gain_max, self.capsule_square_inner_circle_gain_min, 
+                             self.capsule_square_inner_circle_gain_max)
         
+        # Connectors:
         Connector.update(self.connector_height_min, self.connector_height_max, self.connector_from_height_gain_min,
                          self.connector_from_height_gain_max, self.connector_width_gain_min, self.connector_width_gain_max)
         
+        # Solar panels:
         SolarPanel.update(self.solar_height_min, self.solar_height_max, self.solar_width_gain_min,
                           self.solar_width_gain_max, self.solar_panel_num_y_min, self.solar_panel_num_y_max, 
                           self.solar_panel_dist_x_min, self.solar_panel_dist_x_max)
@@ -819,6 +850,7 @@ class SpacestationSketch(vsketch.SketchClass):
                                 self.solar_panel_double_inset_min, self.solar_panel_double_inset_max, self.solar_panel_double_multi_beam_prob,
                                 self.solar_panel_double_n_beams_extra_min, self.solar_panel_double_n_beams_extra_max)
 
+        # Decorations:
         Antenna.update(self.antenna_height_min, self.antenna_height_max, self.antenna_width_gain_min,
                        self.antenna_width_gain_max, self.antenna_dot_prob, self.antenna_dot_radius_min,
                        self.antenna_dot_radius_max)        
