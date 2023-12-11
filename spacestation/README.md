@@ -76,12 +76,17 @@ Elements in the space stations:
 - [ ] square capsule with big window/docking bay?
 - [ ] connector type with flat side + trapezoid side
 - [x] decoration: just a line sticking out, optional dot
-- [ ] multi window capsule
-- [ ] multi small window capsule (long and narrow capsule)
+- [ ] Variation on square docking bay capsule with lines between outer and inner circle
+- [ ] Antenna: little square end
+- [ ] Antenna: actual little dish on the rod
+- [ ] Decoration: Just a box, or multiple boxes. Centered, or for example one box on either end. Or a tiny box on the box. Small variations like that. Or line out from the box.
+- [ ] multi window capsule, option with parallel lines on top/bottom?
+- [ ] multi small window capsule (long and narrow capsule with dot windows)
 - [ ] really rounded corners inflatable capsule (actually decoration since no building out from it)
 - [ ] improve single solar panel with arm/connector
 - [ ] double normal line capsule - just 2x2 normal lines vs. 2xline shaded vs. 2xblack vs. 2xn normal lines
-- [ ] parallel lines capsule - just 1, 2, ... uniformly distributed or "shading" with a sine
+- [ ] Capsule: just some randomly sampled normal lines
+- [ ] parallel lines capsule - just 1, 2, ... uniformly distributed or "shading" with a sine, or sine + normal lines
 - [ ] long construction beam type connectors
 - [ ] connector with flat part in middle, so it goes in on both sides and has a long narrow "capsule" in the middle
 - [ ] other solar panel arm variations 
