@@ -205,12 +205,6 @@ class CapsuleVariation1(Capsule):
 class Capsule3D(Capsule):
     def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
-        # self.draw_cross = np.random.rand() < self.cross_prob
-        # self.draw_rounded_corners = np.random.rand() < self.rounded_corners_prob
-        # self.corner_radius = 0.5 * self.width * np.random.uniform(self.corner_radius_gain_min, self.corner_radius_gain_max)
-        # self.border_size = self.width * np.random.uniform(self.border_gain_min, self.border_gain_max)
-        # self.outer_circle_radius = 0.5 * self.width * np.random.uniform(self.outer_circle_gain_min, self.outer_circle_gain_max)
-        # self.inner_circle_radius = self.outer_circle_radius * np.random.uniform(self.inner_circle_gain_min, self.inner_circle_gain_max)
         self.num_lines = np.random.randint(self.num_lines_min, self.num_lines_max + 1)
         self.sin_stop = 0.48
         
@@ -227,6 +221,32 @@ class Capsule3D(Capsule):
         sketch.rect(0, 0, self.width, self.height)
         
         ys = 0.5 * self.height * np.sin(np.pi * np.linspace(-self.sin_stop, self.sin_stop, num=self.num_lines))
+        for y in ys:
+            sketch.line(-0.5 * self.width, y, 0.5 * self.width, y)
+            
+        return sketch
+    
+    
+class CapsuleParallelLines(Capsule):
+    def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
+        super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
+        self.num_lines = np.random.randint(self.num_lines_min, self.num_lines_max + 1)
+        
+    @classmethod
+    # def update(cls, height_min, height_max, width_gain_min, width_gain_max, num_lines_min, num_lines_max):
+    def update(cls, num_lines_min, num_lines_max):
+        # super(CapsuleParallelLines, cls).update(height_min, height_max, width_gain_min, width_gain_max)
+        cls.num_lines_min = num_lines_min
+        cls.num_lines_max = num_lines_max
+        
+    def draw(self):
+        sketch = self.init_sketch(center=True)
+        
+        sketch.rect(0, 0, self.width, self.height)
+        
+        line_dist = self.height / (self.num_lines + 1)
+        height_offseted = 0.5 * self.height - line_dist
+        ys = np.linspace(-height_offseted, height_offseted, num=self.num_lines)
         for y in ys:
             sketch.line(-0.5 * self.width, y, 0.5 * self.width, y)
             
@@ -724,6 +744,7 @@ class SpacestationSketch(vsketch.SketchClass):
     # Module probs:
     prob_capsule_variation_1 = vsketch.Param(1.0, min_value=0.0)
     prob_capsule_3d = vsketch.Param(0.5, min_value=0.0)
+    prob_capsule_parallel_lines = vsketch.Param(0.5, min_value=0.0)
     prob_capsule_square = vsketch.Param(0.2, min_value=0.0)
     
     prob_connector_variation_1 = vsketch.Param(1.0, min_value=0.0)
@@ -767,6 +788,9 @@ class SpacestationSketch(vsketch.SketchClass):
     
     capsule_3d_num_lines_min = vsketch.Param(5, min_value=0)
     capsule_3d_num_lines_max = vsketch.Param(20, min_value=0)
+    
+    capsule_parallel_lines_num_lines_min = vsketch.Param(1, min_value=0)
+    capsule_parallel_lines_num_lines_max = vsketch.Param(5, min_value=0)
     
     connector_height_min = vsketch.Param(1.0, min_value=0)
     connector_height_max = vsketch.Param(2.0, min_value=0)
@@ -850,14 +874,14 @@ class SpacestationSketch(vsketch.SketchClass):
         self.probs_modules_normal = normalize_mat_to_row_sum_one(probs_normal)
         
         self.module_type_probs = {Capsule: normalize_vec_to_sum_one([self.prob_capsule_variation_1, self.prob_capsule_3d, 
-                                                                     self.prob_capsule_square]),
+                                                                     self.prob_capsule_parallel_lines, self.prob_capsule_square]),
                                   Connector: normalize_vec_to_sum_one([self.prob_connector_variation_1]),
                                   SolarPanel: normalize_vec_to_sum_one([self.prob_solar_single, self.prob_solar_double]),
                                   Decoration: normalize_vec_to_sum_one([self.prob_dectoration_antenna, self.prob_decoration_dock_black,
                                                                         self.prob_decoration_dock])}
     
     def init_modules(self):
-        self.module_types = {Capsule: [CapsuleVariation1, Capsule3D, SquareCapsule],
+        self.module_types = {Capsule: [CapsuleVariation1, Capsule3D, CapsuleParallelLines, SquareCapsule],
                              Connector: [ConnectorVariation1],
                              SolarPanel: [SolarPanelSingle, SolarPanelDouble],
                              Decoration: [Antenna, DockingBayBlack, DockingBay]}
@@ -865,13 +889,14 @@ class SpacestationSketch(vsketch.SketchClass):
         # Capsules:     
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
                        self.capsule_width_gain_max)
+        Capsule3D.update(self.capsule_3d_num_lines_min, self.capsule_3d_num_lines_max)
+        CapsuleParallelLines.update(self.capsule_parallel_lines_num_lines_min, self.capsule_parallel_lines_num_lines_max)
         SquareCapsule.update(self.capsule_square_height_min, self.capsule_square_height_max, self.capsule_square_border_prob, 
                              self.capsule_square_border_gain_min, self.capsule_square_border_gain_max, self.capsule_square_rounded_corners_prob, 
                              self.capsule_square_cross_prob, self.capsule_square_corner_radius_gain_min, 
                              self.capsule_square_corner_radius_gain_max, self.capsule_square_outer_circle_gain_min, 
                              self.capsule_square_outer_circle_gain_max, self.capsule_square_inner_circle_gain_min, 
                              self.capsule_square_inner_circle_gain_max)
-        Capsule3D.update(self.capsule_3d_num_lines_min, self.capsule_3d_num_lines_max)
         
         # Connectors:
         Connector.update(self.connector_height_min, self.connector_height_max, self.connector_from_height_gain_min,
