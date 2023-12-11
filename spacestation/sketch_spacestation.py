@@ -206,7 +206,7 @@ class Capsule3D(Capsule):
     def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
         self.num_lines = np.random.randint(self.num_lines_min, self.num_lines_max + 1)
-        self.sin_stop = 0.48
+        self.sin_stop = 0.45
         
     @classmethod
     # def update(cls, height_min, height_max, width_gain_min, width_gain_max, num_lines_min, num_lines_max):
@@ -218,7 +218,7 @@ class Capsule3D(Capsule):
     def draw(self):
         sketch = self.init_sketch(center=True)
         
-        sketch.rect(0, 0, self.width, self.height)
+        sketch.rect(0, 0, self.width, self.height, mode="center")
         
         ys = 0.5 * self.height * np.sin(np.pi * np.linspace(-self.sin_stop, self.sin_stop, num=self.num_lines))
         for y in ys:
@@ -242,7 +242,7 @@ class CapsuleParallelLines(Capsule):
     def draw(self):
         sketch = self.init_sketch(center=True)
         
-        sketch.rect(0, 0, self.width, self.height)
+        sketch.rect(0, 0, self.width, self.height, mode="center")
         
         line_dist = self.height / (self.num_lines + 1)
         height_offseted = 0.5 * self.height - line_dist
@@ -289,24 +289,21 @@ class SquareCapsule(Capsule):
         if self.draw_rounded_corners:
             sketch.rect(0, 0, self.height, self.width, self.corner_radius, mode="center")
             if self.border_prob:
-                sketch.rect(0, 0, self.height - self.border_size, self.width - self.border_size, self.corner_radius, mode="center")
+                sketch.rect(0, 0, self.border_size, self.border_size, 
+                            self.corner_radius * self.border_size / self.width, mode="center")
         else:
             sketch.rect(0, 0, self.height, self.width, mode="center")
-            # self.border_gain = 0.2
-            # self.corner_radius = 0.1
             if self.border_prob:
-                sketch.rect(0, 0, self.height - self.border_size, self.width - self.border_size, mode="center")
+                sketch.rect(0, 0, self.border_size, self.border_size, mode="center")
         
-        # outer_circle_rad = 0.5 * 0.6 * self.width
-        # self.inner_circle_rad = 0.5 * 0.4 * self.width
-        sketch.circle(0, 0, radius=self.outer_circle_rad)
-        sketch.circle(0, 0, radius=self.inner_circle_rad)
+        sketch.circle(0, 0, radius=self.outer_circle_radius)
+        sketch.circle(0, 0, radius=self.inner_circle_radius)
         
         if self.draw_cross:
             with sketch.pushMatrix():
                 sketch.rotate(0.25 * np.pi)
-                sketch.line(0, self.inner_circle_rad, 0, -self.inner_circle_rad)
-                sketch.line(self.inner_circle_rad, 0, -self.inner_circle_rad, 0)
+                sketch.line(0, self.inner_circle_radius, 0, -self.inner_circle_radius)
+                sketch.line(self.inner_circle_radius, 0, -self.inner_circle_radius, 0)
 
         return sketch    
 
@@ -892,11 +889,10 @@ class SpacestationSketch(vsketch.SketchClass):
         Capsule3D.update(self.capsule_3d_num_lines_min, self.capsule_3d_num_lines_max)
         CapsuleParallelLines.update(self.capsule_parallel_lines_num_lines_min, self.capsule_parallel_lines_num_lines_max)
         SquareCapsule.update(self.capsule_square_height_min, self.capsule_square_height_max, self.capsule_square_border_prob, 
-                             self.capsule_square_border_gain_min, self.capsule_square_border_gain_max, self.capsule_square_rounded_corners_prob, 
-                             self.capsule_square_cross_prob, self.capsule_square_corner_radius_gain_min, 
-                             self.capsule_square_corner_radius_gain_max, self.capsule_square_outer_circle_gain_min, 
-                             self.capsule_square_outer_circle_gain_max, self.capsule_square_inner_circle_gain_min, 
-                             self.capsule_square_inner_circle_gain_max)
+                             self.capsule_square_cross_prob, self.capsule_square_rounded_corners_prob, self.capsule_square_corner_radius_gain_min, 
+                             self.capsule_square_corner_radius_gain_max, self.capsule_square_border_gain_min, self.capsule_square_border_gain_max, 
+                             self.capsule_square_outer_circle_gain_min, self.capsule_square_outer_circle_gain_max, 
+                             self.capsule_square_inner_circle_gain_min, self.capsule_square_inner_circle_gain_max)
         
         # Connectors:
         Connector.update(self.connector_height_min, self.connector_height_max, self.connector_from_height_gain_min,
