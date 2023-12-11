@@ -68,7 +68,7 @@ Elements in the space stations:
       E.g. single panel vs. double panel vs. single/double panel w/wo arm
 - [x] Add constraint system. To make it look more like a space station we might want to force symmetries. 
       E.g. if we add a solar panel on one side it should be a high prob that a solar panel will be created on opposite side.
-- [ ] do solar panel width/height sampling better
+- [ ] Quadtree grid
 - [ ] Way to only sample a subset of all structure types. Otherwise things will look very chaotic. E.g. there is a 20% chance of having inflatable capsule as an option for a drawing, but a separate prob for actually drawing it when picking the next structure to add. Another example would to be only pick n out of m solar panel types for one drawing, again to make the single drawing more cohesive.
 - [x] double panel variation with more beams, probably just as prob in same class
 - [ ] capula
@@ -86,10 +86,11 @@ Elements in the space stations:
 - [ ] improve single solar panel with arm/connector
 - [ ] double normal line capsule - just 2x2 normal lines vs. 2xline shaded vs. 2xblack vs. 2xn normal lines
 - [ ] Capsule: just some randomly sampled normal lines
+- [ ] Connector: narrow black connector, height is just gain of smallest side
 - [ ] parallel lines capsule - just 1, 2, ... uniformly distributed or "shading" with a sine, or sine + normal lines
-- [ ] long construction beam type connectors
-- [ ] connector with flat part in middle, so it goes in on both sides and has a long narrow "capsule" in the middle
-- [ ] other solar panel arm variations 
+- [ ] Connector: long construction beam type
+- [ ] Connector: flat part in middle, so it goes in on both sides and has a long narrow "capsule" in the middle
+- [ ] other solar panel arm variations
 - [ ] two double panels sticking out from arm
 
 ### Adding weights:
