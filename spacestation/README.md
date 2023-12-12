@@ -73,7 +73,7 @@ Elements in the space stations:
 - [x] double panel variation with more beams, probably just as prob in same class
 - [ ] capula
 - [x] docking bay
-- [ ] square capsule with big window/docking bay?
+- [x] square capsule with big window/docking bay?
 - [ ] connector type with flat side + trapezoid side
 - [x] decoration: just a line sticking out, optional dot
 - [ ] Variation on square docking bay capsule with lines between outer and inner circle

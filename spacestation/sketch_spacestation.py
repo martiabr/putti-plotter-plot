@@ -337,6 +337,7 @@ class SquareCapsule(Capsule):
     def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
         self.draw_cross = np.random.rand() < self.cross_prob
+        self.draw_shaded_circle = np.random.rand() < self.shaded_circle_prob
         self.draw_rounded_corners = np.random.rand() < self.rounded_corners_prob
         self.corner_radius = 0.5 * self.width * np.random.uniform(self.corner_radius_gain_min, self.corner_radius_gain_max)
         self.border_size = self.width * np.random.uniform(self.border_gain_min, self.border_gain_max)
@@ -344,7 +345,7 @@ class SquareCapsule(Capsule):
         self.inner_circle_radius = self.outer_circle_radius * np.random.uniform(self.inner_circle_gain_min, self.inner_circle_gain_max)
         
     @classmethod
-    def update(cls, height_min, height_max, border_prob, cross_prob, rounded_corners_prob, corner_radius_gain_min, corner_radius_gain_max,
+    def update(cls, height_min, height_max, border_prob, cross_prob, shaded_circle_prob, rounded_corners_prob, corner_radius_gain_min, corner_radius_gain_max,
                border_gain_min, border_gain_max, outer_circle_gain_min, outer_circle_gain_max, inner_circle_gain_min,
                inner_circle_gain_max):
         cls.height_min = height_min
@@ -352,6 +353,7 @@ class SquareCapsule(Capsule):
         cls.width_gain_min, cls.width_gain_max = 1.0, 1.0
         cls.border_prob = border_prob
         cls.cross_prob = cross_prob
+        cls.shaded_circle_prob = shaded_circle_prob
         cls.rounded_corners_prob = rounded_corners_prob
         cls.corner_radius_gain_min = corner_radius_gain_min
         cls.corner_radius_gain_max = corner_radius_gain_max
@@ -378,6 +380,12 @@ class SquareCapsule(Capsule):
         
         sketch.circle(0, 0, radius=self.outer_circle_radius)
         sketch.circle(0, 0, radius=self.inner_circle_radius)
+        
+        if self.draw_shaded_circle:
+            with sketch.pushMatrix():
+                for theta in np.linspace(0, 2 * np.pi, num=self.num_lines_shaded_circle, endpoint=False):
+                    sketch.line(0, self.outer_circle_radius, 0, self.inner_circle_radius)
+                    sketch.rotate(theta)
         
         if self.draw_cross:
             with sketch.pushMatrix():
@@ -874,6 +882,7 @@ class SpacestationSketch(vsketch.SketchClass):
     capsule_square_border_gain_max = vsketch.Param(0.8, min_value=0)
     capsule_square_rounded_corners_prob = vsketch.Param(0.3, min_value=0)
     capsule_square_cross_prob = vsketch.Param(0.5, min_value=0)
+    capsule_square_shaded_circle_prob = vsketch.Param(0.5, min_value=0)
     capsule_square_corner_radius_gain_min = vsketch.Param(0.05, min_value=0)
     capsule_square_corner_radius_gain_max = vsketch.Param(0.2, min_value=0)
     capsule_square_outer_circle_gain_min = vsketch.Param(0.5, min_value=0)
@@ -995,9 +1004,9 @@ class SpacestationSketch(vsketch.SketchClass):
                                   self.capsule_normal_lines_double_dist_gain_max, self.capsule_normal_lines_num_lines_multi_min, self.capsule_normal_lines_num_lines_multi_max, 
                                   self.capsule_normal_lines_double_multi_dist_gain_min, self.capsule_normal_lines_double_multi_dist_gain_max)
         SquareCapsule.update(self.capsule_square_height_min, self.capsule_square_height_max, self.capsule_square_border_prob, 
-                             self.capsule_square_cross_prob, self.capsule_square_rounded_corners_prob, self.capsule_square_corner_radius_gain_min, 
-                             self.capsule_square_corner_radius_gain_max, self.capsule_square_border_gain_min, self.capsule_square_border_gain_max, 
-                             self.capsule_square_outer_circle_gain_min, self.capsule_square_outer_circle_gain_max, 
+                             self.capsule_square_cross_prob, self.capsule_square_shaded_circle_prob, self.capsule_square_rounded_corners_prob, 
+                             self.capsule_square_corner_radius_gain_min, self.capsule_square_corner_radius_gain_max, self.capsule_square_border_gain_min, 
+                             self.capsule_square_border_gain_max, self.capsule_square_outer_circle_gain_min, self.capsule_square_outer_circle_gain_max, 
                              self.capsule_square_inner_circle_gain_min, self.capsule_square_inner_circle_gain_max)
         
         # Connectors:
