@@ -343,11 +343,12 @@ class SquareCapsule(Capsule):
         self.border_size = self.width * np.random.uniform(self.border_gain_min, self.border_gain_max)
         self.outer_circle_radius = 0.5 * self.width * np.random.uniform(self.outer_circle_gain_min, self.outer_circle_gain_max)
         self.inner_circle_radius = self.outer_circle_radius * np.random.uniform(self.inner_circle_gain_min, self.inner_circle_gain_max)
+        self.num_lines_shaded_circle = np.random.randint(self.num_lines_shaded_circle_min, self.num_lines_shaded_circle_max)
         
     @classmethod
     def update(cls, height_min, height_max, border_prob, cross_prob, shaded_circle_prob, rounded_corners_prob, corner_radius_gain_min, corner_radius_gain_max,
                border_gain_min, border_gain_max, outer_circle_gain_min, outer_circle_gain_max, inner_circle_gain_min,
-               inner_circle_gain_max):
+               inner_circle_gain_max, num_lines_shaded_circle_min, num_lines_shaded_circle_max):
         cls.height_min = height_min
         cls.height_max = height_max
         cls.width_gain_min, cls.width_gain_max = 1.0, 1.0
@@ -363,6 +364,8 @@ class SquareCapsule(Capsule):
         cls.outer_circle_gain_max = outer_circle_gain_max
         cls.inner_circle_gain_min = inner_circle_gain_min
         cls.inner_circle_gain_max = inner_circle_gain_max
+        cls.num_lines_shaded_circle_min = num_lines_shaded_circle_min
+        cls.num_lines_shaded_circle_max = num_lines_shaded_circle_max
         
     def draw(self):
         sketch = get_empty_sketch()
@@ -383,7 +386,9 @@ class SquareCapsule(Capsule):
         
         if self.draw_shaded_circle:
             with sketch.pushMatrix():
-                for theta in np.linspace(0, 2 * np.pi, num=self.num_lines_shaded_circle, endpoint=False):
+                print(self.num_lines_shaded_circle)
+                theta = 2 * np.pi / self.num_lines_shaded_circle
+                for i in range(self.num_lines_shaded_circle):
                     sketch.line(0, self.outer_circle_radius, 0, self.inner_circle_radius)
                     sketch.rotate(theta)
         
@@ -889,6 +894,8 @@ class SpacestationSketch(vsketch.SketchClass):
     capsule_square_outer_circle_gain_max = vsketch.Param(0.7, min_value=0)
     capsule_square_inner_circle_gain_min = vsketch.Param(0.6, min_value=0)
     capsule_square_inner_circle_gain_max = vsketch.Param(0.95, min_value=0)
+    capsule_square_num_lines_shaded_circle_min = vsketch.Param(6, min_value=0)
+    capsule_square_num_lines_shaded_circle_max = vsketch.Param(20, min_value=0)
     
     capsule_3d_num_lines_min = vsketch.Param(5, min_value=0)
     capsule_3d_num_lines_max = vsketch.Param(20, min_value=0)
@@ -1007,7 +1014,8 @@ class SpacestationSketch(vsketch.SketchClass):
                              self.capsule_square_cross_prob, self.capsule_square_shaded_circle_prob, self.capsule_square_rounded_corners_prob, 
                              self.capsule_square_corner_radius_gain_min, self.capsule_square_corner_radius_gain_max, self.capsule_square_border_gain_min, 
                              self.capsule_square_border_gain_max, self.capsule_square_outer_circle_gain_min, self.capsule_square_outer_circle_gain_max, 
-                             self.capsule_square_inner_circle_gain_min, self.capsule_square_inner_circle_gain_max)
+                             self.capsule_square_inner_circle_gain_min, self.capsule_square_inner_circle_gain_max, self.capsule_square_num_lines_shaded_circle_min,
+                             self.capsule_square_num_lines_shaded_circle_max)
         
         # Connectors:
         Connector.update(self.connector_height_min, self.connector_height_max, self.connector_from_height_gain_min,
