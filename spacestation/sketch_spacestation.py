@@ -257,6 +257,7 @@ class CapsuleNormalLines(Capsule):
     def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
         self.draw_random, self.draw_double_thin, self.draw_double_flat, self.draw_double_multi, self.draw_double_shaded, self.draw_double_black = False, False, False, False, False, False
+        # TODO: change this to use pick random element instead, this is too clunky.
         choice = np.random.rand()
         if choice < self.prob_random:
             self.draw_random = True
@@ -264,7 +265,7 @@ class CapsuleNormalLines(Capsule):
         else:
             self.double_offset = 0.5 * self.width * np.random.uniform(self.double_offset_gain_min, self.double_offset_gain_max)
             self.double_dist = 0.5 * self.width * np.random.uniform(self.double_dist_gain_min, self.double_dist_gain_max)
-            if choice < self.prob_double_thin:
+            if choice < self.prob_random + self.prob_double_thin:
                 self.draw_double_thin = True
             elif choice < self.prob_double_flat:
                 self.draw_double_flat = True
@@ -278,10 +279,25 @@ class CapsuleNormalLines(Capsule):
                 self.draw_double_black = True
         
     @classmethod
-    def update(cls, num_lines_rand_min, num_lines_rand_max):
+    def update(cls, prob_random, prob_double_thin, prob_double_flat, prob_double_multi, prob_double_shaded, prob_double_black, 
+               num_lines_rand_min, num_lines_rand_max, double_offset_gain_min, double_offset_gain_max, double_dist_gain_min, 
+               double_dist_gain_max, num_lines_multi_min, num_lines_multi_max, double_multi_dist_gain_min, double_multi_dist_gain_max):
+        cls.prob_random = prob_random
+        cls.prob_double_thin = prob_double_thin
+        cls.prob_double_flat = prob_double_flat
+        cls.prob_double_multi = prob_double_multi
+        cls.prob_double_shaded = prob_double_shaded
+        cls.prob_double_black = prob_double_black
         cls.num_lines_rand_min = num_lines_rand_min
         cls.num_lines_rand_max = num_lines_rand_max
-        # TODO
+        cls.double_offset_gain_min = double_offset_gain_min
+        cls.double_offset_gain_max = double_offset_gain_max
+        cls.double_dist_gain_min = double_dist_gain_min
+        cls.double_dist_gain_max = double_dist_gain_max
+        cls.num_lines_multi_min = num_lines_multi_min
+        cls.num_lines_multi_max = num_lines_multi_max
+        cls.double_multi_dist_gain_min = double_multi_dist_gain_min
+        cls.double_multi_dist_gain_max = double_multi_dist_gain_max
         
     def draw(self):
         sketch = self.init_sketch(center=True)
@@ -806,6 +822,7 @@ class SpacestationSketch(vsketch.SketchClass):
     prob_capsule_variation_1 = vsketch.Param(1.0, min_value=0.0)
     prob_capsule_3d = vsketch.Param(0.5, min_value=0.0)
     prob_capsule_parallel_lines = vsketch.Param(0.5, min_value=0.0)
+    prob_capsule_normal_lines = vsketch.Param(0.5, min_value=0.0)
     prob_capsule_square = vsketch.Param(0.2, min_value=0.0)
     
     prob_connector_variation_1 = vsketch.Param(1.0, min_value=0.0)
@@ -832,6 +849,23 @@ class SpacestationSketch(vsketch.SketchClass):
     capsule_height_max = vsketch.Param(2.0, min_value=0)
     capsule_width_gain_min = vsketch.Param(1.0, min_value=0)
     capsule_width_gain_max = vsketch.Param(3.0, min_value=0)
+    
+    capsule_normal_lines_prob_random = vsketch.Param(0.3, min_value=0)
+    capsule_normal_lines_prob_double_thin = vsketch.Param(0.1, min_value=0)
+    capsule_normal_lines_prob_double_flat = vsketch.Param(0.1, min_value=0)
+    capsule_normal_lines_prob_double_multi = vsketch.Param(0.1, min_value=0)
+    capsule_normal_lines_prob_double_shaded = vsketch.Param(0.2, min_value=0)
+    capsule_normal_lines_prob_double_black = vsketch.Param(0.2, min_value=0)
+    capsule_normal_lines_num_lines_rand_min = vsketch.Param(1, min_value=0)
+    capsule_normal_lines_num_lines_rand_max = vsketch.Param(9, min_value=0)
+    capsule_normal_lines_double_offset_gain_min = vsketch.Param(0.1, min_value=0)
+    capsule_normal_lines_double_offset_gain_max = vsketch.Param(0.2, min_value=0)
+    capsule_normal_lines_double_dist_gain_min = vsketch.Param(0.1, min_value=0)
+    capsule_normal_lines_double_dist_gain_max = vsketch.Param(0.2, min_value=0)
+    capsule_normal_lines_num_lines_multi_min = vsketch.Param(3, min_value=0)
+    capsule_normal_lines_num_lines_multi_max = vsketch.Param(6, min_value=0)
+    capsule_normal_lines_double_multi_dist_gain_min = vsketch.Param(0.1, min_value=0)
+    capsule_normal_lines_double_multi_dist_gain_max = vsketch.Param(0.2, min_value=0)
     
     capsule_square_height_min = vsketch.Param(0.6, min_value=0)
     capsule_square_height_max = vsketch.Param(1.6, min_value=0)
@@ -935,14 +969,15 @@ class SpacestationSketch(vsketch.SketchClass):
         self.probs_modules_normal = normalize_mat_to_row_sum_one(probs_normal)
         
         self.module_type_probs = {Capsule: normalize_vec_to_sum_one([self.prob_capsule_variation_1, self.prob_capsule_3d, 
-                                                                     self.prob_capsule_parallel_lines, self.prob_capsule_square]),
+                                                                     self.prob_capsule_parallel_lines, self.prob_capsule_normal_lines, 
+                                                                     self.prob_capsule_square]),
                                   Connector: normalize_vec_to_sum_one([self.prob_connector_variation_1]),
                                   SolarPanel: normalize_vec_to_sum_one([self.prob_solar_single, self.prob_solar_double]),
                                   Decoration: normalize_vec_to_sum_one([self.prob_dectoration_antenna, self.prob_decoration_dock_black,
                                                                         self.prob_decoration_dock])}
     
     def init_modules(self):
-        self.module_types = {Capsule: [CapsuleVariation1, Capsule3D, CapsuleParallelLines, SquareCapsule],
+        self.module_types = {Capsule: [CapsuleVariation1, Capsule3D, CapsuleParallelLines, CapsuleNormalLines, SquareCapsule],
                              Connector: [ConnectorVariation1],
                              SolarPanel: [SolarPanelSingle, SolarPanelDouble],
                              Decoration: [Antenna, DockingBayBlack, DockingBay]}
@@ -952,6 +987,13 @@ class SpacestationSketch(vsketch.SketchClass):
                        self.capsule_width_gain_max)
         Capsule3D.update(self.capsule_3d_num_lines_min, self.capsule_3d_num_lines_max)
         CapsuleParallelLines.update(self.capsule_parallel_lines_num_lines_min, self.capsule_parallel_lines_num_lines_max)
+        CapsuleNormalLines.update(self.capsule_normal_lines_prob_random, self.capsule_normal_lines_prob_double_thin, self.capsule_normal_lines_prob_double_flat, 
+                                  self.capsule_normal_lines_prob_double_multi, self.capsule_normal_lines_prob_double_shaded, 
+                                  self.capsule_normal_lines_prob_double_black, self.capsule_normal_lines_num_lines_rand_min, 
+                                  self.capsule_normal_lines_num_lines_rand_max, self.capsule_normal_lines_double_offset_gain_min, 
+                                  self.capsule_normal_lines_double_offset_gain_max, self.capsule_normal_lines_double_dist_gain_min, 
+                                  self.capsule_normal_lines_double_dist_gain_max, self.capsule_normal_lines_num_lines_multi_min, self.capsule_normal_lines_num_lines_multi_max, 
+                                  self.capsule_normal_lines_double_multi_dist_gain_min, self.capsule_normal_lines_double_multi_dist_gain_max)
         SquareCapsule.update(self.capsule_square_height_min, self.capsule_square_height_max, self.capsule_square_border_prob, 
                              self.capsule_square_cross_prob, self.capsule_square_rounded_corners_prob, self.capsule_square_corner_radius_gain_min, 
                              self.capsule_square_corner_radius_gain_max, self.capsule_square_border_gain_min, self.capsule_square_border_gain_max, 
