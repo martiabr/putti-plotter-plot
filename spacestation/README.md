@@ -93,6 +93,8 @@ Elements in the space stations:
 - [ ] other solar panel arm variations
 - [ ] two double panels sticking out from arm
 
+- [ ] limit certain parameters (solar panels especially) to be sketch-wide instead of sampled for every module
+
 ### Adding weights:
 Atm we loop over the structures, add all sides to a list, with idx. However, the weights must be maintained over time.
 Or do they? For now the purpose of the weights are only to favour continuing in the same direction. And the direction we know.

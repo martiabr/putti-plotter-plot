@@ -94,7 +94,10 @@ class Module:
             height = from_height
         else:
             height_max = np.min((cls.height_max, from_height)) if limit_height_by_from_height else cls.height_max
-            height = rng.uniform(cls.height_min, height_max)
+            if height_max < cls.height_min:
+                height = height_max
+            else:
+                height = rng.uniform(cls.height_min, height_max)
         width = height * rng.uniform(cls.width_gain_min, cls.width_gain_max)
         return width, height
     
@@ -256,20 +259,23 @@ class CapsuleParallelLines(Capsule):
 class CapsuleNormalLines(Capsule):
     def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
-        self.draw_choices = ["RANDOM", "DOUBLE_THIN", "DOUBLE_FLAT", "DOUBLE_MULTI", "DOUBLE_SHADED", "DOUBLE_BLACK"]
+        self.draw_choices = ["RANDOM", "DOUBLE_THIN", "DOUBLE_FLAT", "DOUBLE_MULTI", "DOUBLE_MULTI_RANDOM", "DOUBLE_SHADED", "DOUBLE_BLACK"]
         self.draw_choice = pick_random_element(self.draw_choices, self.probs)
         if self.draw_choice == "RANDOM":
             self.num_lines_rand = np.random.randint(self.num_lines_rand_min, self.num_lines_rand_max + 1)
         else:
             self.double_offset = 0.5 * self.width * np.random.uniform(self.double_offset_gain_min, self.double_offset_gain_max)
             self.double_dist = 0.5 * self.width * np.random.uniform(self.double_dist_gain_min, self.double_dist_gain_max)
-            if self.draw_choice == "DOUBLE_MULTI":
+            if self.draw_choice in ("DOUBLE_MULTI", "DOUBLE_MULTI_RANDOM"):
                 self.num_lines_multi = np.random.randint(self.num_lines_multi_min, self.num_lines_multi_max + 1)
                 self.double_multi_dist = 0.5 * self.width * np.random.uniform(self.double_multi_dist_gain_min, self.double_multi_dist_gain_max)
+            elif self.draw_choice == "DOUBLE_SHADED":
+                self.double_shaded_dist = np.random.uniform(self.double_shaded_dist_min, self.double_shaded_dist_max)
         
     @classmethod
     def update(cls, probs, num_lines_rand_min, num_lines_rand_max, double_offset_gain_min, double_offset_gain_max, double_dist_gain_min, 
-               double_dist_gain_max, num_lines_multi_min, num_lines_multi_max, double_multi_dist_gain_min, double_multi_dist_gain_max):
+               double_dist_gain_max, num_lines_multi_min, num_lines_multi_max, double_multi_dist_gain_min, double_multi_dist_gain_max,
+               double_shaded_dist_min, double_shaded_dist_max):
         cls.probs = probs
         cls.num_lines_rand_min = num_lines_rand_min
         cls.num_lines_rand_max = num_lines_rand_max
@@ -281,6 +287,8 @@ class CapsuleNormalLines(Capsule):
         cls.num_lines_multi_max = num_lines_multi_max
         cls.double_multi_dist_gain_min = double_multi_dist_gain_min
         cls.double_multi_dist_gain_max = double_multi_dist_gain_max
+        cls.double_shaded_dist_min = double_shaded_dist_min
+        cls.double_shaded_dist_max = double_shaded_dist_max
         
     def draw(self):
         sketch = self.init_sketch(center=True)
@@ -301,15 +309,20 @@ class CapsuleNormalLines(Capsule):
                 sketch.line(-line_pos_2, -0.5 * self.height, -line_pos_2, 0.5 * self.height)
                 sketch.line(line_pos_1, -0.5 * self.height, line_pos_1, 0.5 * self.height)
                 sketch.line(line_pos_2, -0.5 * self.height, line_pos_2, 0.5 * self.height)
-            elif self.draw_choice == "DOUBLE_MULTI":
+            if self.draw_choice in ("DOUBLE_MULTI", "DOUBLE_MULTI_RANDOM"):
                 line_pos_1 = line_pos + 0.5 * self.double_multi_dist
                 line_pos_2 = line_pos - 0.5 * self.double_multi_dist
-                for x in np.random.uniform(line_pos_1, line_pos_2, size=self.num_lines_multi):
-                    sketch.line(-x, -0.5 * self.height, -x, 0.5 * self.height)
-                    sketch.line(x, -0.5 * self.height, x, 0.5 * self.height)
+                if self.draw_choice == "DOUBLE_MULTI":
+                    for x in np.linspace(line_pos_1, line_pos_2, num=self.num_lines_multi):
+                        sketch.line(-x, -0.5 * self.height, -x, 0.5 * self.height)
+                        sketch.line(x, -0.5 * self.height, x, 0.5 * self.height)
+                else:
+                    for x in np.random.uniform(line_pos_1, line_pos_2, size=self.num_lines_multi):
+                        sketch.line(-x, -0.5 * self.height, -x, 0.5 * self.height)
+                        sketch.line(x, -0.5 * self.height, x, 0.5 * self.height)
             elif self.draw_choice == "DOUBLE_SHADED":
-                sketch.sketch(draw_shaded_rect(line_pos, 0, self.double_dist, self.height, dist=self.double_shaded_dist))
-                sketch.sketch(draw_shaded_rect(-line_pos, 0, self.double_dist, self.height, dist=self.double_shaded_dist))
+                sketch.sketch(draw_shaded_rect(line_pos, 0, self.double_dist, self.height, fill_distance=self.double_shaded_dist))
+                sketch.sketch(draw_shaded_rect(-line_pos, 0, self.double_dist, self.height, fill_distance=self.double_shaded_dist))
             elif self.draw_choice == "DOUBLE_BLACK":
                 sketch.sketch(draw_filled_rect(line_pos, 0, self.double_dist, self.height))
                 sketch.sketch(draw_filled_rect(-line_pos, 0, self.double_dist, self.height))
@@ -326,7 +339,7 @@ class SquareCapsule(Capsule):
         self.border_size = self.width * np.random.uniform(self.border_gain_min, self.border_gain_max)
         self.outer_circle_radius = 0.5 * self.width * np.random.uniform(self.outer_circle_gain_min, self.outer_circle_gain_max)
         self.inner_circle_radius = self.outer_circle_radius * np.random.uniform(self.inner_circle_gain_min, self.inner_circle_gain_max)
-        self.num_lines_shaded_circle = np.random.randint(self.num_lines_shaded_circle_min, self.num_lines_shaded_circle_max)
+        self.num_lines_shaded_circle = 2 * int(0.5 * np.random.randint(self.num_lines_shaded_circle_min, self.num_lines_shaded_circle_max))
         
     @classmethod
     def update(cls, height_min, height_max, border_prob, cross_prob, shaded_circle_prob, rounded_corners_prob, corner_radius_gain_min, corner_radius_gain_max,
@@ -369,7 +382,6 @@ class SquareCapsule(Capsule):
         
         if self.draw_shaded_circle:
             with sketch.pushMatrix():
-                print(self.num_lines_shaded_circle)
                 theta = 2 * np.pi / self.num_lines_shaded_circle
                 for i in range(self.num_lines_shaded_circle):
                     sketch.line(0, self.outer_circle_radius, 0, self.inner_circle_radius)
@@ -722,9 +734,9 @@ class StationGenerator:
                 
                 # Pick random width and height:
                 # TODO: if this gets more complicated build args dict and input **args instead
-                if issubclass(module_class, Capsule) and isinstance(from_module, Connector):
+                if issubclass(module_class, Capsule) and isinstance(from_module, Connector):  # if capsule coming from connector
                     width, height = module_class.sample_bb_dims(self.rng, from_height=from_module.end_height, match_from_height=True)
-                elif issubclass(module_class, Connector):
+                elif issubclass(module_class, Connector):  # if connector
                     are_normal = directions_are_normal(dir, from_module.direction)
                     if are_normal:
                         width, height = module_class.sample_bb_dims(self.rng, from_module.width, limit_height_by_from_height=True)
@@ -733,6 +745,8 @@ class StationGenerator:
                     else:
                         width, height = module_class.sample_bb_dims(self.rng, from_module.height, limit_height_by_from_height=True)
                 else:
+                    print(module_class)
+                    print(module_class.height_min, module_class.height_max, from_module.height)
                     width, height = module_class.sample_bb_dims(self.rng, from_module.height)
                 module = module_class(x, y, width, height, dir, from_module=from_module)
             else:
@@ -847,21 +861,24 @@ class SpacestationSketch(vsketch.SketchClass):
     capsule_width_gain_max = vsketch.Param(3.0, min_value=0)
     
     capsule_normal_lines_prob_random = vsketch.Param(0.3, min_value=0)
-    capsule_normal_lines_prob_double_thin = vsketch.Param(0.1, min_value=0)
+    capsule_normal_lines_prob_double_thin = vsketch.Param(0.15, min_value=0)
     capsule_normal_lines_prob_double_flat = vsketch.Param(0.1, min_value=0)
     capsule_normal_lines_prob_double_multi = vsketch.Param(0.1, min_value=0)
+    capsule_normal_lines_prob_double_multi_random = vsketch.Param(0.1, min_value=0)
     capsule_normal_lines_prob_double_shaded = vsketch.Param(0.2, min_value=0)
-    capsule_normal_lines_prob_double_black = vsketch.Param(0.2, min_value=0)
+    capsule_normal_lines_prob_double_black = vsketch.Param(0.15, min_value=0)
     capsule_normal_lines_num_lines_rand_min = vsketch.Param(1, min_value=0)
     capsule_normal_lines_num_lines_rand_max = vsketch.Param(9, min_value=0)
     capsule_normal_lines_double_offset_gain_min = vsketch.Param(0.1, min_value=0)
-    capsule_normal_lines_double_offset_gain_max = vsketch.Param(0.2, min_value=0)
-    capsule_normal_lines_double_dist_gain_min = vsketch.Param(0.1, min_value=0)
+    capsule_normal_lines_double_offset_gain_max = vsketch.Param(0.3, min_value=0)
+    capsule_normal_lines_double_dist_gain_min = vsketch.Param(0.02, min_value=0)
     capsule_normal_lines_double_dist_gain_max = vsketch.Param(0.2, min_value=0)
     capsule_normal_lines_num_lines_multi_min = vsketch.Param(3, min_value=0)
     capsule_normal_lines_num_lines_multi_max = vsketch.Param(6, min_value=0)
     capsule_normal_lines_double_multi_dist_gain_min = vsketch.Param(0.1, min_value=0)
-    capsule_normal_lines_double_multi_dist_gain_max = vsketch.Param(0.2, min_value=0)
+    capsule_normal_lines_double_multi_dist_gain_max = vsketch.Param(0.3, min_value=0)
+    capsule_normal_lines_double_shaded_dist_min = vsketch.Param(0.02, min_value=0)
+    capsule_normal_lines_double_shaded_dist_max = vsketch.Param(0.2, min_value=0)
     
     capsule_square_height_min = vsketch.Param(0.6, min_value=0)
     capsule_square_height_max = vsketch.Param(1.6, min_value=0)
@@ -977,6 +994,7 @@ class SpacestationSketch(vsketch.SketchClass):
         
         probs_capsule_normal_line = np.array([self.capsule_normal_lines_prob_random, self.capsule_normal_lines_prob_double_thin, 
                                               self.capsule_normal_lines_prob_double_flat, self.capsule_normal_lines_prob_double_multi,
+                                              self.capsule_normal_lines_prob_double_multi_random,
                                               self.capsule_normal_lines_prob_double_shaded, self.capsule_normal_lines_prob_double_black])
         self.capsule_normal_lines_probs = normalize_vec_to_sum_one(probs_capsule_normal_line)
     
@@ -994,8 +1012,10 @@ class SpacestationSketch(vsketch.SketchClass):
         CapsuleNormalLines.update(self.capsule_normal_lines_probs, self.capsule_normal_lines_num_lines_rand_min, 
                                   self.capsule_normal_lines_num_lines_rand_max, self.capsule_normal_lines_double_offset_gain_min, 
                                   self.capsule_normal_lines_double_offset_gain_max, self.capsule_normal_lines_double_dist_gain_min, 
-                                  self.capsule_normal_lines_double_dist_gain_max, self.capsule_normal_lines_num_lines_multi_min, self.capsule_normal_lines_num_lines_multi_max, 
-                                  self.capsule_normal_lines_double_multi_dist_gain_min, self.capsule_normal_lines_double_multi_dist_gain_max)
+                                  self.capsule_normal_lines_double_dist_gain_max, self.capsule_normal_lines_num_lines_multi_min, 
+                                  self.capsule_normal_lines_num_lines_multi_max, self.capsule_normal_lines_double_multi_dist_gain_min, 
+                                  self.capsule_normal_lines_double_multi_dist_gain_max, self.capsule_normal_lines_double_shaded_dist_min,
+                                  self.capsule_normal_lines_double_shaded_dist_max)
         SquareCapsule.update(self.capsule_square_height_min, self.capsule_square_height_max, self.capsule_square_border_prob, 
                              self.capsule_square_cross_prob, self.capsule_square_shaded_circle_prob, self.capsule_square_rounded_corners_prob, 
                              self.capsule_square_corner_radius_gain_min, self.capsule_square_corner_radius_gain_max, self.capsule_square_border_gain_min, 
