@@ -556,24 +556,27 @@ class Decoration(Module):
 class Antenna(Decoration):
     def __init__(self, x, y, width, height, direction, from_module):
         super().__init__(x, y, width, height, direction, from_module)
-        self.draw_dot = np.random.rand() < self.dot_prob
+        self.antenna_types = ["EMPTY", "DOT", "SQUARE"]
+        self.antenna_choice = pick_random_element(self.antenna_types, self.probs)
         self.dot_radius = np.random.uniform(self.dot_radius_min, self.dot_radius_max)
         
     @classmethod
-    def update(cls, height_min, height_max, width_gain_min, width_gain_max, dot_prob, dot_radius_min, 
+    def update(cls, height_min, height_max, width_gain_min, width_gain_max, probs, dot_radius_min, 
                dot_radius_max):
         super(Antenna, cls).update(height_min, height_max, width_gain_min, width_gain_max)
-        cls.dot_prob = dot_prob
+        cls.probs = probs
         cls.dot_radius_min = dot_radius_min
         cls.dot_radius_max = dot_radius_max
 
     def draw(self):
         sketch = self.init_sketch()
-
-        if self.draw_dot:
+        if self.antenna_choice in ("DOT", "SQUARE"):
             sketch.line(0, 0, self.width - 2 * self.dot_radius, 0)
-            sketch.circle(self.width - self.dot_radius, 0, radius=self.dot_radius)
-        else:
+            if self.antenna_choice == "DOT":
+                sketch.circle(self.width - self.dot_radius, 0, radius=self.dot_radius)
+            else:
+                sketch.square(self.width - self.dot_radius, 0, self.dot_radius, mode="radius")
+        elif self.antenna_choice == "EMPTY":
             sketch.line(0, 0, self.width, 0)
         return sketch
 
@@ -745,8 +748,6 @@ class StationGenerator:
                     else:
                         width, height = module_class.sample_bb_dims(self.rng, from_module.height, limit_height_by_from_height=True)
                 else:
-                    print(module_class)
-                    print(module_class.height_min, module_class.height_max, from_module.height)
                     width, height = module_class.sample_bb_dims(self.rng, from_module.height)
                 module = module_class(x, y, width, height, dir, from_module=from_module)
             else:
@@ -840,7 +841,7 @@ class SpacestationSketch(vsketch.SketchClass):
     prob_solar_single = vsketch.Param(1.0, min_value=0.0)
     prob_solar_double = vsketch.Param(1.0, min_value=0.0)
     
-    prob_dectoration_antenna = vsketch.Param(0.5, min_value=0.0)
+    prob_decoration_antenna = vsketch.Param(0.5, min_value=0.0)
     prob_decoration_dock_black = vsketch.Param(1.0, min_value=0.0)
     prob_decoration_dock = vsketch.Param(3.0, min_value=0.0)
     
@@ -935,7 +936,9 @@ class SpacestationSketch(vsketch.SketchClass):
     antenna_height_max = vsketch.Param(0.15, min_value=0)
     antenna_width_gain_min = vsketch.Param(1.0, min_value=0)
     antenna_width_gain_max = vsketch.Param(3.0, min_value=0)
+    antenna_empty_prob = vsketch.Param(0.5, min_value=0)
     antenna_dot_prob = vsketch.Param(0.5, min_value=0)
+    antenna_square_prob = vsketch.Param(0.5, min_value=0)
     antenna_dot_radius_min = vsketch.Param(0.01, min_value=0)
     antenna_dot_radius_max = vsketch.Param(0.03, min_value=0)
     
@@ -989,7 +992,7 @@ class SpacestationSketch(vsketch.SketchClass):
                                                                      self.prob_capsule_square]),
                                   Connector: normalize_vec_to_sum_one([self.prob_connector_variation_1]),
                                   SolarPanel: normalize_vec_to_sum_one([self.prob_solar_single, self.prob_solar_double]),
-                                  Decoration: normalize_vec_to_sum_one([self.prob_dectoration_antenna, self.prob_decoration_dock_black,
+                                  Decoration: normalize_vec_to_sum_one([self.prob_decoration_antenna, self.prob_decoration_dock_black,
                                                                         self.prob_decoration_dock])}
         
         probs_capsule_normal_line = np.array([self.capsule_normal_lines_prob_random, self.capsule_normal_lines_prob_double_thin, 
@@ -997,6 +1000,9 @@ class SpacestationSketch(vsketch.SketchClass):
                                               self.capsule_normal_lines_prob_double_multi_random,
                                               self.capsule_normal_lines_prob_double_shaded, self.capsule_normal_lines_prob_double_black])
         self.capsule_normal_lines_probs = normalize_vec_to_sum_one(probs_capsule_normal_line)
+    
+        probs_antenna = np.array([self.antenna_empty_prob, self.antenna_dot_prob, self.antenna_square_prob])
+        self.antenna_probs = normalize_vec_to_sum_one(probs_antenna)
     
     def init_modules(self):
         self.module_types = {Capsule: [CapsuleVariation1, Capsule3D, CapsuleParallelLines, CapsuleNormalLines, SquareCapsule],
@@ -1039,7 +1045,7 @@ class SpacestationSketch(vsketch.SketchClass):
 
         # Decorations:
         Antenna.update(self.antenna_height_min, self.antenna_height_max, self.antenna_width_gain_min,
-                       self.antenna_width_gain_max, self.antenna_dot_prob, self.antenna_dot_radius_min,
+                       self.antenna_width_gain_max, self.antenna_probs, self.antenna_dot_radius_min,
                        self.antenna_dot_radius_max)        
         DockingBayBlack.update(self.dock_black_height_min, self.dock_black_height_max, self.dock_black_width_gain_min,
                                self.dock_black_width_gain_max)
