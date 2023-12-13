@@ -258,36 +258,31 @@ class CapsuleNormalLines(Capsule):
         super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
         self.draw_random, self.draw_double_thin, self.draw_double_flat, self.draw_double_multi, self.draw_double_shaded, self.draw_double_black = False, False, False, False, False, False
         # TODO: change this to use pick random element instead, this is too clunky.
-        choice = np.random.rand()
-        if choice < self.prob_random:
+        choices = ["RANDOM", "DOUBLE_THIN", "DOUBLE_FLAT", "DOUBLE_MULTI", "DOUBLE_SHADED", "DOUBLE_BLACK"]
+        choice = pick_random_element(choices, self.probs)
+        if choice == "RANDOM":
             self.draw_random = True
             self.num_lines_rand = np.random.randint(self.num_lines_rand_min, self.num_lines_rand_max + 1)
         else:
             self.double_offset = 0.5 * self.width * np.random.uniform(self.double_offset_gain_min, self.double_offset_gain_max)
             self.double_dist = 0.5 * self.width * np.random.uniform(self.double_dist_gain_min, self.double_dist_gain_max)
-            if choice < self.prob_random + self.prob_double_thin:
+            if choice == "DOUBLE_THIN":
                 self.draw_double_thin = True
-            elif choice < self.prob_double_flat:
+            elif choice == "DOUBLE_FLAT":
                 self.draw_double_flat = True
-            elif choice < self.prob_double_multi:
+            elif choice == "DOUBLE_MULTI":
                 self.num_lines_multi = np.random.randint(self.num_lines_multi_min, self.num_lines_multi_max + 1)
                 self.double_multi_dist = 0.5 * self.width * np.random.uniform(self.double_multi_dist_gain_min, self.double_multi_dist_gain_max)
                 self.draw_double_multi = True
-            elif choice < self.prob_double_shaded:
+            elif choice == "DOUBLE_SHADED":
                 self.draw_double_shaded = True
-            elif choice < self.prob_double_black:
+            elif choice == "DOUBLE_BLACK":
                 self.draw_double_black = True
         
     @classmethod
-    def update(cls, prob_random, prob_double_thin, prob_double_flat, prob_double_multi, prob_double_shaded, prob_double_black, 
-               num_lines_rand_min, num_lines_rand_max, double_offset_gain_min, double_offset_gain_max, double_dist_gain_min, 
+    def update(cls, probs, num_lines_rand_min, num_lines_rand_max, double_offset_gain_min, double_offset_gain_max, double_dist_gain_min, 
                double_dist_gain_max, num_lines_multi_min, num_lines_multi_max, double_multi_dist_gain_min, double_multi_dist_gain_max):
-        cls.prob_random = prob_random
-        cls.prob_double_thin = prob_double_thin
-        cls.prob_double_flat = prob_double_flat
-        cls.prob_double_multi = prob_double_multi
-        cls.prob_double_shaded = prob_double_shaded
-        cls.prob_double_black = prob_double_black
+        cls.probs = probs
         cls.num_lines_rand_min = num_lines_rand_min
         cls.num_lines_rand_max = num_lines_rand_max
         cls.double_offset_gain_min = double_offset_gain_min
@@ -991,6 +986,12 @@ class SpacestationSketch(vsketch.SketchClass):
                                   SolarPanel: normalize_vec_to_sum_one([self.prob_solar_single, self.prob_solar_double]),
                                   Decoration: normalize_vec_to_sum_one([self.prob_dectoration_antenna, self.prob_decoration_dock_black,
                                                                         self.prob_decoration_dock])}
+        
+        probs_capsule_normal_line = np.array([self.capsule_normal_lines_prob_random, self.capsule_normal_lines_prob_double_thin, 
+                                              self.capsule_normal_lines_prob_double_flat, 
+                                                self.capsule_normal_lines_prob_double_multi, self.capsule_normal_lines_prob_double_shaded, 
+                                                self.capsule_normal_lines_prob_double_black])
+        self.capsule_normal_lines_probs = normalize_vec_to_sum_one(probs_capsule_normal_line)
     
     def init_modules(self):
         self.module_types = {Capsule: [CapsuleVariation1, Capsule3D, CapsuleParallelLines, CapsuleNormalLines, SquareCapsule],
@@ -1003,9 +1004,7 @@ class SpacestationSketch(vsketch.SketchClass):
                        self.capsule_width_gain_max)
         Capsule3D.update(self.capsule_3d_num_lines_min, self.capsule_3d_num_lines_max)
         CapsuleParallelLines.update(self.capsule_parallel_lines_num_lines_min, self.capsule_parallel_lines_num_lines_max)
-        CapsuleNormalLines.update(self.capsule_normal_lines_prob_random, self.capsule_normal_lines_prob_double_thin, self.capsule_normal_lines_prob_double_flat, 
-                                  self.capsule_normal_lines_prob_double_multi, self.capsule_normal_lines_prob_double_shaded, 
-                                  self.capsule_normal_lines_prob_double_black, self.capsule_normal_lines_num_lines_rand_min, 
+        CapsuleNormalLines.update(self.capsule_normal_lines_probs, self.capsule_normal_lines_num_lines_rand_min, 
                                   self.capsule_normal_lines_num_lines_rand_max, self.capsule_normal_lines_double_offset_gain_min, 
                                   self.capsule_normal_lines_double_offset_gain_max, self.capsule_normal_lines_double_dist_gain_min, 
                                   self.capsule_normal_lines_double_dist_gain_max, self.capsule_normal_lines_num_lines_multi_min, self.capsule_normal_lines_num_lines_multi_max, 
