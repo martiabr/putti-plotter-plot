@@ -256,28 +256,16 @@ class CapsuleParallelLines(Capsule):
 class CapsuleNormalLines(Capsule):
     def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
-        self.draw_random, self.draw_double_thin, self.draw_double_flat, self.draw_double_multi, self.draw_double_shaded, self.draw_double_black = False, False, False, False, False, False
-        # TODO: change this to use pick random element instead, this is too clunky.
-        choices = ["RANDOM", "DOUBLE_THIN", "DOUBLE_FLAT", "DOUBLE_MULTI", "DOUBLE_SHADED", "DOUBLE_BLACK"]
-        choice = pick_random_element(choices, self.probs)
-        if choice == "RANDOM":
-            self.draw_random = True
+        self.draw_choices = ["RANDOM", "DOUBLE_THIN", "DOUBLE_FLAT", "DOUBLE_MULTI", "DOUBLE_SHADED", "DOUBLE_BLACK"]
+        self.draw_choice = pick_random_element(self.draw_choices, self.probs)
+        if self.draw_choice == "RANDOM":
             self.num_lines_rand = np.random.randint(self.num_lines_rand_min, self.num_lines_rand_max + 1)
         else:
             self.double_offset = 0.5 * self.width * np.random.uniform(self.double_offset_gain_min, self.double_offset_gain_max)
             self.double_dist = 0.5 * self.width * np.random.uniform(self.double_dist_gain_min, self.double_dist_gain_max)
-            if choice == "DOUBLE_THIN":
-                self.draw_double_thin = True
-            elif choice == "DOUBLE_FLAT":
-                self.draw_double_flat = True
-            elif choice == "DOUBLE_MULTI":
+            if self.draw_choice == "DOUBLE_MULTI":
                 self.num_lines_multi = np.random.randint(self.num_lines_multi_min, self.num_lines_multi_max + 1)
                 self.double_multi_dist = 0.5 * self.width * np.random.uniform(self.double_multi_dist_gain_min, self.double_multi_dist_gain_max)
-                self.draw_double_multi = True
-            elif choice == "DOUBLE_SHADED":
-                self.draw_double_shaded = True
-            elif choice == "DOUBLE_BLACK":
-                self.draw_double_black = True
         
     @classmethod
     def update(cls, probs, num_lines_rand_min, num_lines_rand_max, double_offset_gain_min, double_offset_gain_max, double_dist_gain_min, 
@@ -298,31 +286,31 @@ class CapsuleNormalLines(Capsule):
         sketch = self.init_sketch(center=True)
         sketch.rect(0, 0, self.width, self.height, mode="center")
         
-        if self.draw_random:
+        if self.draw_choice == "RANDOM":
             for x in np.random.uniform(-0.5 * self.width, 0.5 * self.width, size=self.num_lines_rand):
                 sketch.line(x, -0.5 * self.height, x, 0.5 * self.height)
         else:
             line_pos = 0.5 * self.width - self.double_offset
-            if self.draw_double_thin:
+            if self.draw_choice == "DOUBLE_THIN":
                 sketch.line(-line_pos, -0.5 * self.height, -line_pos, 0.5 * self.height)
                 sketch.line(line_pos, -0.5 * self.height, line_pos, 0.5 * self.height)
-            elif self.draw_double_flat:
+            elif self.draw_choice == "DOUBLE_FLAT":
                 line_pos_1 = line_pos + 0.5 * self.double_dist
                 line_pos_2 = line_pos - 0.5 * self.double_dist
                 sketch.line(-line_pos_1, -0.5 * self.height, -line_pos_1, 0.5 * self.height)
                 sketch.line(-line_pos_2, -0.5 * self.height, -line_pos_2, 0.5 * self.height)
                 sketch.line(line_pos_1, -0.5 * self.height, line_pos_1, 0.5 * self.height)
                 sketch.line(line_pos_2, -0.5 * self.height, line_pos_2, 0.5 * self.height)
-            elif self.draw_double_multi:
+            elif self.draw_choice == "DOUBLE_MULTI":
                 line_pos_1 = line_pos + 0.5 * self.double_multi_dist
                 line_pos_2 = line_pos - 0.5 * self.double_multi_dist
                 for x in np.random.uniform(line_pos_1, line_pos_2, size=self.num_lines_multi):
                     sketch.line(-x, -0.5 * self.height, -x, 0.5 * self.height)
                     sketch.line(x, -0.5 * self.height, x, 0.5 * self.height)
-            elif self.draw_double_shaded:
+            elif self.draw_choice == "DOUBLE_SHADED":
                 sketch.sketch(draw_shaded_rect(line_pos, 0, self.double_dist, self.height, dist=self.double_shaded_dist))
                 sketch.sketch(draw_shaded_rect(-line_pos, 0, self.double_dist, self.height, dist=self.double_shaded_dist))
-            elif self.draw_double_black:
+            elif self.draw_choice == "DOUBLE_BLACK":
                 sketch.sketch(draw_filled_rect(line_pos, 0, self.double_dist, self.height))
                 sketch.sketch(draw_filled_rect(-line_pos, 0, self.double_dist, self.height))
         return sketch
@@ -988,9 +976,8 @@ class SpacestationSketch(vsketch.SketchClass):
                                                                         self.prob_decoration_dock])}
         
         probs_capsule_normal_line = np.array([self.capsule_normal_lines_prob_random, self.capsule_normal_lines_prob_double_thin, 
-                                              self.capsule_normal_lines_prob_double_flat, 
-                                                self.capsule_normal_lines_prob_double_multi, self.capsule_normal_lines_prob_double_shaded, 
-                                                self.capsule_normal_lines_prob_double_black])
+                                              self.capsule_normal_lines_prob_double_flat, self.capsule_normal_lines_prob_double_multi,
+                                              self.capsule_normal_lines_prob_double_shaded, self.capsule_normal_lines_prob_double_black])
         self.capsule_normal_lines_probs = normalize_vec_to_sum_one(probs_capsule_normal_line)
     
     def init_modules(self):
