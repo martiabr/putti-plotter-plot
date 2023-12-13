@@ -205,6 +205,34 @@ class CapsuleVariation1(Capsule):
         return sketch
 
 
+class CapsuleMultiWindow(Capsule):
+    def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
+        super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
+        self.window_size = self.height * np.random.uniform(self.window_size_gain_min, self.window_size_gain_max)
+        self.windows_size = self.width * np.random.uniform(self.windows_size_gain_min, self.windows_size_gain_max)
+        self.nonwindows_part_size = (self.width - self.windows_size)
+        self.window_dist = self.window_size * np.random.uniform(self.window_dist_gain_min, self.window_dist_gain_max)
+        
+        # windows_size = num_windows * window_size + (num_windows - 1) * window_dist
+        # windows_size = num_windows * (window_size + window_dist) - window_dist 
+        self.num_windows = int(np.round((self.windows_size + self.window_dist) / (self.window_size + self.window_dist)))
+        
+    @classmethod
+    def update(cls, window_size_gain_min, window_size_gain_max, windows_size_gain_min, windows_size_gain_max, 
+               window_dist_gain_min, window_dist_gain_max):
+        cls.window_size_gain_min = window_size_gain_min
+        cls.window_size_gain_max = window_size_gain_max
+        cls.windows_size_gain_min = windows_size_gain_min
+        cls.windows_size_gain_max = windows_size_gain_max
+        cls.window_dist_gain_min = window_dist_gain_min
+        cls.window_dist_gain_max = window_dist_gain_max
+        
+    def draw(self):
+        sketch = self.init_sketch(center=True)
+        sketch.rect(0, 0, self.width, self.height, mode="center")
+        return sketch
+    
+
 class Capsule3D(Capsule):
     def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
@@ -212,15 +240,12 @@ class Capsule3D(Capsule):
         self.sin_stop = 0.45
         
     @classmethod
-    # def update(cls, height_min, height_max, width_gain_min, width_gain_max, num_lines_min, num_lines_max):
     def update(cls, num_lines_min, num_lines_max):
-        # super(Capsule3D, cls).update(height_min, height_max, width_gain_min, width_gain_max)
         cls.num_lines_min = num_lines_min
         cls.num_lines_max = num_lines_max
         
     def draw(self):
         sketch = self.init_sketch(center=True)
-        
         sketch.rect(0, 0, self.width, self.height, mode="center")
         
         ys = 0.5 * self.height * np.sin(np.pi * np.linspace(-self.sin_stop, self.sin_stop, num=self.num_lines))
