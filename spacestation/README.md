@@ -71,20 +71,25 @@ Elements in the space stations:
 - [ ] Quadtree grid
 - [ ] Way to only sample a subset of all structure types. Otherwise things will look very chaotic. E.g. there is a 20% chance of having inflatable capsule as an option for a drawing, but a separate prob for actually drawing it when picking the next structure to add. Another example would to be only pick n out of m solar panel types for one drawing, again to make the single drawing more cohesive.
 - [x] double panel variation with more beams, probably just as prob in same class
-- [ ] capula
 - [x] docking bay
 - [x] square capsule with big window/docking bay?
-- [ ] connector type with flat side + trapezoid side
 - [x] decoration: just a line sticking out, optional dot
-- [ ] Variation on square docking bay capsule with lines between outer and inner circle
-- [ ] Antenna: little square end
+- [x] Variation on square docking bay capsule with lines between outer and inner circle
+- [x] Double normal line capsule - just 2x2 normal lines vs. 2xline shaded vs. 2xblack vs. 2xn normal lines
+- [x] Antenna: little square end
+- [ ] Decoration: Cupola
+- [ ] Capsule: normal lines and parallel lines, add small boxes
+- [ ] Connector: flat side + trapezoid side
+- [ ] Connector: small width box with line shading.
+- [ ] Capsule: add equal distant normal lines, e.g. a module with two equal distant lines is quite distinctive.
+- [ ] Capsule: normal lines, instead of symmetric on either side, just have two lines next to each other at a random x. Also with line shading or black shading!
 - [ ] Antenna: actual little dish on the rod
+- [ ] DockingBay: shaded box in addition to the black box
 - [ ] Decoration: Just a box, or multiple boxes. Centered, or for example one box on either end. Or a tiny box on the box. Small variations like that. Or line out from the box.
-- [ ] multi window capsule, option with parallel lines on top/bottom?
-- [ ] multi small window capsule (long and narrow capsule with dot windows)
+- [ ] Capsule: multi window, option with parallel lines on top/bottom?
+- [ ] Capsule: multi small window (long and narrow capsule with dot windows)
 - [ ] really rounded corners inflatable capsule (actually decoration since no building out from it)
 - [ ] improve single solar panel with arm/connector
-- [ ] double normal line capsule - just 2x2 normal lines vs. 2xline shaded vs. 2xblack vs. 2xn normal lines
 - [ ] Capsule: just some randomly sampled normal lines
 - [ ] Connector: narrow black connector, height is just gain of smallest side
 - [ ] parallel lines capsule - just 1, 2, ... uniformly distributed or "shading" with a sine, or sine + normal lines
@@ -92,6 +97,9 @@ Elements in the space stations:
 - [ ] Connector: flat part in middle, so it goes in on both sides and has a long narrow "capsule" in the middle
 - [ ] other solar panel arm variations
 - [ ] two double panels sticking out from arm
+- [ ] Decoration: Robotic arm
+- [ ] Decoration: Rocket motor
+- [ ] Solar panel: radiators? Would be cool to keep it accurate, but how to draw in 2d?
 
 - [ ] limit certain parameters (solar panels especially) to be sketch-wide instead of sampled for every module
 

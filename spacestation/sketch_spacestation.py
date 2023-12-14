@@ -212,24 +212,44 @@ class CapsuleMultiWindow(Capsule):
         self.windows_size = self.width * np.random.uniform(self.windows_size_gain_min, self.windows_size_gain_max)
         self.nonwindows_part_size = (self.width - self.windows_size)
         self.window_dist = self.window_size * np.random.uniform(self.window_dist_gain_min, self.window_dist_gain_max)
-        
         # windows_size = num_windows * window_size + (num_windows - 1) * window_dist
-        # windows_size = num_windows * (window_size + window_dist) - window_dist 
+        # windows_size = num_windows * (window_size + window_dist) - window_dist
+        # window_dist = windows_size - num_ ...
         self.num_windows = int(np.round((self.windows_size + self.window_dist) / (self.window_size + self.window_dist)))
+        self.window_dist = (self.windows_dist - self.num_windows * self.window_size)  / (self.num_windows - 1)  # augment the "between window distance" to match the rounding to get integer number of  windows
+        self.draw_parallel_lines = np.random.rand() < self.parallel_lines_prob
+        if self.draw_parallel_lines:
+            self.parallel_line_dist = self.height * np.random.uniform(self.parallel_line_dist_gain_min, self.parallel_line_dist_gain_max)
+        self.draw_circle_windows = np.random.rand() < self.circle_windows_prob        
         
     @classmethod
     def update(cls, window_size_gain_min, window_size_gain_max, windows_size_gain_min, windows_size_gain_max, 
-               window_dist_gain_min, window_dist_gain_max):
+               window_dist_gain_min, window_dist_gain_max, parallel_lines_prob, circle_windows_prob, 
+               parallel_line_dist_gain_min, parallel_line_dist_gain_max):
         cls.window_size_gain_min = window_size_gain_min
         cls.window_size_gain_max = window_size_gain_max
         cls.windows_size_gain_min = windows_size_gain_min
         cls.windows_size_gain_max = windows_size_gain_max
         cls.window_dist_gain_min = window_dist_gain_min
         cls.window_dist_gain_max = window_dist_gain_max
+        cls.parallel_lines_prob = parallel_lines_prob
+        cls.circle_windows_prob = circle_windows_prob
+        cls.parallel_line_dist_gain_min = parallel_line_dist_gain_min
+        cls.parallel_line_dist_gain_max = parallel_line_dist_gain_max
         
     def draw(self):
         sketch = self.init_sketch(center=True)
         sketch.rect(0, 0, self.width, self.height, mode="center")
+        
+        for x in np.linspace(-0.5 * self.windows_size, 0.5 * self.windows_size):
+            if self.draw_circle_windows:
+                sketch.circle(x, 0, self.window_size)
+            else:
+                sketch.square(x, 0, self.window_size, mode="center")
+        if self.draw_parallel_lines:
+            line_y = 0.5 * self.height - self.parallel_line_dist
+            sketch.line(-0.5 * self.width, line_y, 0.5 * self.width, line_y)
+            sketch.line(-0.5 * self.width, -line_y, 0.5 * self.width, -line_y)
         return sketch
     
 
