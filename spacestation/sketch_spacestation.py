@@ -212,13 +212,13 @@ class CapsuleMultiWindow(Capsule):
         self.draw_choice = pick_random_element(self.draw_choices, self.probs)
         self.window_size = self.height * np.random.uniform(self.window_size_gain_min, self.window_size_gain_max)
         self.windows_size = self.width * np.random.uniform(self.windows_size_gain_min, self.windows_size_gain_max)
-        self.nonwindows_part_size = (self.width - self.windows_size)
+        # self.nonwindows_part_size = (self.width - self.windows_size)
         self.window_dist = self.window_size * np.random.uniform(self.window_dist_gain_min, self.window_dist_gain_max)
         # windows_size = num_windows * window_size + (num_windows - 1) * window_dist
         # windows_size = num_windows * (window_size + window_dist) - window_dist
         # window_dist = windows_size - num_ ...
         self.num_windows = int(np.round((self.windows_size + self.window_dist) / (self.window_size + self.window_dist)))
-        self.window_dist = (self.windows_dist - self.num_windows * self.window_size)  / (self.num_windows - 1)  # augment the "between window distance" to match the rounding to get integer number of  windows
+        self.window_dist = (self.window_dist - self.num_windows * self.window_size)  / (self.num_windows - 1)  # augment the "between window distance" to match the rounding to get integer number of  windows
         self.draw_parallel_lines = np.random.rand() < self.parallel_lines_prob
         if self.draw_parallel_lines:
             self.parallel_line_dist = self.height * np.random.uniform(self.parallel_line_dist_gain_min, self.parallel_line_dist_gain_max)
@@ -226,9 +226,10 @@ class CapsuleMultiWindow(Capsule):
         self.window_rounded_radius = self.window_size * np.random.uniform(self.window_rounded_radius_gain_min, self.window_rounded_radius_gain_max)
         
     @classmethod
-    def update(cls, window_size_gain_min, window_size_gain_max, windows_size_gain_min, windows_size_gain_max, 
-               window_dist_gain_min, window_dist_gain_max, parallel_lines_prob, circle_windows_prob, 
-               parallel_line_dist_gain_min, parallel_line_dist_gain_max):
+    def update(cls, probs, window_size_gain_min, window_size_gain_max, windows_size_gain_min, windows_size_gain_max, 
+               window_dist_gain_min, window_dist_gain_max, parallel_lines_prob, 
+               parallel_line_dist_gain_min, parallel_line_dist_gain_max, normal_lines_prob):
+        cls.probs = probs
         cls.window_size_gain_min = window_size_gain_min
         cls.window_size_gain_max = window_size_gain_max
         cls.windows_size_gain_min = windows_size_gain_min
@@ -236,9 +237,9 @@ class CapsuleMultiWindow(Capsule):
         cls.window_dist_gain_min = window_dist_gain_min
         cls.window_dist_gain_max = window_dist_gain_max
         cls.parallel_lines_prob = parallel_lines_prob
-        cls.circle_windows_prob = circle_windows_prob
         cls.parallel_line_dist_gain_min = parallel_line_dist_gain_min
         cls.parallel_line_dist_gain_max = parallel_line_dist_gain_max
+        cls.normal_lines_prob = normal_lines_prob
         
     def draw(self):
         sketch = self.init_sketch(center=True)
@@ -256,7 +257,8 @@ class CapsuleMultiWindow(Capsule):
             sketch.line(-0.5 * self.width, line_y, 0.5 * self.width, line_y)
             sketch.line(-0.5 * self.width, -line_y, 0.5 * self.width, -line_y)
         if self.draw_normal_lines:
-            # TODO
+            sketch.line(-0.5 * (self.width - self.windows_size), -0.5 * self.height, -0.5 * (self.width - self.windows_size), 0.5 * self.height)
+            sketch.line(0.5 * (self.width - self.windows_size), -0.5 * self.height, 0.5 * (self.width - self.windows_size), 0.5 * self.height)
         return sketch
     
 
@@ -638,6 +640,14 @@ class DockingBaySimple(Decoration):
         super().__init__(x, y, width, height, direction, from_module)
         self.draw_black = np.random.rand() < self.black_prob
         self.shaded_dist = np.random.uniform(self.shaded_dist_min, self.shaded_dist_max)
+
+    @classmethod
+    def update(cls, height_min, height_max, width_gain_min, width_gain_max, black_prob, shaded_dist_min,
+               shaded_dist_max):
+        super(DockingBaySimple, cls).update(height_min, height_max, width_gain_min, width_gain_max)
+        cls.black_prob = black_prob
+        cls.shaded_dist_min = shaded_dist_min
+        cls.shaded_dist_max = shaded_dist_max
         
     def draw(self):
         sketch = self.init_sketch()
@@ -891,6 +901,7 @@ class SpacestationSketch(vsketch.SketchClass):
     
     # Module probs:
     prob_capsule_variation_1 = vsketch.Param(1.0, min_value=0.0)
+    prob_capsule_multi_window = vsketch.Param(0.5, min_value=0.0)
     prob_capsule_3d = vsketch.Param(0.5, min_value=0.0)
     prob_capsule_parallel_lines = vsketch.Param(0.5, min_value=0.0)
     prob_capsule_normal_lines = vsketch.Param(0.5, min_value=0.0)
@@ -902,7 +913,7 @@ class SpacestationSketch(vsketch.SketchClass):
     prob_solar_double = vsketch.Param(1.0, min_value=0.0)
     
     prob_decoration_antenna = vsketch.Param(0.5, min_value=0.0)
-    prob_decoration_dock_black = vsketch.Param(1.0, min_value=0.0)
+    prob_decoration_dock_simple = vsketch.Param(1.0, min_value=0.0)
     prob_decoration_dock = vsketch.Param(3.0, min_value=0.0)
     
     prob_capsule_capsule_parallel = vsketch.Param(1.0, min_value=0)
@@ -920,6 +931,20 @@ class SpacestationSketch(vsketch.SketchClass):
     capsule_height_max = vsketch.Param(2.0, min_value=0)
     capsule_width_gain_min = vsketch.Param(1.0, min_value=0)
     capsule_width_gain_max = vsketch.Param(3.0, min_value=0)
+    
+    capsule_multi_window_circle_prob = vsketch.Param(1.0, min_value=0)
+    capsule_multi_window_square_prob = vsketch.Param(1.0, min_value=0)
+    capsule_multi_window_square_rounded_prob = vsketch.Param(1.0, min_value=0)
+    window_size_gain_min = vsketch.Param(0.2, min_value=0)
+    window_size_gain_max = vsketch.Param(0.3, min_value=0)
+    windows_size_gain_min = vsketch.Param(0.2, min_value=0)
+    windows_size_gain_max = vsketch.Param(0.3, min_value=0)
+    window_dist_gain_min = vsketch.Param(0.1, min_value=0)
+    window_dist_gain_max = vsketch.Param(0.2, min_value=0)
+    parallel_lines_prob = vsketch.Param(0.4, min_value=0)
+    parallel_line_dist_gain_min = vsketch.Param(0.1, min_value=0)
+    parallel_line_dist_gain_max = vsketch.Param(0.2, min_value=0)
+    normal_lines_prob = vsketch.Param(0.4, min_value=0)
     
     capsule_normal_lines_prob_random = vsketch.Param(0.3, min_value=0)
     capsule_normal_lines_prob_double_thin = vsketch.Param(0.15, min_value=0)
@@ -1002,10 +1027,13 @@ class SpacestationSketch(vsketch.SketchClass):
     antenna_dot_radius_min = vsketch.Param(0.01, min_value=0)
     antenna_dot_radius_max = vsketch.Param(0.03, min_value=0)
     
-    dock_black_height_min = vsketch.Param(0.3, min_value=0)
-    dock_black_height_max = vsketch.Param(1.0, min_value=0)
-    dock_black_width_gain_min = vsketch.Param(0.07, min_value=0)
-    dock_black_width_gain_max = vsketch.Param(0.15, min_value=0)
+    dock_simple_height_min = vsketch.Param(0.3, min_value=0)
+    dock_simple_height_max = vsketch.Param(1.0, min_value=0)
+    dock_simple_width_gain_min = vsketch.Param(0.07, min_value=0)
+    dock_simple_width_gain_max = vsketch.Param(0.15, min_value=0)
+    dock_simple_black_prob = vsketch.Param(0.5, min_value=0)
+    dock_simple_shaded_dist_min = vsketch.Param(0.02, min_value=0)
+    dock_simple_shaded_dist_max = vsketch.Param(0.1, min_value=0)
         
     dock_height_min = vsketch.Param(1.0, min_value=0)
     dock_height_max = vsketch.Param(2.0, min_value=0)
@@ -1047,12 +1075,12 @@ class SpacestationSketch(vsketch.SketchClass):
                                  4 * [np.nan]])
         self.probs_modules_normal = normalize_mat_to_row_sum_one(probs_normal)
         
-        self.module_type_probs = {Capsule: normalize_vec_to_sum_one([self.prob_capsule_variation_1, self.prob_capsule_3d, 
+        self.module_type_probs = {Capsule: normalize_vec_to_sum_one([self.prob_capsule_variation_1, self.prob_capsule_multi_window, self.prob_capsule_3d, 
                                                                      self.prob_capsule_parallel_lines, self.prob_capsule_normal_lines, 
                                                                      self.prob_capsule_square]),
                                   Connector: normalize_vec_to_sum_one([self.prob_connector_variation_1]),
                                   SolarPanel: normalize_vec_to_sum_one([self.prob_solar_single, self.prob_solar_double]),
-                                  Decoration: normalize_vec_to_sum_one([self.prob_decoration_antenna, self.prob_decoration_dock_black,
+                                  Decoration: normalize_vec_to_sum_one([self.prob_decoration_antenna, self.prob_decoration_dock_simple,
                                                                         self.prob_decoration_dock])}
         
         probs_capsule_normal_line = np.array([self.capsule_normal_lines_prob_random, self.capsule_normal_lines_prob_double_thin, 
@@ -1063,9 +1091,12 @@ class SpacestationSketch(vsketch.SketchClass):
     
         probs_antenna = np.array([self.antenna_empty_prob, self.antenna_dot_prob, self.antenna_square_prob])
         self.antenna_probs = normalize_vec_to_sum_one(probs_antenna)
+        
+        probs_multi_window = np.array([self.capsule_multi_window_circle_prob, self.capsule_multi_window_square_prob, self.capsule_multi_window_square_rounded_prob])
+        self.capsule_multi_window_probs = normalize_vec_to_sum_one(probs_multi_window)
     
     def init_modules(self):
-        self.module_types = {Capsule: [CapsuleVariation1, Capsule3D, CapsuleParallelLines, CapsuleNormalLines, SquareCapsule],
+        self.module_types = {Capsule: [CapsuleVariation1, CapsuleMultiWindow, Capsule3D, CapsuleParallelLines, CapsuleNormalLines, SquareCapsule],
                              Connector: [ConnectorVariation1],
                              SolarPanel: [SolarPanelSingle, SolarPanelDouble],
                              Decoration: [Antenna, DockingBaySimple, DockingBay]}
@@ -1073,6 +1104,10 @@ class SpacestationSketch(vsketch.SketchClass):
         # Capsules:     
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
                        self.capsule_width_gain_max)
+        CapsuleMultiWindow.update(self.capsule_multi_window_probs, self.window_size_gain_min, self.window_size_gain_max, 
+                                  self.windows_size_gain_min, self.windows_size_gain_max, self.window_dist_gain_min, 
+                                  self.window_dist_gain_max, self.parallel_lines_prob, self.parallel_line_dist_gain_min, 
+                                  self.parallel_line_dist_gain_max, self.normal_lines_prob)
         Capsule3D.update(self.capsule_3d_num_lines_min, self.capsule_3d_num_lines_max)
         CapsuleParallelLines.update(self.capsule_parallel_lines_num_lines_min, self.capsule_parallel_lines_num_lines_max)
         CapsuleNormalLines.update(self.capsule_normal_lines_probs, self.capsule_normal_lines_num_lines_rand_min, 
@@ -1107,8 +1142,9 @@ class SpacestationSketch(vsketch.SketchClass):
         Antenna.update(self.antenna_height_min, self.antenna_height_max, self.antenna_width_gain_min,
                        self.antenna_width_gain_max, self.antenna_probs, self.antenna_dot_radius_min,
                        self.antenna_dot_radius_max)        
-        DockingBaySimple.update(self.dock_black_height_min, self.dock_black_height_max, self.dock_black_width_gain_min,
-                               self.dock_black_width_gain_max)
+        DockingBaySimple.update(self.dock_simple_height_min, self.dock_simple_height_max, self.dock_simple_width_gain_min,
+                               self.dock_simple_width_gain_max, self.dock_simple_black_prob, self.dock_simple_shaded_dist_min,
+                               self.dock_simple_shaded_dist_max)
         DockingBay.update(self.dock_height_min, self.dock_height_max, self.dock_width_gain_min,
                           self.dock_width_gain_max, self.dock_union_middle_prob, self.dock_flat_end_height_gain_min, 
                           self.dock_flat_end_height_gain_max, 
