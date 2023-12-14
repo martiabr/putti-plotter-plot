@@ -77,22 +77,24 @@ Elements in the space stations:
 - [x] Variation on square docking bay capsule with lines between outer and inner circle
 - [x] Double normal line capsule - just 2x2 normal lines vs. 2xline shaded vs. 2xblack vs. 2xn normal lines
 - [x] Antenna: little square end
-- [ ] Decoration: Cupola
+- [x] Capsule: just some randomly sampled normal lines
+- [x] parallel lines capsule - just 1, 2, ... uniformly distributed or "shading" with a sine, or sine + normal lines
+- [ ] MultiWindow: dividing lines vertically in offset space
+- [ ] MultiWindow: rounded windows
 - [ ] Capsule: normal lines and parallel lines, add small boxes
 - [ ] Connector: flat side + trapezoid side
 - [ ] Connector: small width box with line shading.
 - [ ] Capsule: add equal distant normal lines, e.g. a module with two equal distant lines is quite distinctive.
 - [ ] Capsule: normal lines, instead of symmetric on either side, just have two lines next to each other at a random x. Also with line shading or black shading!
 - [ ] Antenna: actual little dish on the rod
+- [ ] Decoration: Cupola
 - [ ] DockingBay: shaded box in addition to the black box
 - [ ] Decoration: Just a box, or multiple boxes. Centered, or for example one box on either end. Or a tiny box on the box. Small variations like that. Or line out from the box.
 - [ ] Capsule: multi window, option with parallel lines on top/bottom?
 - [ ] Capsule: multi small window (long and narrow capsule with dot windows)
 - [ ] really rounded corners inflatable capsule (actually decoration since no building out from it)
 - [ ] improve single solar panel with arm/connector
-- [ ] Capsule: just some randomly sampled normal lines
 - [ ] Connector: narrow black connector, height is just gain of smallest side
-- [ ] parallel lines capsule - just 1, 2, ... uniformly distributed or "shading" with a sine, or sine + normal lines
 - [ ] Connector: long construction beam type
 - [ ] Connector: flat part in middle, so it goes in on both sides and has a long narrow "capsule" in the middle
 - [ ] other solar panel arm variations

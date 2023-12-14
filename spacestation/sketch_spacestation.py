@@ -208,6 +208,8 @@ class CapsuleVariation1(Capsule):
 class CapsuleMultiWindow(Capsule):
     def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
+        self.draw_choices = ["CIRCLE", "SQUARE", "SQUARE_ROUNDED"]
+        self.draw_choice = pick_random_element(self.draw_choices, self.probs)
         self.window_size = self.height * np.random.uniform(self.window_size_gain_min, self.window_size_gain_max)
         self.windows_size = self.width * np.random.uniform(self.windows_size_gain_min, self.windows_size_gain_max)
         self.nonwindows_part_size = (self.width - self.windows_size)
@@ -220,7 +222,8 @@ class CapsuleMultiWindow(Capsule):
         self.draw_parallel_lines = np.random.rand() < self.parallel_lines_prob
         if self.draw_parallel_lines:
             self.parallel_line_dist = self.height * np.random.uniform(self.parallel_line_dist_gain_min, self.parallel_line_dist_gain_max)
-        self.draw_circle_windows = np.random.rand() < self.circle_windows_prob        
+        self.draw_normal_lines = np.random.rand() < self.normal_lines_prob
+        self.window_rounded_radius = self.window_size * np.random.uniform(self.window_rounded_radius_gain_min, self.window_rounded_radius_gain_max)
         
     @classmethod
     def update(cls, window_size_gain_min, window_size_gain_max, windows_size_gain_min, windows_size_gain_max, 
@@ -242,14 +245,18 @@ class CapsuleMultiWindow(Capsule):
         sketch.rect(0, 0, self.width, self.height, mode="center")
         
         for x in np.linspace(-0.5 * self.windows_size, 0.5 * self.windows_size):
-            if self.draw_circle_windows:
+            if self.draw_choice == "CIRCLE":
                 sketch.circle(x, 0, self.window_size)
-            else:
+            elif self.draw_choice == "SQUARE":
                 sketch.square(x, 0, self.window_size, mode="center")
+            elif self.draw_choice == "SQUARE_ROUND":
+                sketch.square(x, 0, self.window_size, self.window_rounded_radius, mode="center")
         if self.draw_parallel_lines:
             line_y = 0.5 * self.height - self.parallel_line_dist
             sketch.line(-0.5 * self.width, line_y, 0.5 * self.width, line_y)
             sketch.line(-0.5 * self.width, -line_y, 0.5 * self.width, -line_y)
+        if self.draw_normal_lines:
+            # TODO
         return sketch
     
 
@@ -626,10 +633,18 @@ class Antenna(Decoration):
         return sketch
 
 
-class DockingBayBlack(Decoration):
+class DockingBaySimple(Decoration):
+    def __init__(self, x, y, width, height, direction, from_module):
+        super().__init__(x, y, width, height, direction, from_module)
+        self.draw_black = np.random.rand() < self.black_prob
+        self.shaded_dist = np.random.uniform(self.shaded_dist_min, self.shaded_dist_max)
+        
     def draw(self):
         sketch = self.init_sketch()
-        sketch.sketch(draw_filled_rect(0.5 * self.width, 0, self.width, self.height))
+        if self.draw_black:
+            sketch.sketch(draw_filled_rect(0.5 * self.width, 0, self.width, self.height))
+        else:  # shaded
+            sketch.sketch(draw_shaded_rect(0.5 * self.width, 0, self.width, self.height, fill_distance=self.shaded_dist))
         return sketch
     
     
@@ -1053,7 +1068,7 @@ class SpacestationSketch(vsketch.SketchClass):
         self.module_types = {Capsule: [CapsuleVariation1, Capsule3D, CapsuleParallelLines, CapsuleNormalLines, SquareCapsule],
                              Connector: [ConnectorVariation1],
                              SolarPanel: [SolarPanelSingle, SolarPanelDouble],
-                             Decoration: [Antenna, DockingBayBlack, DockingBay]}
+                             Decoration: [Antenna, DockingBaySimple, DockingBay]}
         
         # Capsules:     
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
@@ -1092,7 +1107,7 @@ class SpacestationSketch(vsketch.SketchClass):
         Antenna.update(self.antenna_height_min, self.antenna_height_max, self.antenna_width_gain_min,
                        self.antenna_width_gain_max, self.antenna_probs, self.antenna_dot_radius_min,
                        self.antenna_dot_radius_max)        
-        DockingBayBlack.update(self.dock_black_height_min, self.dock_black_height_max, self.dock_black_width_gain_min,
+        DockingBaySimple.update(self.dock_black_height_min, self.dock_black_height_max, self.dock_black_width_gain_min,
                                self.dock_black_width_gain_max)
         DockingBay.update(self.dock_height_min, self.dock_height_max, self.dock_width_gain_min,
                           self.dock_width_gain_max, self.dock_union_middle_prob, self.dock_flat_end_height_gain_min, 
