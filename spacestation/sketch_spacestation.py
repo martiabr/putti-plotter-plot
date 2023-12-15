@@ -208,57 +208,73 @@ class CapsuleVariation1(Capsule):
 class CapsuleMultiWindow(Capsule):
     def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
-        self.draw_choices = ["CIRCLE", "SQUARE", "SQUARE_ROUNDED"]
-        self.draw_choice = pick_random_element(self.draw_choices, self.probs)
+        self.window_types = ["CIRCLE", "SQUARE", "SQUARE_ROUNDED"]
+        self.window_choice = pick_random_element(self.window_types, self.window_probs)
         self.window_size = self.height * np.random.uniform(self.window_size_gain_min, self.window_size_gain_max)
         self.windows_size = self.width * np.random.uniform(self.windows_size_gain_min, self.windows_size_gain_max)
-        # self.nonwindows_part_size = (self.width - self.windows_size)
+        self.nonwindows_size = (self.width - self.windows_size)
         self.window_dist = self.window_size * np.random.uniform(self.window_dist_gain_min, self.window_dist_gain_max)
         # windows_size = num_windows * window_size + (num_windows - 1) * window_dist
         # windows_size = num_windows * (window_size + window_dist) - window_dist
         # window_dist = windows_size - num_ ...
-        self.num_windows = int(np.round((self.windows_size + self.window_dist) / (self.window_size + self.window_dist)))
-        self.window_dist = (self.window_dist - self.num_windows * self.window_size)  / (self.num_windows - 1)  # augment the "between window distance" to match the rounding to get integer number of  windows
-        self.draw_parallel_lines = np.random.rand() < self.parallel_lines_prob
-        if self.draw_parallel_lines:
-            self.parallel_line_dist = self.height * np.random.uniform(self.parallel_line_dist_gain_min, self.parallel_line_dist_gain_max)
-        self.draw_normal_lines = np.random.rand() < self.normal_lines_prob
+        
+        self.num_windows = int((self.windows_size + self.window_dist) / (self.window_size + self.window_dist))
+        if self.num_windows > 1:
+            self.window_dist = (self.window_dist - self.num_windows * self.window_size)  / (self.num_windows - 1)  # augment the "between window distance" to match the rounding to get integer number of  windows
+        else:
+            self.window_dist = 0.0
+            
         self.window_rounded_radius = self.window_size * np.random.uniform(self.window_rounded_radius_gain_min, self.window_rounded_radius_gain_max)
+            
+        self.line_types = ["EMPTY", "PARALLEL", "NORMAL", "BOX"]
+        self.line_choice = pick_random_element(self.line_types, self.line_probs)
+
+        self.parallel_line_dist = self.height * np.random.uniform(self.parallel_line_dist_gain_min, self.parallel_line_dist_gain_max)
         
     @classmethod
-    def update(cls, probs, window_size_gain_min, window_size_gain_max, windows_size_gain_min, windows_size_gain_max, 
-               window_dist_gain_min, window_dist_gain_max, parallel_lines_prob, 
-               parallel_line_dist_gain_min, parallel_line_dist_gain_max, normal_lines_prob):
-        cls.probs = probs
+    def update(cls, window_probs, window_size_gain_min, window_size_gain_max, windows_size_gain_min, windows_size_gain_max, 
+               window_dist_gain_min, window_dist_gain_max, window_rounded_radius_gain_min, window_rounded_radius_gain_max, line_probs, parallel_line_dist_gain_min, 
+               parallel_line_dist_gain_max):
+        cls.window_probs = window_probs
         cls.window_size_gain_min = window_size_gain_min
         cls.window_size_gain_max = window_size_gain_max
         cls.windows_size_gain_min = windows_size_gain_min
         cls.windows_size_gain_max = windows_size_gain_max
         cls.window_dist_gain_min = window_dist_gain_min
         cls.window_dist_gain_max = window_dist_gain_max
-        cls.parallel_lines_prob = parallel_lines_prob
+        cls.window_rounded_radius_gain_min = window_rounded_radius_gain_min
+        cls.window_rounded_radius_gain_max = window_rounded_radius_gain_max
+        cls.line_probs = line_probs
         cls.parallel_line_dist_gain_min = parallel_line_dist_gain_min
         cls.parallel_line_dist_gain_max = parallel_line_dist_gain_max
-        cls.normal_lines_prob = normal_lines_prob
         
     def draw(self):
         sketch = self.init_sketch(center=True)
         sketch.rect(0, 0, self.width, self.height, mode="center")
-        
-        for x in np.linspace(-0.5 * self.windows_size, 0.5 * self.windows_size):
-            if self.draw_choice == "CIRCLE":
+
+        if self.num_windows > 1:
+            xs = np.linspace(-0.5 * (self.windows_size - self.window_size), 0.5 * (self.windows_size - self.window_size), num=self.num_windows)
+        else:
+            xs = [0.0]
+        for x in xs:
+            if self.window_choice == "CIRCLE":
                 sketch.circle(x, 0, self.window_size)
-            elif self.draw_choice == "SQUARE":
+            elif self.window_choice == "SQUARE":
                 sketch.square(x, 0, self.window_size, mode="center")
-            elif self.draw_choice == "SQUARE_ROUND":
-                sketch.square(x, 0, self.window_size, self.window_rounded_radius, mode="center")
-        if self.draw_parallel_lines:
+            elif self.window_choice == "SQUARE_ROUNDED":
+                sketch.rect(x, 0, self.window_size, self.window_size, self.window_rounded_radius, mode="center")
+        
+        if self.line_choice in ("PARALLEL", "NORMAL", "BOX"):
             line_y = 0.5 * self.height - self.parallel_line_dist
-            sketch.line(-0.5 * self.width, line_y, 0.5 * self.width, line_y)
-            sketch.line(-0.5 * self.width, -line_y, 0.5 * self.width, -line_y)
-        if self.draw_normal_lines:
-            sketch.line(-0.5 * (self.width - self.windows_size), -0.5 * self.height, -0.5 * (self.width - self.windows_size), 0.5 * self.height)
-            sketch.line(0.5 * (self.width - self.windows_size), -0.5 * self.height, 0.5 * (self.width - self.windows_size), 0.5 * self.height)
+            line_x = 0.5 * self.width - 0.25 * self.nonwindows_size
+            if self.line_choice == "PARALLEL":
+                sketch.line(-0.5 * self.width, line_y, 0.5 * self.width, line_y)
+                sketch.line(-0.5 * self.width, -line_y, 0.5 * self.width, -line_y)
+            elif self.line_choice == "NORMAL":
+                sketch.line(-line_x, -0.5 * self.height, -line_x, 0.5 * self.height)
+                sketch.line(line_x, -0.5 * self.height, line_x, 0.5 * self.height)
+            elif self.line_choice == "BOX":
+                sketch.rect(0, 0, 2*line_x, 2*line_y, mode="center")
         return sketch
     
 
@@ -934,17 +950,21 @@ class SpacestationSketch(vsketch.SketchClass):
     
     capsule_multi_window_circle_prob = vsketch.Param(1.0, min_value=0)
     capsule_multi_window_square_prob = vsketch.Param(1.0, min_value=0)
-    capsule_multi_window_square_rounded_prob = vsketch.Param(1.0, min_value=0)
-    window_size_gain_min = vsketch.Param(0.2, min_value=0)
-    window_size_gain_max = vsketch.Param(0.3, min_value=0)
-    windows_size_gain_min = vsketch.Param(0.2, min_value=0)
-    windows_size_gain_max = vsketch.Param(0.3, min_value=0)
-    window_dist_gain_min = vsketch.Param(0.1, min_value=0)
-    window_dist_gain_max = vsketch.Param(0.2, min_value=0)
-    parallel_lines_prob = vsketch.Param(0.4, min_value=0)
-    parallel_line_dist_gain_min = vsketch.Param(0.1, min_value=0)
-    parallel_line_dist_gain_max = vsketch.Param(0.2, min_value=0)
-    normal_lines_prob = vsketch.Param(0.4, min_value=0)
+    capsule_multi_window_square_rounded_prob = vsketch.Param(1.5, min_value=0)
+    capsule_multi_window_window_size_gain_min = vsketch.Param(0.18, min_value=0)
+    capsule_multi_window_window_size_gain_max = vsketch.Param(0.4, min_value=0)
+    capsule_multi_window_windows_size_gain_min = vsketch.Param(0.2, min_value=0)
+    capsule_multi_window_windows_size_gain_max = vsketch.Param(0.6, min_value=0)
+    capsule_multi_window_window_dist_gain_min = vsketch.Param(0.05, min_value=0)
+    capsule_multi_window_window_dist_gain_max = vsketch.Param(0.2, min_value=0)
+    capsule_multi_window_rounded_radius_gain_min = vsketch.Param(0.05, min_value=0)
+    capsule_multi_window_rounded_radius_gain_max = vsketch.Param(0.3, min_value=0)
+    capsule_multi_window_no_lines_prob = vsketch.Param(2.0, min_value=0)
+    capsule_multi_window_parallel_lines_prob = vsketch.Param(1.0, min_value=0)
+    capsule_multi_window_parallel_line_dist_gain_min = vsketch.Param(0.1, min_value=0)
+    capsule_multi_window_parallel_line_dist_gain_max = vsketch.Param(0.2, min_value=0)
+    capsule_multi_window_normal_lines_prob = vsketch.Param(0.75, min_value=0)
+    capsule_multi_window_box_prob = vsketch.Param(0.75, min_value=0)
     
     capsule_normal_lines_prob_random = vsketch.Param(0.3, min_value=0)
     capsule_normal_lines_prob_double_thin = vsketch.Param(0.15, min_value=0)
@@ -1092,8 +1112,13 @@ class SpacestationSketch(vsketch.SketchClass):
         probs_antenna = np.array([self.antenna_empty_prob, self.antenna_dot_prob, self.antenna_square_prob])
         self.antenna_probs = normalize_vec_to_sum_one(probs_antenna)
         
-        probs_multi_window = np.array([self.capsule_multi_window_circle_prob, self.capsule_multi_window_square_prob, self.capsule_multi_window_square_rounded_prob])
-        self.capsule_multi_window_probs = normalize_vec_to_sum_one(probs_multi_window)
+        probs_multi_window_window_probs = np.array([self.capsule_multi_window_circle_prob, self.capsule_multi_window_square_prob, 
+                                                    self.capsule_multi_window_square_rounded_prob])
+        self.capsule_multi_window_windows_probs = normalize_vec_to_sum_one(probs_multi_window_window_probs)
+    
+        probs_multi_window_line_probs = np.array([self.capsule_multi_window_no_lines_prob, self.capsule_multi_window_parallel_lines_prob, 
+                                                  self.capsule_multi_window_normal_lines_prob, self.capsule_multi_window_box_prob])
+        self.capsule_multi_window_line_probs = normalize_vec_to_sum_one(probs_multi_window_line_probs)
     
     def init_modules(self):
         self.module_types = {Capsule: [CapsuleVariation1, CapsuleMultiWindow, Capsule3D, CapsuleParallelLines, CapsuleNormalLines, SquareCapsule],
@@ -1104,10 +1129,11 @@ class SpacestationSketch(vsketch.SketchClass):
         # Capsules:     
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
                        self.capsule_width_gain_max)
-        CapsuleMultiWindow.update(self.capsule_multi_window_probs, self.window_size_gain_min, self.window_size_gain_max, 
-                                  self.windows_size_gain_min, self.windows_size_gain_max, self.window_dist_gain_min, 
-                                  self.window_dist_gain_max, self.parallel_lines_prob, self.parallel_line_dist_gain_min, 
-                                  self.parallel_line_dist_gain_max, self.normal_lines_prob)
+        CapsuleMultiWindow.update(self.capsule_multi_window_windows_probs, self.capsule_multi_window_window_size_gain_min, self.capsule_multi_window_window_size_gain_max, 
+                                  self.capsule_multi_window_windows_size_gain_min, self.capsule_multi_window_windows_size_gain_max, self.capsule_multi_window_window_dist_gain_min, 
+                                  self.capsule_multi_window_window_dist_gain_max, self.capsule_multi_window_rounded_radius_gain_min,
+                                  self.capsule_multi_window_rounded_radius_gain_max, self.capsule_multi_window_line_probs, self.capsule_multi_window_parallel_line_dist_gain_min, 
+                                  self.capsule_multi_window_parallel_line_dist_gain_max)
         Capsule3D.update(self.capsule_3d_num_lines_min, self.capsule_3d_num_lines_max)
         CapsuleParallelLines.update(self.capsule_parallel_lines_num_lines_min, self.capsule_parallel_lines_num_lines_max)
         CapsuleNormalLines.update(self.capsule_normal_lines_probs, self.capsule_normal_lines_num_lines_rand_min, 
