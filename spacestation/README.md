@@ -80,9 +80,10 @@ Elements in the space stations:
 - [x] Antenna: little square end
 - [x] Capsule: just some randomly sampled normal lines
 - [x] parallel lines capsule - just 1, 2, ... uniformly distributed or "shading" with a sine, or sine + normal lines
-- [ ] Capsule: multi window, option with parallel lines on top/bottom?
-- [ ] MultiWindow: dividing lines vertically in offset space
-- [ ] MultiWindow: rounded windows
+- [x] Capsule: multi window, option with parallel lines on top/bottom?
+- [x] MultiWindow: dividing lines vertically in offset space
+- [x] MultiWindow: rounded windows
+- [x] DockingBay: shaded box in addition to the black box
 - [ ] Capsule: multi small window (long and narrow capsule with dot windows)
 - [ ] Capsule: add small boxes to some normal lines, parallel lines capsules, as well as "empty" capsule
 - [ ] Capsule: add equal distant normal lines, e.g. a module with two equal distant lines is quite distinctive.
@@ -90,7 +91,7 @@ Elements in the space stations:
 - [ ] Connector: flat side + trapezoid side, possibly with flat side shaded. 
 - [ ] Connector: narrow black connector, height is just gain of the smallest side. Also line shading.
 - [ ] Antenna: actual little dish on the rod
-- [ ] DockingBay: shaded box in addition to the black box
+- [ ] DockSimple: trapezoid
 - [ ] Decoration: Cupola
 - [ ] Decoration: Just a box, or multiple boxes. Centered, or for example one box on either end. Or a tiny box on the box. Small variations like that. Or line out from the box.
 - [ ] Decoration: really rounded corners inflatable capsule (actually decoration since no building out from it)

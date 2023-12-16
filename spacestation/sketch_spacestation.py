@@ -733,7 +733,65 @@ class DockingBay(Decoration):
         sketch.sketch(draw_filled_rect(0.5 * self.end_frac * self.width, 0, self.width * self.end_frac, self.end_height))
         
         return sketch
+
+
+class Inflatable(Decoration):
+    def __init__(self, x, y, width, height, direction, from_module):
+        super().__init__(x, y, width, height, direction, from_module)
+        self.corner_radius = np.min((self.width, self.height)) * np.random.uniform(self.corner_radius_gain_min, self.corner_radius_gain_max)
+        self.connector_height = self.height * np.random.uniform(self.dock_height_gain_min, self.dock_height_gain_max)
+        self.connector_width = self.connector_height * np.random.uniform(self.dock_width_gain_min, self.dock_width_gain_max)
+        self.shaded_connector_fill_dist = self.connector_height * np.random.uniform(self.shaded_dock_fill_dist_gain_min, self.shaded_dock_fill_dist_gain_max)
+        self.capsule_width = self.width - self.connector_width
+        self.shaded_connector = np.random.rand() < self.shaded_connector_prob
+        self.draw_lines = np.random.rand() < self.prob_lines
+        self.num_lines = np.random.randint(self.num_lines_min, self.num_lines_max + 1)
+        self.sin_stop = 0.48
     
+    @classmethod
+    def sample_bb_dims(cls, rng, from_height):
+        return super(Decoration, cls).sample_bb_dims(rng, from_height)
+    
+    @classmethod
+    def update(cls, height_min, height_max, width_gain_min, width_gain_max, corner_radius_gain_min, corner_radius_gain_max,
+              connector_height_gain_min, connector_height_gain_max, connector_width_gain_min, connector_width_gain_max, shaded_connector_prob,
+              shaded_dock_fill_dist_gain_min, shaded_dock_fill_dist_gain_max, prob_lines, num_lines_min, num_lines_max):
+        super(Inflatable, cls).update(height_min, height_max, width_gain_min, width_gain_max)
+        cls.corner_radius_gain_min = corner_radius_gain_min
+        cls.corner_radius_gain_max = corner_radius_gain_max
+        cls.dock_height_gain_min = connector_height_gain_min
+        cls.dock_height_gain_max = connector_height_gain_max
+        cls.dock_width_gain_min = connector_width_gain_min
+        cls.dock_width_gain_max = connector_width_gain_max
+        cls.shaded_connector_prob = shaded_connector_prob
+        cls.shaded_dock_fill_dist_gain_min = shaded_dock_fill_dist_gain_min
+        cls.shaded_dock_fill_dist_gain_max = shaded_dock_fill_dist_gain_max
+        cls.prob_lines = prob_lines
+        cls.num_lines_min = num_lines_min
+        cls.num_lines_max = num_lines_max
+        
+    def draw(self):
+        sketch = self.init_sketch()
+        
+        if self.shaded_connector:
+            sketch.sketch(draw_shaded_rect(0.5 * self.connector_width, 0, self.connector_width, self.connector_height, 
+                                           fill_distance=self.shaded_connector_fill_dist))
+        else:
+            sketch.rect(0.5 * self.connector_width, 0, self.connector_width, self.connector_height, mode="center")
+        sketch.translate(self.connector_width + 0.5 * self.capsule_width, 0)
+        sketch.rect(0, 0, self.capsule_width, self.height, self.corner_radius, mode="center")
+        
+        ys = 0.5 * self.height * np.sin(np.pi * np.linspace(-self.sin_stop, self.sin_stop, num=self.num_lines))
+        for y in ys:
+            if np.abs(y) > 0.5 * self.height - self.corner_radius:
+                x = 0.5 * self.capsule_width - self.corner_radius * \
+                    (1.0 - np.cos(np.arcsin((np.abs(y) - 0.5 * self.height + self.corner_radius) / self.corner_radius)))
+            else:
+                x = 0.5 * self.capsule_width
+            sketch.line(-x, y, x, y)
+            
+        return sketch
+
     
 class StationGenerator:
     def __init__(self, width, height, module_types, module_type_probs, probs_modules_parallel, probs_modules_normal, prob_connector_parallel_match_height,
@@ -930,7 +988,8 @@ class SpacestationSketch(vsketch.SketchClass):
     
     prob_decoration_antenna = vsketch.Param(0.5, min_value=0.0)
     prob_decoration_dock_simple = vsketch.Param(1.0, min_value=0.0)
-    prob_decoration_dock = vsketch.Param(3.0, min_value=0.0)
+    prob_decoration_dock = vsketch.Param(2.0, min_value=0.0)
+    prob_decoration_inflatable = vsketch.Param(1.0, min_value=0.0)
     
     prob_capsule_capsule_parallel = vsketch.Param(1.0, min_value=0)
     prob_capsule_connector_parallel = vsketch.Param(2.0, min_value=0)
@@ -1073,7 +1132,23 @@ class SpacestationSketch(vsketch.SketchClass):
     dock_flat_end_frac_min = vsketch.Param(0.1, min_value=0)
     dock_flat_end_frac_max = vsketch.Param(0.2, min_value=0)
     
-
+    inflatable_height_min = vsketch.Param(1.75, min_value=0)
+    inflatable_height_max = vsketch.Param(2.5, min_value=0)
+    inflatable_width_gain_min = vsketch.Param(1.4, min_value=0)
+    inflatable_width_gain_max = vsketch.Param(1.8, min_value=0)
+    inflatable_corner_radius_gain_min = vsketch.Param(0.35, min_value=0)
+    inflatable_corner_radius_gain_max = vsketch.Param(0.45, min_value=0)
+    inflatable_dock_height_gain_min = vsketch.Param(0.25, min_value=0)
+    inflatable_dock_height_gain_max = vsketch.Param(0.45, min_value=0)
+    inflatable_dock_width_gain_min = vsketch.Param(0.2, min_value=0)
+    inflatable_dock_width_gain_max = vsketch.Param(0.4, min_value=0)
+    inflatable_shaded_dock_prob = vsketch.Param(0.5, min_value=0)
+    inflatable_shaded_dock_fill_dist_gain_min = vsketch.Param(0.5, min_value=0)
+    inflatable_shaded_dock_fill_dist_gain_max = vsketch.Param(0.2, min_value=0)
+    inflatable_lines_prob = vsketch.Param(0.5, min_value=0)
+    inflatable_num_lines_min = vsketch.Param(7, min_value=0)
+    inflatable_num_lines_max = vsketch.Param(12, min_value=0)
+    
     def init_drawing(self, vsk):
         vsk.size("a4", landscape=False)
         vsk.scale("cm")
@@ -1101,7 +1176,7 @@ class SpacestationSketch(vsketch.SketchClass):
                                   Connector: normalize_vec_to_sum_one([self.prob_connector_variation_1]),
                                   SolarPanel: normalize_vec_to_sum_one([self.prob_solar_single, self.prob_solar_double]),
                                   Decoration: normalize_vec_to_sum_one([self.prob_decoration_antenna, self.prob_decoration_dock_simple,
-                                                                        self.prob_decoration_dock])}
+                                                                        self.prob_decoration_dock, self.prob_decoration_inflatable])}
         
         probs_capsule_normal_line = np.array([self.capsule_normal_lines_prob_random, self.capsule_normal_lines_prob_double_thin, 
                                               self.capsule_normal_lines_prob_double_flat, self.capsule_normal_lines_prob_double_multi,
@@ -1124,7 +1199,7 @@ class SpacestationSketch(vsketch.SketchClass):
         self.module_types = {Capsule: [CapsuleVariation1, CapsuleMultiWindow, Capsule3D, CapsuleParallelLines, CapsuleNormalLines, SquareCapsule],
                              Connector: [ConnectorVariation1],
                              SolarPanel: [SolarPanelSingle, SolarPanelDouble],
-                             Decoration: [Antenna, DockingBaySimple, DockingBay]}
+                             Decoration: [Antenna, DockingBaySimple, DockingBay, Inflatable]}
         
         # Capsules:     
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
@@ -1178,14 +1253,20 @@ class SpacestationSketch(vsketch.SketchClass):
                           self.dock_start_frac_max, self.dock_end_frac_min, self.dock_end_frac_max,
                           self.dock_flat_start_frac_min, self.dock_flat_start_frac_max, self.dock_flat_end_frac_min,
                           self.dock_flat_end_frac_max)
+        Inflatable.update(self.inflatable_height_min, self.inflatable_height_max, self.inflatable_width_gain_min, 
+                          self.inflatable_width_gain_max, self.inflatable_corner_radius_gain_min, self.inflatable_corner_radius_gain_min,
+                          self.inflatable_dock_height_gain_min, self.inflatable_dock_height_gain_max, self.inflatable_dock_width_gain_min, 
+                          self.inflatable_dock_width_gain_max, self.inflatable_shaded_dock_prob, self.inflatable_shaded_dock_fill_dist_gain_min,
+                          self.inflatable_shaded_dock_fill_dist_gain_max, self.inflatable_lines_prob, self.inflatable_num_lines_min,
+                          self.inflatable_num_lines_max)
         
     def draw(self, vsk: vsketch.Vsketch) -> None:
         self.init_probs()
         self.init_modules()
         self.init_drawing(vsk)
         
-        width = 20.0
-        height = 28.5
+        width = 20.0 / self.scale
+        height = 28.5 / self.scale
         
         generator = StationGenerator(width, height, self.module_types, self.module_type_probs, self.probs_modules_parallel, 
                                      self.probs_modules_normal, self.prob_connector_parallel_match_height, 
