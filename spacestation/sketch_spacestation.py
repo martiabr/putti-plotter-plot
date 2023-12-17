@@ -735,6 +735,42 @@ class DockingBay(Decoration):
         return sketch
 
 
+class Boxes(Decoration):
+    def __init__(self, x, y, width, height, direction, from_module):
+        super().__init__(x, y, width, height, direction, from_module)
+        self.draw_multi = np.random.rand() < self.prob_multi
+        if self.draw_multi:
+            self.num_box = np.random.randint(self.num_box_min, self.num_box_max + 1)
+        else:
+            self.num_box = 1
+    
+    @classmethod
+    def update(cls, height_min, height_max, width_gain_min, width_gain_max, prob_multi, num_box_min, num_box_max,
+               box_width_gain_min, box_width_gain_max,
+               box_height_gain_min, box_height_gain_max):
+        super(Boxes, cls).update(height_min, height_max, width_gain_min, width_gain_max)
+        cls.prob_multi = prob_multi
+        cls.num_box_min = num_box_min
+        cls.num_box_max = num_box_max
+        cls.box_width_gain_min = box_width_gain_min
+        cls.box_width_gain_max = box_width_gain_max
+        cls.box_height_gain_min = box_height_gain_min
+        cls.box_height_gain_max = box_height_gain_max
+        
+    def draw(self):
+        sketch = self.init_sketch()
+        
+        geom = Point()
+        for i in range(self.num_box):
+            box_width = self.width * np.random.uniform(self.box_width_gain_min, self.box_width_gain_max)
+            box_height = box_width * np.random.uniform(self.box_height_gain_min, self.box_height_gain_max)
+            box_y = np.random.uniform(-0.5 * (self.height - box_height), 0.5 * (self.height - box_height))
+            # TODO: check collision
+            sketch.rect(0, box_y, box_height, box_width)
+            
+        return sketch
+    
+
 class Inflatable(Decoration):
     def __init__(self, x, y, width, height, direction, from_module):
         super().__init__(x, y, width, height, direction, from_module)
@@ -947,10 +983,132 @@ class StationGenerator:
                         vsk.circle(point.x, point.y, radius=2e-2)
         vsk.stroke(1)
         
-    def draw(self, vsk):
-        for module in self.modules:
-            vsk.sketch(module.draw())
+    def draw(self, vsk, draw_modules=True, debug=False):
+        if draw_modules:
+            for module in self.modules:
+                vsk.sketch(module.draw())
+        
+        if debug:
+            vsk.circle(0, 0, radius=1e-1)  # origin
+            self.draw_outer_bounding_box(vsk)
+            self.draw_bounding_boxes(vsk)
+            self.draw_open_points(vsk)  
+
+
+class Node:
+    def __init__(self, drawing, type, x, y, width, height, layer, bottom=False):
+        self.drawing = drawing
+        self.type = type
+        self.x, self.y = x, y
+        self.width, self.height = width, height
+        self.layer = layer
+        self.bottom = bottom
+        self._children = []
+    
+    def add_child(self, node):
+        self._children.append(node)
+    
+    # def draw(self, vsk):
+    #     if self.width > 0 and self.height > 0:
+    #         if self.drawing.debug:
+    #             vsk.stroke(2)
+    #             vsk.rect(self.x, self.y, self.width, self.height, mode="center")
+    #             vsk.stroke(1)
+                
+    #         vsk.rect(self.x, self.y, self.width, self.height, mode="center")
+                            
+    def __iter__(self):
+        return iter(self._children)
+
+    def breadth_first(self):
+        q = [self]
+        while q:
+            n = q.pop(0)
+            yield n
+            for c in n._children:
+                q.append(c)
+
+
+class QuadTree:
+    def __init__(self, drawing, width, height, outer_padding, inner_padding, panel_double_prob=0.6, 
+                 panel_two_doubles_prob=0.6, panel_frame_prob=0.9, x=0.0, y=0.0, layers=2):
+        self.drawing = drawing
+        self.outer_padding = outer_padding
+        self.inner_padding = inner_padding
+        self.width = width
+        self.height = height
+        self.panel_double_prob = panel_double_prob
+        self.panel_two_doubles_prob = panel_two_doubles_prob
+        self.panel_frame_prob = panel_frame_prob
+        self.x = x
+        self.y = y
+        self.layers = layers
+        
+        self.root = self.generate_tree(self.layers)
+    
+    def generate_children(self, node, layers):
+        picks = []
+        
+        pick_double = np.random.random_sample() < self.panel_double_prob
+        if pick_double:
+            double_sections = [[-1,0], [1,0], [0,-1], [0,1]]
+            pick = double_sections[np.random.randint(len(double_sections))]
+            x, y = pick
+            picks.append(pick)
+            pick_two_doubles = pick_double and np.random.random_sample() < self.panel_two_doubles_prob
+            if pick_two_doubles:
+                picks.append([-x, -y])
+            else:
+                if x != 0:
+                    picks.append([-x, 1])
+                    picks.append([-x, -1])
+                else:
+                    picks.append([1, -y])
+                    picks.append([-1, -y]) 
+        else:
+            picks += [[-1,-1], [-1,1], [1,-1], [1,1]]
             
+        for pick in picks:
+            is_double = (pick[0] == 0) or (pick[1] == 0)
+            x = 0.25 * node.width * pick[0]
+            y = 0.25 * node.height * pick[1]
+            
+            if pick[0] == 0:
+                child_width = node.width - 2 * self.inner_padding
+            else:
+                child_width = 0.5 * node.width - 2 * self.inner_padding
+            if pick[1] == 0:
+                child_height = node.height - 2 * self.inner_padding
+            else:
+                child_height = 0.5 * node.height - 2 * self.inner_padding
+            
+            if child_height > 1e-2 and child_width > 1e-2:
+                stop_prob = 0.5
+                do_stop = (np.random.random_sample() < stop_prob) or (node.layer == layers - 1)
+                bottom = do_stop or is_double
+                
+                child = Node(self.drawing, "...", x=node.x+x, y=node.y+y, width=child_width,
+                            height=child_height, layer=node.layer+1, bottom=bottom)
+                if not bottom:
+                    self.generate_children(child, layers)
+                node.add_child(child)
+    
+    def generate_tree(self, layers):
+        inner_width = self.width - self.outer_padding
+        inner_height = self.height - self.outer_padding
+        
+        root = Node(self.drawing, "root", x=0, y=0, width=inner_width, height=inner_height, layer=0)
+        
+        self.generate_children(root, layers)
+        
+        return root
+    
+    def draw(self, vsk):
+        with vsk.pushMatrix():
+            vsk.translate(self.x, self.y)
+            for node in self.root.breadth_first():
+                node.draw(vsk)
+                    
 
 class SpacestationSketch(vsketch.SketchClass):
     WIDTH_FULL = 21
@@ -959,15 +1117,20 @@ class SpacestationSketch(vsketch.SketchClass):
     draw_modules = vsketch.Param(True)
     debug = vsketch.Param(True)
     occult = vsketch.Param(False)
-    scale = vsketch.Param(1.0)
+    scale = vsketch.Param(0.6)
     
-    num_tries = vsketch.Param(40, min_value=1)
+    num_tries = vsketch.Param(200, min_value=1)
     num_consec_fails_max = vsketch.Param(50, min_value=1)
     
-    n_x = vsketch.Param(1, min_value=1)
-    n_y = vsketch.Param(1, min_value=1)
-    grid_dist_x = vsketch.Param(8.0)
-    grid_dist_y = vsketch.Param(8.0)
+    grid_type = vsketch.Param("GRID", choices=["GRID", "QUAD"])
+    n_x = vsketch.Param(2, min_value=1)
+    n_y = vsketch.Param(3, min_value=1)
+    # grid_dist_x = vsketch.Param(8.0)
+    # grid_dist_y = vsketch.Param(8.0)
+    
+    outer_pad = vsketch.Param(0.5)
+    grid_pad = vsketch.Param(0.3)
+    quad_layers = vsketch.Param(2)
     
     weight_continue_same_dir = vsketch.Param(6.0, min_value=0.0)
     
@@ -989,6 +1152,7 @@ class SpacestationSketch(vsketch.SketchClass):
     prob_decoration_antenna = vsketch.Param(0.5, min_value=0.0)
     prob_decoration_dock_simple = vsketch.Param(1.0, min_value=0.0)
     prob_decoration_dock = vsketch.Param(2.0, min_value=0.0)
+    prob_decoration_boxes = vsketch.Param(1.0, min_value=0.0)
     prob_decoration_inflatable = vsketch.Param(1.0, min_value=0.0)
     
     prob_capsule_capsule_parallel = vsketch.Param(1.0, min_value=0)
@@ -1132,6 +1296,18 @@ class SpacestationSketch(vsketch.SketchClass):
     dock_flat_end_frac_min = vsketch.Param(0.1, min_value=0)
     dock_flat_end_frac_max = vsketch.Param(0.2, min_value=0)
     
+    boxes_height_min = vsketch.Param(1.0, min_value=0)
+    boxes_height_max = vsketch.Param(2.0, min_value=0)
+    boxes_width_gain_min = vsketch.Param(0.15, min_value=0)
+    boxes_width_gain_max = vsketch.Param(0.25, min_value=0)
+    boxes_prob_multi = vsketch.Param(0.5, min_value=0)
+    boxes_num_box_multi_min = vsketch.Param(1, min_value=0)
+    boxes_num_box_multi_max = vsketch.Param(1, min_value=0)
+    boxes_box_width_gain_min = vsketch.Param(0.7, min_value=0)
+    boxes_box_width_gain_max = vsketch.Param(1.0, min_value=0)
+    boxes_box_height_gain_min = vsketch.Param(0.4, min_value=0)
+    boxes_box_height_gain_max = vsketch.Param(0.8, min_value=0)
+    
     inflatable_height_min = vsketch.Param(1.75, min_value=0)
     inflatable_height_max = vsketch.Param(2.5, min_value=0)
     inflatable_width_gain_min = vsketch.Param(1.4, min_value=0)
@@ -1143,7 +1319,7 @@ class SpacestationSketch(vsketch.SketchClass):
     inflatable_dock_width_gain_min = vsketch.Param(0.2, min_value=0)
     inflatable_dock_width_gain_max = vsketch.Param(0.4, min_value=0)
     inflatable_shaded_dock_prob = vsketch.Param(0.5, min_value=0)
-    inflatable_shaded_dock_fill_dist_gain_min = vsketch.Param(0.5, min_value=0)
+    inflatable_shaded_dock_fill_dist_gain_min = vsketch.Param(0.05, min_value=0)
     inflatable_shaded_dock_fill_dist_gain_max = vsketch.Param(0.2, min_value=0)
     inflatable_lines_prob = vsketch.Param(0.5, min_value=0)
     inflatable_num_lines_min = vsketch.Param(7, min_value=0)
@@ -1176,7 +1352,8 @@ class SpacestationSketch(vsketch.SketchClass):
                                   Connector: normalize_vec_to_sum_one([self.prob_connector_variation_1]),
                                   SolarPanel: normalize_vec_to_sum_one([self.prob_solar_single, self.prob_solar_double]),
                                   Decoration: normalize_vec_to_sum_one([self.prob_decoration_antenna, self.prob_decoration_dock_simple,
-                                                                        self.prob_decoration_dock, self.prob_decoration_inflatable])}
+                                                                        self.prob_decoration_dock, self.prob_decoration_boxes,
+                                                                        self.prob_decoration_inflatable])}
         
         probs_capsule_normal_line = np.array([self.capsule_normal_lines_prob_random, self.capsule_normal_lines_prob_double_thin, 
                                               self.capsule_normal_lines_prob_double_flat, self.capsule_normal_lines_prob_double_multi,
@@ -1199,7 +1376,7 @@ class SpacestationSketch(vsketch.SketchClass):
         self.module_types = {Capsule: [CapsuleVariation1, CapsuleMultiWindow, Capsule3D, CapsuleParallelLines, CapsuleNormalLines, SquareCapsule],
                              Connector: [ConnectorVariation1],
                              SolarPanel: [SolarPanelSingle, SolarPanelDouble],
-                             Decoration: [Antenna, DockingBaySimple, DockingBay, Inflatable]}
+                             Decoration: [Antenna, DockingBaySimple, DockingBay, Boxes, Inflatable]}
         
         # Capsules:     
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
@@ -1253,6 +1430,10 @@ class SpacestationSketch(vsketch.SketchClass):
                           self.dock_start_frac_max, self.dock_end_frac_min, self.dock_end_frac_max,
                           self.dock_flat_start_frac_min, self.dock_flat_start_frac_max, self.dock_flat_end_frac_min,
                           self.dock_flat_end_frac_max)
+        Boxes.update(self.boxes_height_min, self.boxes_height_max, self.boxes_width_gain_min, self.boxes_width_gain_max,
+                     self.boxes_prob_multi, self.boxes_num_box_multi_min, self.boxes_num_box_multi_max,
+                     self.boxes_box_width_gain_min, self.boxes_box_width_gain_max, self.boxes_box_height_gain_min,
+                     self.boxes_box_height_gain_max)
         Inflatable.update(self.inflatable_height_min, self.inflatable_height_max, self.inflatable_width_gain_min, 
                           self.inflatable_width_gain_max, self.inflatable_corner_radius_gain_min, self.inflatable_corner_radius_gain_min,
                           self.inflatable_dock_height_gain_min, self.inflatable_dock_height_gain_max, self.inflatable_dock_width_gain_min, 
@@ -1265,21 +1446,40 @@ class SpacestationSketch(vsketch.SketchClass):
         self.init_modules()
         self.init_drawing(vsk)
         
-        width = 20.0 / self.scale
-        height = 28.5 / self.scale
+        # TODO: compute this as full a4 dims - outer pad
+        width = (self.WIDTH_FULL - 2.0 * self.outer_pad) / self.scale
+        height = (self.HEIGHT_FULL - 2.0 * self.outer_pad) / self.scale
         
-        generator = StationGenerator(width, height, self.module_types, self.module_type_probs, self.probs_modules_parallel, 
-                                     self.probs_modules_normal, self.prob_connector_parallel_match_height, 
-                                     weight_continue_same_dir=self.weight_continue_same_dir)
-        generator.generate(num_tries=self.num_tries, num_consec_fails_max=self.num_consec_fails_max)
-        if self.draw_modules: generator.draw(vsk)
+        if self.grid_type == "GRID":
+        # TODO: grid: compute width and height in regular grid
+            grid_width = (width - (self.n_x - 1) * self.grid_pad) / self.n_x
+            grid_height = (height - (self.n_y - 1) * self.grid_pad) / self.n_y
+            grid_dist_x = grid_width + self.grid_pad
+            grid_dist_y = grid_height + self.grid_pad
+            for y in range(self.n_y):
+                with vsk.pushMatrix():
+                    for x in range(self.n_x):
+                        generator = StationGenerator(grid_width, grid_height, self.module_types, self.module_type_probs, self.probs_modules_parallel, 
+                                                    self.probs_modules_normal, self.prob_connector_parallel_match_height, 
+                                                    weight_continue_same_dir=self.weight_continue_same_dir)
+                        generator.generate(num_tries=self.num_tries, num_consec_fails_max=self.num_consec_fails_max)
+                        generator.draw(vsk, draw_modules=self.draw_modules, debug=self.debug)
+                        
+                        vsk.translate(grid_dist_x, 0)    
+                vsk.translate(0, -grid_dist_y)
+        elif self.grid_type == "QUAD":
+            tree = QuadTree(self, width, height, 0.0, self.grid_pad, layers=self.quad_layers)
+            for node in tree.root.breadth_first():
+                if node.bottom:
+                    with vsk.pushMatrix():
+                        vsk.translate(node.x, node.y)
+                        
+                        generator = StationGenerator(node.width, node.height, self.module_types, self.module_type_probs, self.probs_modules_parallel, 
+                                                    self.probs_modules_normal, self.prob_connector_parallel_match_height, 
+                                                    weight_continue_same_dir=self.weight_continue_same_dir)
+                        generator.generate(num_tries=self.num_tries, num_consec_fails_max=self.num_consec_fails_max)
+                        generator.draw(vsk, draw_modules=self.draw_modules, debug=self.debug)
         
-        if self.debug:
-            vsk.circle(0, 0, radius=1e-1)  # origin
-            generator.draw_outer_bounding_box(vsk)
-            generator.draw_bounding_boxes(vsk)
-            generator.draw_open_points(vsk)
-
         if self.occult:
             vsk.vpype("occult -i")
             

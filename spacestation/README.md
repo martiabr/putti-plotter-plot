@@ -84,18 +84,19 @@ Elements in the space stations:
 - [x] MultiWindow: dividing lines vertically in offset space
 - [x] MultiWindow: rounded windows
 - [x] DockingBay: shaded box in addition to the black box
+- [x] Decoration: really rounded corners inflatable capsule (actually decoration since no building out from it)
+- [ ] Decoration: Cupola
+- [ ] Solar panel: improve single solar panel with arm/connector
+- [ ] Connector: narrow black connector, height is just gain of the smallest side. Also line shading.
+- [ ] Decoration: Just a box, or multiple boxes. Centered, or for example one box on either end. Or a tiny box on the box. Small variations like that. Or line out from the box.
+- [ ] Connector: flat side + trapezoid side, possibly with flat side shaded. 
 - [ ] Capsule: multi small window (long and narrow capsule with dot windows)
 - [ ] Capsule: add small boxes to some normal lines, parallel lines capsules, as well as "empty" capsule
 - [ ] Capsule: add equal distant normal lines, e.g. a module with two equal distant lines is quite distinctive.
 - [ ] Capsule: normal lines, instead of symmetric on either side, just have two lines next to each other at a random x. Also with line shading or black shading!
-- [ ] Connector: flat side + trapezoid side, possibly with flat side shaded. 
-- [ ] Connector: narrow black connector, height is just gain of the smallest side. Also line shading.
 - [ ] Antenna: actual little dish on the rod
 - [ ] DockSimple: trapezoid
-- [ ] Decoration: Cupola
-- [ ] Decoration: Just a box, or multiple boxes. Centered, or for example one box on either end. Or a tiny box on the box. Small variations like that. Or line out from the box.
-- [ ] Decoration: really rounded corners inflatable capsule (actually decoration since no building out from it)
-- [ ] Solar panel: improve single solar panel with arm/connector
+- [ ] Not draw "loose" connectors?
 - [ ] Connector: long construction beam type
 - [ ] Connector: flat part in middle, so it goes in on both sides and has a long narrow "capsule" in the middle
 - [ ] other solar panel arm variations
