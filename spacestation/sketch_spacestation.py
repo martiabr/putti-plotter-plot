@@ -741,11 +741,14 @@ class Boxes(Decoration):
             self.num_box = np.random.randint(self.num_box_min, self.num_box_max + 1)
         else:
             self.num_box = 1
+        self.draw_box_on_box = np.random.rand() < self.prob_box_on_box
+        self.draw_line = np.random.rand() < self.prob_line_on_box
     
     @classmethod
-    def update(cls, height_min, height_max, width_gain_min, width_gain_max, prob_multi, num_box_min, num_box_max,
-               box_width_gain_min, box_width_gain_max,
-               box_height_gain_min, box_height_gain_max):
+    def update(cls, height_min, height_max, width_gain_min, width_gain_max, prob_multi, prob_box_on_box,
+               prob_line_on_box, num_box_min, num_box_max, box_width_gain_min, box_width_gain_max,
+               box_height_gain_min, box_height_gain_max, box_box_width_gain_min, box_box_width_gain_max, 
+               box_box_height_gain_min, box_box_height_gain_max, line_length_gain_min, line_length_gain_max):
         super(Boxes, cls).update(height_min, height_max, width_gain_min, width_gain_max)
         cls.prob_multi = prob_multi
         cls.num_box_min = num_box_min
@@ -754,17 +757,32 @@ class Boxes(Decoration):
         cls.box_width_gain_max = box_width_gain_max
         cls.box_height_gain_min = box_height_gain_min
         cls.box_height_gain_max = box_height_gain_max
-        
+        cls.prob_box_on_box = prob_box_on_box
+        cls.prob_line_on_box = prob_line_on_box
+        cls.box_box_width_gain_min = box_box_width_gain_min
+        cls.box_box_width_gain_max = box_box_width_gain_max
+        cls.box_box_height_gain_min = box_box_height_gain_min
+        cls.box_box_height_gain_max = box_box_height_gain_max
+        cls.line_length_gain_min = line_length_gain_min
+        cls.line_length_gain_max = line_length_gain_max
+                
     def draw(self):
         sketch = self.init_sketch()
         
-        geom = Point()
-        for i in range(self.num_box):
-            box_width = self.width * np.random.uniform(self.box_width_gain_min, self.box_width_gain_max)
-            box_height = box_width * np.random.uniform(self.box_height_gain_min, self.box_height_gain_max)
-            box_y = np.random.uniform(-0.5 * (self.height - box_height), 0.5 * (self.height - box_height))
-            # TODO: check collision
-            sketch.rect(0, box_y, box_height, box_width)
+        box_width = self.width * np.random.uniform(self.box_width_gain_min, self.box_width_gain_max)
+        box_height = box_width * np.random.uniform(self.box_height_gain_min, self.box_height_gain_max)
+        box_y = np.random.uniform(-0.5 * (self.height - box_height), 0.5 * (self.height - box_height))
+        sketch.rect(0.5 * box_height, box_y, box_height, box_width, mode="center")
+        
+        if self.draw_box_on_box:
+            box_box_width = box_width * np.random.uniform(self.box_box_width_gain_min, self.box_box_width_gain_max)
+            box_box_height = box_height * np.random.uniform(self.box_box_height_gain_min, self.box_box_height_gain_max)
+            box_box_y = np.random.uniform(-0.5 * (box_height - box_box_height), 0.5 * (box_height - box_box_height))
+            sketch.rect(box_height + 0.5 * box_box_height, box_y + box_box_y, box_box_height, box_box_width, mode="center")
+        elif self.draw_line:
+            line_length = box_width * np.random.uniform(self.line_length_gain_min, self.line_length_gain_max)
+            line_y = np.random.uniform(-0.5 * box_width, 0.5 * box_width)
+            sketch.line(box_height, box_y + line_y, box_height + line_length, box_y + line_y)
             
         return sketch
     
@@ -1299,12 +1317,20 @@ class SpacestationSketch(vsketch.SketchClass):
     boxes_width_gain_min = vsketch.Param(0.15, min_value=0)
     boxes_width_gain_max = vsketch.Param(0.25, min_value=0)
     boxes_prob_multi = vsketch.Param(0.5, min_value=0)
+    boxes_prob_line_on_box = vsketch.Param(0.4, min_value=0)
+    boxes_prob_box_on_box = vsketch.Param(0.4, min_value=0)
     boxes_num_box_multi_min = vsketch.Param(1, min_value=0)
     boxes_num_box_multi_max = vsketch.Param(1, min_value=0)
     boxes_box_width_gain_min = vsketch.Param(0.7, min_value=0)
     boxes_box_width_gain_max = vsketch.Param(1.0, min_value=0)
     boxes_box_height_gain_min = vsketch.Param(0.4, min_value=0)
     boxes_box_height_gain_max = vsketch.Param(0.8, min_value=0)
+    boxes_box_box_width_gain_min = vsketch.Param(0.1, min_value=0) 
+    boxes_box_box_width_gain_max = vsketch.Param(0.5, min_value=0) 
+    boxes_box_box_height_gain_min = vsketch.Param(0.1, min_value=0) 
+    boxes_box_box_height_gain_max = vsketch.Param(0.5, min_value=0) 
+    boxes_line_length_gain_min = vsketch.Param(0.1, min_value=0) 
+    boxes_line_length_gain_max = vsketch.Param(0.4, min_value=0) 
     
     inflatable_height_min = vsketch.Param(1.75, min_value=0)
     inflatable_height_max = vsketch.Param(2.5, min_value=0)
@@ -1429,9 +1455,12 @@ class SpacestationSketch(vsketch.SketchClass):
                           self.dock_flat_start_frac_min, self.dock_flat_start_frac_max, self.dock_flat_end_frac_min,
                           self.dock_flat_end_frac_max)
         Boxes.update(self.boxes_height_min, self.boxes_height_max, self.boxes_width_gain_min, self.boxes_width_gain_max,
-                     self.boxes_prob_multi, self.boxes_num_box_multi_min, self.boxes_num_box_multi_max,
+                     self.boxes_prob_multi, self.boxes_prob_box_on_box, self.boxes_prob_line_on_box, 
+                     self.boxes_num_box_multi_min, self.boxes_num_box_multi_max,
                      self.boxes_box_width_gain_min, self.boxes_box_width_gain_max, self.boxes_box_height_gain_min,
-                     self.boxes_box_height_gain_max)
+                     self.boxes_box_height_gain_max, self.boxes_box_box_width_gain_min, self.boxes_box_box_width_gain_max, 
+                     self.boxes_box_box_height_gain_min, self.boxes_box_box_height_gain_max, self.boxes_line_length_gain_min, 
+                     self.boxes_line_length_gain_max)
         Inflatable.update(self.inflatable_height_min, self.inflatable_height_max, self.inflatable_width_gain_min, 
                           self.inflatable_width_gain_max, self.inflatable_corner_radius_gain_min, self.inflatable_corner_radius_gain_min,
                           self.inflatable_dock_height_gain_min, self.inflatable_dock_height_gain_max, self.inflatable_dock_width_gain_min, 
