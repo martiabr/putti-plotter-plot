@@ -71,6 +71,9 @@ Elements in the space stations:
 - [ ] Quadtree grid
 - [ ] Way to only sample a subset of all structure types. Otherwise things will look very chaotic. E.g. there is a 20% chance of having inflatable capsule as an option for a drawing, but a separate prob for actually drawing it when picking the next structure to add. Another example would to be only pick n out of m solar panel types for one drawing, again to make the single drawing more cohesive.
 - [ ] limit certain parameters (solar panels especially) to be sketch-wide instead of sampled for every module
+- [ ] Option to not draw "loose" connectors
+
+Modules:
 - [x] double panel variation with more beams, probably just as prob in same class
 - [x] docking bay
 - [x] square capsule with big window/docking bay?
@@ -85,18 +88,17 @@ Elements in the space stations:
 - [x] MultiWindow: rounded windows
 - [x] DockingBay: shaded box in addition to the black box
 - [x] Decoration: really rounded corners inflatable capsule (actually decoration since no building out from it)
+- [ ] Decoration: Just a box, or multiple boxes. Centered, or for example one box on either end. Or a tiny box on the box. Small variations like that. Or line out from the box.
+- [ ] Capsule: normal lines, instead of symmetric on either side, just have two lines next to each other at a random x. Also with line shading or black shading!
 - [ ] Decoration: Cupola
 - [ ] Solar panel: improve single solar panel with arm/connector
 - [ ] Connector: narrow black connector, height is just gain of the smallest side. Also line shading.
-- [ ] Decoration: Just a box, or multiple boxes. Centered, or for example one box on either end. Or a tiny box on the box. Small variations like that. Or line out from the box.
-- [ ] Connector: flat side + trapezoid side, possibly with flat side shaded. 
+- [ ] Connector: flat side + trapezoid side, possibly with flat side shaded or black. 
 - [ ] Capsule: multi small window (long and narrow capsule with dot windows)
 - [ ] Capsule: add small boxes to some normal lines, parallel lines capsules, as well as "empty" capsule
 - [ ] Capsule: add equal distant normal lines, e.g. a module with two equal distant lines is quite distinctive.
-- [ ] Capsule: normal lines, instead of symmetric on either side, just have two lines next to each other at a random x. Also with line shading or black shading!
 - [ ] Antenna: actual little dish on the rod
 - [ ] DockSimple: trapezoid
-- [ ] Not draw "loose" connectors?
 - [ ] Connector: long construction beam type
 - [ ] Connector: flat part in middle, so it goes in on both sides and has a long narrow "capsule" in the middle
 - [ ] other solar panel arm variations
@@ -144,3 +146,9 @@ only thing as that the rows for solar panel etc. will be redundant and not used.
 Atm we have a class method that samples a random width and height given a direction.
 Here we can add the prev module to limit the max width. Is there any other information that is useful from prev module? Better is maybe just to input a max height directly.
 Then instead of sampling between min, max height we clamp the max to the input max height.
+
+# Per station attributes:
+The structure right now is that the constructor is always the same. 
+So inputing things in the init is not so easy.
+A hack would be to for every iteration in the grid to call update probs and update classes, and it will roll some dice to figure out the parameters and which classes will not be considered.
+Should work ok.

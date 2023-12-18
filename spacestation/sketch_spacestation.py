@@ -1446,12 +1446,10 @@ class SpacestationSketch(vsketch.SketchClass):
         self.init_modules()
         self.init_drawing(vsk)
         
-        # TODO: compute this as full a4 dims - outer pad
         width = (self.WIDTH_FULL - 2.0 * self.outer_pad) / self.scale
         height = (self.HEIGHT_FULL - 2.0 * self.outer_pad) / self.scale
         
         if self.grid_type == "GRID":
-        # TODO: grid: compute width and height in regular grid
             grid_width = (width - (self.n_x - 1) * self.grid_pad) / self.n_x
             grid_height = (height - (self.n_y - 1) * self.grid_pad) / self.n_y
             grid_dist_x = grid_width + self.grid_pad
