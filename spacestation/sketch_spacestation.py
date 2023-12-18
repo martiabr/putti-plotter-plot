@@ -790,14 +790,17 @@ class Boxes(Decoration):
 class Inflatable(Decoration):
     def __init__(self, x, y, width, height, direction, from_module):
         super().__init__(x, y, width, height, direction, from_module)
+        self.line_types = ["EMPTY", "PARALLEL", "NORMAL"]
+        self.line_choice = pick_random_element(self.line_types, self.prob_lines)
+        
         self.corner_radius = np.min((self.width, self.height)) * np.random.uniform(self.corner_radius_gain_min, self.corner_radius_gain_max)
         self.connector_height = self.height * np.random.uniform(self.dock_height_gain_min, self.dock_height_gain_max)
         self.connector_width = self.connector_height * np.random.uniform(self.dock_width_gain_min, self.dock_width_gain_max)
         self.shaded_connector_fill_dist = self.connector_height * np.random.uniform(self.shaded_dock_fill_dist_gain_min, self.shaded_dock_fill_dist_gain_max)
         self.capsule_width = self.width - self.connector_width
         self.shaded_connector = np.random.rand() < self.shaded_connector_prob
-        self.draw_lines = np.random.rand() < self.prob_lines
-        self.num_lines = np.random.randint(self.num_lines_min, self.num_lines_max + 1)
+        self.num_lines_parallel = np.random.randint(self.num_lines_parallel_min, self.num_lines_parallel_max + 1)
+        self.num_lines_normal = np.random.randint(self.num_lines_normal_min, self.num_lines_normal_max + 1)
         self.sin_stop = 0.48
     
     @classmethod
@@ -807,7 +810,8 @@ class Inflatable(Decoration):
     @classmethod
     def update(cls, height_min, height_max, width_gain_min, width_gain_max, corner_radius_gain_min, corner_radius_gain_max,
               connector_height_gain_min, connector_height_gain_max, connector_width_gain_min, connector_width_gain_max, shaded_connector_prob,
-              shaded_dock_fill_dist_gain_min, shaded_dock_fill_dist_gain_max, prob_lines, num_lines_min, num_lines_max):
+              shaded_dock_fill_dist_gain_min, shaded_dock_fill_dist_gain_max, prob_lines, num_lines_parallel_min, num_lines_parallel_max,
+              num_lines_normal_min, num_lines_normal_max):
         super(Inflatable, cls).update(height_min, height_max, width_gain_min, width_gain_max)
         cls.corner_radius_gain_min = corner_radius_gain_min
         cls.corner_radius_gain_max = corner_radius_gain_max
@@ -819,8 +823,10 @@ class Inflatable(Decoration):
         cls.shaded_dock_fill_dist_gain_min = shaded_dock_fill_dist_gain_min
         cls.shaded_dock_fill_dist_gain_max = shaded_dock_fill_dist_gain_max
         cls.prob_lines = prob_lines
-        cls.num_lines_min = num_lines_min
-        cls.num_lines_max = num_lines_max
+        cls.num_lines_parallel_min = num_lines_parallel_min
+        cls.num_lines_parallel_max = num_lines_parallel_max
+        cls.num_lines_normal_min = num_lines_normal_min
+        cls.num_lines_normal_max = num_lines_normal_max
         
     def draw(self):
         sketch = self.init_sketch()
@@ -833,14 +839,21 @@ class Inflatable(Decoration):
         sketch.translate(self.connector_width + 0.5 * self.capsule_width, 0)
         sketch.rect(0, 0, self.capsule_width, self.height, self.corner_radius, mode="center")
         
-        ys = 0.5 * self.height * np.sin(np.pi * np.linspace(-self.sin_stop, self.sin_stop, num=self.num_lines))
-        for y in ys:
-            if np.abs(y) > 0.5 * self.height - self.corner_radius:
-                x = 0.5 * self.capsule_width - self.corner_radius * \
-                    (1.0 - np.cos(np.arcsin((np.abs(y) - 0.5 * self.height + self.corner_radius) / self.corner_radius)))
-            else:
-                x = 0.5 * self.capsule_width
-            sketch.line(-x, y, x, y)
+        if self.line_choice == "PARALLEL":
+            ys = 0.5 * self.height * np.sin(np.pi * np.linspace(-self.sin_stop, self.sin_stop, num=self.num_lines_parallel))
+            for y in ys:
+                if np.abs(y) > 0.5 * self.height - self.corner_radius:
+                    x = 0.5 * self.capsule_width - self.corner_radius * \
+                        (1.0 - np.cos(np.arcsin((np.abs(y) - 0.5 * self.height + self.corner_radius) / self.corner_radius)))
+                else:
+                    x = 0.5 * self.capsule_width
+                sketch.line(-x, y, x, y)
+        elif self.line_choice == "NORMAL":
+            xs = np.linspace(-0.5 * self.width, 0.5 * self.width, num=self.num_lines_normal)
+            for x in xs:
+                # sketch.arc()
+                pass
+                # TODO
             
         return sketch
 
@@ -1345,9 +1358,13 @@ class SpacestationSketch(vsketch.SketchClass):
     inflatable_shaded_dock_prob = vsketch.Param(0.5, min_value=0)
     inflatable_shaded_dock_fill_dist_gain_min = vsketch.Param(0.05, min_value=0)
     inflatable_shaded_dock_fill_dist_gain_max = vsketch.Param(0.2, min_value=0)
-    inflatable_lines_prob = vsketch.Param(0.5, min_value=0)
-    inflatable_num_lines_min = vsketch.Param(7, min_value=0)
-    inflatable_num_lines_max = vsketch.Param(12, min_value=0)
+    inflatable_empty_prob = vsketch.Param(0.5, min_value=0)
+    inflatable_parallel_lines_prob = vsketch.Param(0.5, min_value=0)
+    inflatable_normal_lines_prob = vsketch.Param(0.5, min_value=0)
+    inflatable_num_lines_parallel_min = vsketch.Param(7, min_value=0)
+    inflatable_num_lines_parallel_max = vsketch.Param(12, min_value=0)
+    inflatable_num_lines_normal_min = vsketch.Param(3, min_value=0)
+    inflatable_num_lines_normal_max = vsketch.Param(8, min_value=0)
     
     def init_drawing(self, vsk):
         vsk.size("a4", landscape=False)
@@ -1395,6 +1412,10 @@ class SpacestationSketch(vsketch.SketchClass):
         probs_multi_window_line_probs = np.array([self.capsule_multi_window_no_lines_prob, self.capsule_multi_window_parallel_lines_prob, 
                                                   self.capsule_multi_window_normal_lines_prob, self.capsule_multi_window_box_prob])
         self.capsule_multi_window_line_probs = normalize_vec_to_sum_one(probs_multi_window_line_probs)
+        
+        probs_inflatable_line_probs = np.array([self.inflatable_empty_prob, self.inflatable_parallel_lines_prob, 
+                                                self.inflatable_parallel_lines_prob])
+        self.inflatable_line_probs = normalize_vec_to_sum_one(probs_inflatable_line_probs)
     
     def init_modules(self):
         self.module_types = {Capsule: [CapsuleVariation1, CapsuleMultiWindow, Capsule3D, CapsuleParallelLines, CapsuleNormalLines, SquareCapsule],
@@ -1465,8 +1486,8 @@ class SpacestationSketch(vsketch.SketchClass):
                           self.inflatable_width_gain_max, self.inflatable_corner_radius_gain_min, self.inflatable_corner_radius_gain_min,
                           self.inflatable_dock_height_gain_min, self.inflatable_dock_height_gain_max, self.inflatable_dock_width_gain_min, 
                           self.inflatable_dock_width_gain_max, self.inflatable_shaded_dock_prob, self.inflatable_shaded_dock_fill_dist_gain_min,
-                          self.inflatable_shaded_dock_fill_dist_gain_max, self.inflatable_lines_prob, self.inflatable_num_lines_min,
-                          self.inflatable_num_lines_max)
+                          self.inflatable_shaded_dock_fill_dist_gain_max, self.inflatable_line_probs, self.inflatable_num_lines_parallel_min,
+                          self.inflatable_num_lines_parallel_max, self.inflatable_num_lines_normal_min, self.inflatable_num_lines_normal_max)
         
     def draw(self, vsk: vsketch.Vsketch) -> None:
         self.init_probs()
