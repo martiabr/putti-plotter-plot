@@ -68,7 +68,7 @@ Elements in the space stations:
       E.g. single panel vs. double panel vs. single/double panel w/wo arm
 - [x] Add constraint system. To make it look more like a space station we might want to force symmetries. 
       E.g. if we add a solar panel on one side it should be a high prob that a solar panel will be created on opposite side.
-- [ ] Quadtree grid
+- [x] Quadtree grid
 - [ ] Way to only sample a subset of all structure types. Otherwise things will look very chaotic. E.g. there is a 20% chance of having inflatable capsule as an option for a drawing, but a separate prob for actually drawing it when picking the next structure to add. Another example would to be only pick n out of m solar panel types for one drawing, again to make the single drawing more cohesive.
 - [ ] limit certain parameters (solar panels especially) to be sketch-wide instead of sampled for every module
 - [ ] Option to not draw "loose" connectors
@@ -99,6 +99,7 @@ Modules:
 - [ ] Capsule: add equal distant normal lines, e.g. a module with two equal distant lines is quite distinctive.
 - [ ] Antenna: actual little dish on the rod
 - [ ] DockSimple: trapezoid
+- [ ] Inflatable: normal lines with slight bend, just use ellipse arc
 - [ ] Connector: long construction beam type
 - [ ] Connector: flat part in middle, so it goes in on both sides and has a long narrow "capsule" in the middle
 - [ ] other solar panel arm variations
@@ -151,4 +152,5 @@ Then instead of sampling between min, max height we clamp the max to the input m
 The structure right now is that the constructor is always the same. 
 So inputing things in the init is not so easy.
 A hack would be to for every iteration in the grid to call update probs and update classes, and it will roll some dice to figure out the parameters and which classes will not be considered.
-Should work ok.
+Then the options string arrays need to be class variables instead of member variables.
+For the probs we already input the types and the probs. So it should be straightforward to just pick a subset of all modules based on probs for each main moduel type and their respective submodules.

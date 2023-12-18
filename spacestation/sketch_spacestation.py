@@ -306,9 +306,7 @@ class CapsuleParallelLines(Capsule):
         self.num_lines = np.random.randint(self.num_lines_min, self.num_lines_max + 1)
         
     @classmethod
-    # def update(cls, height_min, height_max, width_gain_min, width_gain_max, num_lines_min, num_lines_max):
     def update(cls, num_lines_min, num_lines_max):
-        # super(CapsuleParallelLines, cls).update(height_min, height_max, width_gain_min, width_gain_max)
         cls.num_lines_min = num_lines_min
         cls.num_lines_max = num_lines_max
         
