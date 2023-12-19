@@ -88,7 +88,7 @@ Modules:
 - [x] MultiWindow: rounded windows
 - [x] DockingBay: shaded box in addition to the black box
 - [x] Decoration: really rounded corners inflatable capsule (actually decoration since no building out from it)
-- [ ] Decoration: Just a box, or multiple boxes. Centered, or for example one box on either end. Or a tiny box on the box. Small variations like that. Or line out from the box.
+- [x] Decoration: Just a box, or multiple boxes. Centered, or for example one box on either end. Or a tiny box on the box. Small variations like that. Or line out from the box.
 - [ ] Capsule: normal lines, instead of symmetric on either side, just have two lines next to each other at a random x. Also with line shading or black shading!
 - [ ] Decoration: Cupola
 - [ ] Solar panel: improve single solar panel with arm/connector

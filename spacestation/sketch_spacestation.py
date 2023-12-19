@@ -503,8 +503,36 @@ class ConnectorVariation1(Connector):
     def draw(self):
         sketch = super().draw()
         return sketch
- 
-    
+
+
+class ConnectorSimple(Connector):
+    def __init__(self, x, y, width, height, direction, from_module):
+        super().__init__(x, y, width, height, direction, from_module)
+        self.connector_types = ["EMPTY", "SHADED", "FILLED"]
+        self.connector_choice = pick_random_element(self.connector_types, self.probs)
+        self.height = np.min((self.start_height, self.end_height)) * np.random.uniform(self.height_gain_min, self.height_gain_max)
+        self.shaded_dist = np.random.uniform(self.shaded_dist_min, self.shaded_dist_max)
+
+    @classmethod
+    def update(cls, height_min, height_max, from_height_gain_min, from_height_gain_max, width_gain_min, width_gain_max, 
+               height_gain_min, height_gain_max, shaded_dist_min, shaded_dist_max, probs):
+        super(ConnectorSimple, cls).update(height_min, height_max, from_height_gain_min, from_height_gain_max, width_gain_min, width_gain_max)
+        cls.height_gain_min = height_gain_min
+        cls.height_gain_max = height_gain_max
+        cls.shaded_dist_min = shaded_dist_min
+        cls.shaded_dist_max = shaded_dist_max
+        cls.probs = probs
+        
+    def draw(self):
+        sketch = self.init_sketch(center=True)
+        if self.connector_choice == "EMPTY":
+            sketch.rect(0, 0, self.width, self.height, mode="center")
+        elif self.connector_choice == "SHADED":
+            sketch.sketch(draw_shaded_rect(0, 0, self.width, self.height, fill_distance=self.shaded_dist))
+        elif self.connector_choice == "FILLED":
+            sketch.sketch(draw_filled_rect(0, 0, self.width, self.height))
+        return sketch
+        
 class SolarPanel(Module):
     def __init__(self, x, y, width, height, direction, from_module):
         super().__init__(x, y, width, height, direction, from_module)
@@ -1146,6 +1174,7 @@ class SpacestationSketch(vsketch.SketchClass):
     draw_modules = vsketch.Param(True)
     debug = vsketch.Param(True)
     occult = vsketch.Param(False)
+    draw_floating_connectors = vsketch.Param(True)  # TODO
     scale = vsketch.Param(0.6)
     
     num_tries = vsketch.Param(200, min_value=1)
@@ -1154,8 +1183,6 @@ class SpacestationSketch(vsketch.SketchClass):
     grid_type = vsketch.Param("GRID", choices=["GRID", "QUAD"])
     n_x = vsketch.Param(2, min_value=1)
     n_y = vsketch.Param(3, min_value=1)
-    # grid_dist_x = vsketch.Param(8.0)
-    # grid_dist_y = vsketch.Param(8.0)
     
     outer_pad = vsketch.Param(0.5)
     grid_pad = vsketch.Param(0.3)
@@ -1174,6 +1201,7 @@ class SpacestationSketch(vsketch.SketchClass):
     prob_capsule_square = vsketch.Param(0.2, min_value=0.0)
     
     prob_connector_variation_1 = vsketch.Param(1.0, min_value=0.0)
+    prob_connector_simple = vsketch.Param(1.0, min_value=0.0)
     
     prob_solar_single = vsketch.Param(1.0, min_value=0.0)
     prob_solar_double = vsketch.Param(1.0, min_value=0.0)
@@ -1261,12 +1289,27 @@ class SpacestationSketch(vsketch.SketchClass):
     capsule_parallel_lines_num_lines_min = vsketch.Param(1, min_value=0)
     capsule_parallel_lines_num_lines_max = vsketch.Param(5, min_value=0)
     
+    
     connector_height_min = vsketch.Param(1.0, min_value=0)
     connector_height_max = vsketch.Param(2.0, min_value=0)
     connector_from_height_gain_min = vsketch.Param(0.833, min_value=0)
     connector_from_height_gain_max = vsketch.Param(1.2, min_value=0)
     connector_width_gain_min = vsketch.Param(0.2, min_value=0)
     connector_width_gain_max = vsketch.Param(0.4, min_value=0)
+    
+    connector_simple_empty_prob = vsketch.Param(1.0, min_value=0)
+    connector_simple_shaded_prob = vsketch.Param(1.0, min_value=0)
+    connector_simple_filled_prob = vsketch.Param(1.0, min_value=0)
+    connector_simple_height_min = vsketch.Param(1.0, min_value=0)
+    connector_simple_height_max = vsketch.Param(2.0, min_value=0)
+    connector_simple_from_height_gain_min = vsketch.Param(0.833, min_value=0)
+    connector_simple_from_height_gain_max = vsketch.Param(1.2, min_value=0)
+    connector_simple_width_gain_min = vsketch.Param(0.1, min_value=0)
+    connector_simple_width_gain_max = vsketch.Param(0.15, min_value=0)
+    connector_simple_height_gain_min = vsketch.Param(0.6, min_value=0)
+    connector_simple_height_gain_max = vsketch.Param(0.8, min_value=0)
+    connector_simple_shaded_dist_min = vsketch.Param(0.02, min_value=0)
+    connector_simple_shaded_dist_max = vsketch.Param(0.1, min_value=0)
     
     solar_height_min = vsketch.Param(1.4, min_value=0)
     solar_height_max = vsketch.Param(1.9, min_value=0)
@@ -1390,7 +1433,7 @@ class SpacestationSketch(vsketch.SketchClass):
         self.module_type_probs = {Capsule: normalize_vec_to_sum_one([self.prob_capsule_variation_1, self.prob_capsule_multi_window, self.prob_capsule_3d, 
                                                                      self.prob_capsule_parallel_lines, self.prob_capsule_normal_lines, 
                                                                      self.prob_capsule_square]),
-                                  Connector: normalize_vec_to_sum_one([self.prob_connector_variation_1]),
+                                  Connector: normalize_vec_to_sum_one([self.prob_connector_variation_1, self.prob_connector_simple]),
                                   SolarPanel: normalize_vec_to_sum_one([self.prob_solar_single, self.prob_solar_double]),
                                   Decoration: normalize_vec_to_sum_one([self.prob_decoration_antenna, self.prob_decoration_dock_simple,
                                                                         self.prob_decoration_dock, self.prob_decoration_boxes,
@@ -1401,13 +1444,17 @@ class SpacestationSketch(vsketch.SketchClass):
                                               self.capsule_normal_lines_prob_double_multi_random,
                                               self.capsule_normal_lines_prob_double_shaded, self.capsule_normal_lines_prob_double_black])
         self.capsule_normal_lines_probs = normalize_vec_to_sum_one(probs_capsule_normal_line)
+        
+        connector_simple_probs = np.array([self.connector_simple_empty_prob, self.connector_simple_shaded_prob,
+                                           self.connector_simple_filled_prob])
+        self.connector_simple_probs = normalize_vec_to_sum_one(connector_simple_probs)
     
         probs_antenna = np.array([self.antenna_empty_prob, self.antenna_dot_prob, self.antenna_square_prob])
         self.antenna_probs = normalize_vec_to_sum_one(probs_antenna)
         
-        probs_multi_window_window_probs = np.array([self.capsule_multi_window_circle_prob, self.capsule_multi_window_square_prob, 
+        multi_window_window_probs = np.array([self.capsule_multi_window_circle_prob, self.capsule_multi_window_square_prob, 
                                                     self.capsule_multi_window_square_rounded_prob])
-        self.capsule_multi_window_windows_probs = normalize_vec_to_sum_one(probs_multi_window_window_probs)
+        self.capsule_multi_window_windows_probs = normalize_vec_to_sum_one(multi_window_window_probs)
     
         probs_multi_window_line_probs = np.array([self.capsule_multi_window_no_lines_prob, self.capsule_multi_window_parallel_lines_prob, 
                                                   self.capsule_multi_window_normal_lines_prob, self.capsule_multi_window_box_prob])
@@ -1419,7 +1466,7 @@ class SpacestationSketch(vsketch.SketchClass):
     
     def init_modules(self):
         self.module_types = {Capsule: [CapsuleVariation1, CapsuleMultiWindow, Capsule3D, CapsuleParallelLines, CapsuleNormalLines, SquareCapsule],
-                             Connector: [ConnectorVariation1],
+                             Connector: [ConnectorVariation1, ConnectorSimple],
                              SolarPanel: [SolarPanelSingle, SolarPanelDouble],
                              Decoration: [Antenna, DockingBaySimple, DockingBay, Boxes, Inflatable]}
         
@@ -1450,6 +1497,12 @@ class SpacestationSketch(vsketch.SketchClass):
         # Connectors:
         Connector.update(self.connector_height_min, self.connector_height_max, self.connector_from_height_gain_min,
                          self.connector_from_height_gain_max, self.connector_width_gain_min, self.connector_width_gain_max)
+        ConnectorSimple.update(self.connector_simple_height_min, self.connector_simple_height_max, 
+                               self.connector_simple_from_height_gain_min, self.connector_simple_from_height_gain_max, 
+                               self.connector_simple_width_gain_min, self.connector_simple_width_gain_max,
+                               self.connector_simple_height_gain_min, self.connector_simple_height_gain_max, 
+                               self.connector_simple_shaded_dist_min, self.connector_simple_shaded_dist_max, 
+                               self.connector_simple_probs)
         
         # Solar panels:
         SolarPanel.update(self.solar_height_min, self.solar_height_max, self.solar_width_gain_min,
