@@ -89,11 +89,11 @@ Modules:
 - [x] DockingBay: shaded box in addition to the black box
 - [x] Decoration: really rounded corners inflatable capsule (actually decoration since no building out from it)
 - [x] Decoration: Just a box, or multiple boxes. Centered, or for example one box on either end. Or a tiny box on the box. Small variations like that. Or line out from the box.
+- [x] Connector: narrow black connector, height is just gain of the smallest side. Also line shading.
+- [ ] Connector: flat side + trapezoid side, possibly with flat side shaded or black. 
 - [ ] Capsule: normal lines, instead of symmetric on either side, just have two lines next to each other at a random x. Also with line shading or black shading!
 - [ ] Decoration: Cupola
 - [ ] Solar panel: improve single solar panel with arm/connector
-- [ ] Connector: narrow black connector, height is just gain of the smallest side. Also line shading.
-- [ ] Connector: flat side + trapezoid side, possibly with flat side shaded or black. 
 - [ ] Capsule: multi small window (long and narrow capsule with dot windows)
 - [ ] Capsule: add small boxes to some normal lines, parallel lines capsules, as well as "empty" capsule
 - [ ] Capsule: add equal distant normal lines, e.g. a module with two equal distant lines is quite distinctive.
@@ -153,4 +153,6 @@ The structure right now is that the constructor is always the same.
 So inputing things in the init is not so easy.
 A hack would be to for every iteration in the grid to call update probs and update classes, and it will roll some dice to figure out the parameters and which classes will not be considered.
 Then the options string arrays need to be class variables instead of member variables.
+Then just a huge job to go through each module type and move out all variables we want to be the same for entire space station.
+
 For the probs we already input the types and the probs. So it should be straightforward to just pick a subset of all modules based on probs for each main moduel type and their respective submodules.

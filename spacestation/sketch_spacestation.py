@@ -206,14 +206,15 @@ class CapsuleVariation1(Capsule):
 
 
 class CapsuleMultiWindow(Capsule):
+    window_types = ["CIRCLE", "SQUARE", "SQUARE_ROUNDED"]
+    line_types = ["EMPTY", "PARALLEL", "NORMAL", "BOX"]
+
     def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
-        self.window_types = ["CIRCLE", "SQUARE", "SQUARE_ROUNDED"]
-        self.window_choice = pick_random_element(self.window_types, self.window_probs)
         self.window_size = self.height * np.random.uniform(self.window_size_gain_min, self.window_size_gain_max)
         self.windows_size = self.width * np.random.uniform(self.windows_size_gain_min, self.windows_size_gain_max)
         self.nonwindows_size = (self.width - self.windows_size)
-        self.window_dist = self.window_size * np.random.uniform(self.window_dist_gain_min, self.window_dist_gain_max)
+        self.window_dist = self.window_size * self.window_dist_gain
         # windows_size = num_windows * window_size + (num_windows - 1) * window_dist
         # windows_size = num_windows * (window_size + window_dist) - window_dist
         # window_dist = windows_size - num_ ...
@@ -225,9 +226,6 @@ class CapsuleMultiWindow(Capsule):
             self.window_dist = 0.0
             
         self.window_rounded_radius = self.window_size * np.random.uniform(self.window_rounded_radius_gain_min, self.window_rounded_radius_gain_max)
-            
-        self.line_types = ["EMPTY", "PARALLEL", "NORMAL", "BOX"]
-        self.line_choice = pick_random_element(self.line_types, self.line_probs)
 
         self.parallel_line_dist = self.height * np.random.uniform(self.parallel_line_dist_gain_min, self.parallel_line_dist_gain_max)
         
@@ -235,13 +233,13 @@ class CapsuleMultiWindow(Capsule):
     def update(cls, window_probs, window_size_gain_min, window_size_gain_max, windows_size_gain_min, windows_size_gain_max, 
                window_dist_gain_min, window_dist_gain_max, window_rounded_radius_gain_min, window_rounded_radius_gain_max, line_probs, parallel_line_dist_gain_min, 
                parallel_line_dist_gain_max):
-        cls.window_probs = window_probs
+        cls.window_choice = pick_random_element(cls.window_types, window_probs)
+        cls.line_choice = pick_random_element(cls.line_types, line_probs)
         cls.window_size_gain_min = window_size_gain_min
         cls.window_size_gain_max = window_size_gain_max
         cls.windows_size_gain_min = windows_size_gain_min
         cls.windows_size_gain_max = windows_size_gain_max
-        cls.window_dist_gain_min = window_dist_gain_min
-        cls.window_dist_gain_max = window_dist_gain_max
+        cls.window_dist_gain = np.random.uniform(window_dist_gain_min, window_dist_gain_max)
         cls.window_rounded_radius_gain_min = window_rounded_radius_gain_min
         cls.window_rounded_radius_gain_max = window_rounded_radius_gain_max
         cls.line_probs = line_probs
@@ -325,26 +323,26 @@ class CapsuleParallelLines(Capsule):
 
 
 class CapsuleNormalLines(Capsule):
+    line_types = ["RANDOM", "DOUBLE_THIN", "DOUBLE_FLAT", "DOUBLE_MULTI", "DOUBLE_MULTI_RANDOM", "DOUBLE_SHADED", "DOUBLE_BLACK"]
+
     def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
-        self.draw_choices = ["RANDOM", "DOUBLE_THIN", "DOUBLE_FLAT", "DOUBLE_MULTI", "DOUBLE_MULTI_RANDOM", "DOUBLE_SHADED", "DOUBLE_BLACK"]
-        self.draw_choice = pick_random_element(self.draw_choices, self.probs)
-        if self.draw_choice == "RANDOM":
+        if self.line_choice == "RANDOM":
             self.num_lines_rand = np.random.randint(self.num_lines_rand_min, self.num_lines_rand_max + 1)
         else:
             self.double_offset = 0.5 * self.width * np.random.uniform(self.double_offset_gain_min, self.double_offset_gain_max)
             self.double_dist = 0.5 * self.width * np.random.uniform(self.double_dist_gain_min, self.double_dist_gain_max)
-            if self.draw_choice in ("DOUBLE_MULTI", "DOUBLE_MULTI_RANDOM"):
+            if self.line_choice in ("DOUBLE_MULTI", "DOUBLE_MULTI_RANDOM"):
                 self.num_lines_multi = np.random.randint(self.num_lines_multi_min, self.num_lines_multi_max + 1)
                 self.double_multi_dist = 0.5 * self.width * np.random.uniform(self.double_multi_dist_gain_min, self.double_multi_dist_gain_max)
-            elif self.draw_choice == "DOUBLE_SHADED":
+            elif self.line_choice == "DOUBLE_SHADED":
                 self.double_shaded_dist = np.random.uniform(self.double_shaded_dist_min, self.double_shaded_dist_max)
         
     @classmethod
     def update(cls, probs, num_lines_rand_min, num_lines_rand_max, double_offset_gain_min, double_offset_gain_max, double_dist_gain_min, 
                double_dist_gain_max, num_lines_multi_min, num_lines_multi_max, double_multi_dist_gain_min, double_multi_dist_gain_max,
                double_shaded_dist_min, double_shaded_dist_max):
-        cls.probs = probs
+        cls.line_choice = pick_random_element(cls.line_types, probs)
         cls.num_lines_rand_min = num_lines_rand_min
         cls.num_lines_rand_max = num_lines_rand_max
         cls.double_offset_gain_min = double_offset_gain_min
@@ -362,25 +360,25 @@ class CapsuleNormalLines(Capsule):
         sketch = self.init_sketch(center=True)
         sketch.rect(0, 0, self.width, self.height, mode="center")
         
-        if self.draw_choice == "RANDOM":
+        if self.line_choice == "RANDOM":
             for x in np.random.uniform(-0.5 * self.width, 0.5 * self.width, size=self.num_lines_rand):
                 sketch.line(x, -0.5 * self.height, x, 0.5 * self.height)
         else:
             line_pos = 0.5 * self.width - self.double_offset
-            if self.draw_choice == "DOUBLE_THIN":
+            if self.line_choice == "DOUBLE_THIN":
                 sketch.line(-line_pos, -0.5 * self.height, -line_pos, 0.5 * self.height)
                 sketch.line(line_pos, -0.5 * self.height, line_pos, 0.5 * self.height)
-            elif self.draw_choice == "DOUBLE_FLAT":
+            elif self.line_choice == "DOUBLE_FLAT":
                 line_pos_1 = line_pos + 0.5 * self.double_dist
                 line_pos_2 = line_pos - 0.5 * self.double_dist
                 sketch.line(-line_pos_1, -0.5 * self.height, -line_pos_1, 0.5 * self.height)
                 sketch.line(-line_pos_2, -0.5 * self.height, -line_pos_2, 0.5 * self.height)
                 sketch.line(line_pos_1, -0.5 * self.height, line_pos_1, 0.5 * self.height)
                 sketch.line(line_pos_2, -0.5 * self.height, line_pos_2, 0.5 * self.height)
-            if self.draw_choice in ("DOUBLE_MULTI", "DOUBLE_MULTI_RANDOM"):
+            if self.line_choice in ("DOUBLE_MULTI", "DOUBLE_MULTI_RANDOM"):
                 line_pos_1 = line_pos + 0.5 * self.double_multi_dist
                 line_pos_2 = line_pos - 0.5 * self.double_multi_dist
-                if self.draw_choice == "DOUBLE_MULTI":
+                if self.line_choice == "DOUBLE_MULTI":
                     for x in np.linspace(line_pos_1, line_pos_2, num=self.num_lines_multi):
                         sketch.line(-x, -0.5 * self.height, -x, 0.5 * self.height)
                         sketch.line(x, -0.5 * self.height, x, 0.5 * self.height)
@@ -388,10 +386,10 @@ class CapsuleNormalLines(Capsule):
                     for x in np.random.uniform(line_pos_1, line_pos_2, size=self.num_lines_multi):
                         sketch.line(-x, -0.5 * self.height, -x, 0.5 * self.height)
                         sketch.line(x, -0.5 * self.height, x, 0.5 * self.height)
-            elif self.draw_choice == "DOUBLE_SHADED":
+            elif self.line_choice == "DOUBLE_SHADED":
                 sketch.sketch(draw_shaded_rect(line_pos, 0, self.double_dist, self.height, fill_distance=self.double_shaded_dist))
                 sketch.sketch(draw_shaded_rect(-line_pos, 0, self.double_dist, self.height, fill_distance=self.double_shaded_dist))
-            elif self.draw_choice == "DOUBLE_BLACK":
+            elif self.line_choice == "DOUBLE_BLACK":
                 sketch.sketch(draw_filled_rect(line_pos, 0, self.double_dist, self.height))
                 sketch.sketch(draw_filled_rect(-line_pos, 0, self.double_dist, self.height))
         return sketch
@@ -400,26 +398,22 @@ class CapsuleNormalLines(Capsule):
 class SquareCapsule(Capsule):
     def __init__(self, x, y, width, height, direction, from_module, allow_all_dirs=False):
         super().__init__(x, y, width, height, direction, from_module, allow_all_dirs=allow_all_dirs)
-        self.draw_cross = np.random.rand() < self.cross_prob
-        self.draw_shaded_circle = np.random.rand() < self.shaded_circle_prob
-        self.draw_rounded_corners = np.random.rand() < self.rounded_corners_prob
         self.corner_radius = 0.5 * self.width * np.random.uniform(self.corner_radius_gain_min, self.corner_radius_gain_max)
         self.border_size = self.width * np.random.uniform(self.border_gain_min, self.border_gain_max)
         self.outer_circle_radius = 0.5 * self.width * np.random.uniform(self.outer_circle_gain_min, self.outer_circle_gain_max)
         self.inner_circle_radius = self.outer_circle_radius * np.random.uniform(self.inner_circle_gain_min, self.inner_circle_gain_max)
-        self.num_lines_shaded_circle = 2 * int(0.5 * np.random.randint(self.num_lines_shaded_circle_min, self.num_lines_shaded_circle_max))
         
     @classmethod
     def update(cls, height_min, height_max, border_prob, cross_prob, shaded_circle_prob, rounded_corners_prob, corner_radius_gain_min, corner_radius_gain_max,
                border_gain_min, border_gain_max, outer_circle_gain_min, outer_circle_gain_max, inner_circle_gain_min,
                inner_circle_gain_max, num_lines_shaded_circle_min, num_lines_shaded_circle_max):
+        cls.draw_border = np.random.rand() < border_prob
+        cls.draw_cross = np.random.rand() < cross_prob
+        cls.draw_shaded_circle = np.random.rand() < shaded_circle_prob
+        cls.draw_rounded_corners = np.random.rand() < rounded_corners_prob
         cls.height_min = height_min
         cls.height_max = height_max
         cls.width_gain_min, cls.width_gain_max = 1.0, 1.0
-        cls.border_prob = border_prob
-        cls.cross_prob = cross_prob
-        cls.shaded_circle_prob = shaded_circle_prob
-        cls.rounded_corners_prob = rounded_corners_prob
         cls.corner_radius_gain_min = corner_radius_gain_min
         cls.corner_radius_gain_max = corner_radius_gain_max
         cls.border_gain_min = border_gain_min
@@ -428,8 +422,7 @@ class SquareCapsule(Capsule):
         cls.outer_circle_gain_max = outer_circle_gain_max
         cls.inner_circle_gain_min = inner_circle_gain_min
         cls.inner_circle_gain_max = inner_circle_gain_max
-        cls.num_lines_shaded_circle_min = num_lines_shaded_circle_min
-        cls.num_lines_shaded_circle_max = num_lines_shaded_circle_max
+        cls.num_lines_shaded_circle = 2 * int(0.5 * np.random.randint(num_lines_shaded_circle_min, num_lines_shaded_circle_max))
         
     def draw(self):
         sketch = get_empty_sketch()
@@ -437,12 +430,12 @@ class SquareCapsule(Capsule):
         
         if self.draw_rounded_corners:
             sketch.rect(0, 0, self.height, self.width, self.corner_radius, mode="center")
-            if self.border_prob:
+            if self.draw_border:
                 sketch.rect(0, 0, self.border_size, self.border_size, 
                             self.corner_radius * self.border_size / self.width, mode="center")
         else:
             sketch.rect(0, 0, self.height, self.width, mode="center")
-            if self.border_prob:
+            if self.draw_border:
                 sketch.rect(0, 0, self.border_size, self.border_size, mode="center")
         
         sketch.circle(0, 0, radius=self.outer_circle_radius)
@@ -499,17 +492,17 @@ class Connector(Module):
         return sketch
     
     
-class ConnectorVariation1(Connector):
+class ConnectorTrapezoid(Connector):
     def draw(self):
         sketch = super().draw()
         return sketch
 
 
 class ConnectorSimple(Connector):
+    connector_types = ["EMPTY", "SHADED", "FILLED"]
+
     def __init__(self, x, y, width, height, direction, from_module):
         super().__init__(x, y, width, height, direction, from_module)
-        self.connector_types = ["EMPTY", "SHADED", "FILLED"]
-        self.connector_choice = pick_random_element(self.connector_types, self.probs)
         self.height = np.min((self.start_height, self.end_height)) * np.random.uniform(self.height_gain_min, self.height_gain_max)
         self.shaded_dist = np.random.uniform(self.shaded_dist_min, self.shaded_dist_max)
 
@@ -517,11 +510,11 @@ class ConnectorSimple(Connector):
     def update(cls, height_min, height_max, from_height_gain_min, from_height_gain_max, width_gain_min, width_gain_max, 
                height_gain_min, height_gain_max, shaded_dist_min, shaded_dist_max, probs):
         super(ConnectorSimple, cls).update(height_min, height_max, from_height_gain_min, from_height_gain_max, width_gain_min, width_gain_max)
+        cls.connector_choice = pick_random_element(cls.connector_types, probs)
         cls.height_gain_min = height_gain_min
         cls.height_gain_max = height_gain_max
         cls.shaded_dist_min = shaded_dist_min
         cls.shaded_dist_max = shaded_dist_max
-        cls.probs = probs
         
     def draw(self):
         sketch = self.init_sketch(center=True)
@@ -537,10 +530,7 @@ class SolarPanel(Module):
     def __init__(self, x, y, width, height, direction, from_module):
         super().__init__(x, y, width, height, direction, from_module)
         self.open_points = None  # dont build outwards from this module
-        
-        self.num_panels_y = np.random.randint(self.panel_num_y_min, self.panel_num_y_max + 1)
-        
-        self.panel_dist_approx = np.random.uniform(self.panel_dist_x_min, self.panel_dist_x_max)
+                
         self.num_panels_x = int(np.round(self.width / self.panel_dist_approx))
         self.panel_dist = self.width / self.num_panels_x
         
@@ -548,10 +538,8 @@ class SolarPanel(Module):
     def update(cls, height_min, height_max, width_gain_min, width_gain_max, panel_num_y_min, panel_num_y_max, 
                panel_dist_x_min, panel_dist_x_max):
         super(SolarPanel, cls).update(height_min, height_max, width_gain_min, width_gain_max)
-        cls.panel_num_y_min = panel_num_y_min
-        cls.panel_num_y_max = panel_num_y_max
-        cls.panel_dist_x_min = panel_dist_x_min
-        cls.panel_dist_x_max = panel_dist_x_max
+        cls.num_panels_y = np.random.randint(panel_num_y_min, panel_num_y_max + 1)
+        cls.panel_dist_approx = np.random.uniform(panel_dist_x_min, panel_dist_x_max)
 
 
 class SolarPanelSingle(SolarPanel):
@@ -569,12 +557,8 @@ class SolarPanelSingle(SolarPanel):
 class SolarPanelDouble(SolarPanel):
     def __init__(self, x, y, width, height, direction, from_module):
         super().__init__(x, y, width, height, direction, from_module)
-        self.connector_width = np.random.uniform(self.connector_width_min, self.connector_width_max)
-        self.connector_height = np.random.uniform(self.connector_height_min, self.connector_height_max)
         self.panel_dist = np.random.uniform(self.panel_dist_min, self.panel_dist_max)
         self.panel_inset = np.random.uniform(self.panel_inset_min, self.panel_inset_max)
-        self.draw_multi_beams = np.random.rand() < self.multi_beams_prob
-        self.n_beams_extra = np.random.randint(self.n_beams_extra_min, self.n_beams_extra_max + 1)
         
         if self.draw_multi_beams:
             self.width_per_beam = self.width / (self.n_beams_extra + 1)
@@ -585,17 +569,14 @@ class SolarPanelDouble(SolarPanel):
     def update(cls, connector_width_min, connector_width_max, connector_height_min, 
                connector_height_max, panel_dist_min, panel_dist_max, panel_inset_min, panel_inset_max,
                multi_beams_prob, n_beams_extra_min, n_beams_extra_max):
-        cls.connector_width_min = connector_width_min
-        cls.connector_width_max = connector_width_max
-        cls.connector_height_min = connector_height_min
-        cls.connector_height_max = connector_height_max
+        cls.connector_width = np.random.uniform(connector_width_min, connector_width_max)
+        cls.connector_height = np.random.uniform(connector_height_min, connector_height_max)
         cls.panel_dist_min = panel_dist_min
         cls.panel_dist_max = panel_dist_max
         cls.panel_inset_min = panel_inset_min
         cls.panel_inset_max = panel_inset_max
-        cls.multi_beams_prob = multi_beams_prob
-        cls.n_beams_extra_min = n_beams_extra_min
-        cls.n_beams_extra_max = n_beams_extra_max
+        cls.draw_multi_beams = np.random.rand() < multi_beams_prob
+        cls.n_beams_extra = np.random.randint(n_beams_extra_min, n_beams_extra_max + 1)
         
     def draw(self):
         sketch = self.init_sketch()
@@ -650,17 +631,16 @@ class Decoration(Module):
     
 
 class Antenna(Decoration):
+    antenna_types = ["EMPTY", "DOT", "SQUARE"]
     def __init__(self, x, y, width, height, direction, from_module):
         super().__init__(x, y, width, height, direction, from_module)
-        self.antenna_types = ["EMPTY", "DOT", "SQUARE"]
-        self.antenna_choice = pick_random_element(self.antenna_types, self.probs)
         self.dot_radius = np.random.uniform(self.dot_radius_min, self.dot_radius_max)
         
     @classmethod
     def update(cls, height_min, height_max, width_gain_min, width_gain_max, probs, dot_radius_min, 
                dot_radius_max):
         super(Antenna, cls).update(height_min, height_max, width_gain_min, width_gain_max)
-        cls.probs = probs
+        cls.antenna_choice = pick_random_element(cls.antenna_types, probs)
         cls.dot_radius_min = dot_radius_min
         cls.dot_radius_max = dot_radius_max
 
@@ -680,16 +660,13 @@ class Antenna(Decoration):
 class DockingBaySimple(Decoration):
     def __init__(self, x, y, width, height, direction, from_module):
         super().__init__(x, y, width, height, direction, from_module)
-        self.draw_black = np.random.rand() < self.black_prob
-        self.shaded_dist = np.random.uniform(self.shaded_dist_min, self.shaded_dist_max)
 
     @classmethod
     def update(cls, height_min, height_max, width_gain_min, width_gain_max, black_prob, shaded_dist_min,
                shaded_dist_max):
         super(DockingBaySimple, cls).update(height_min, height_max, width_gain_min, width_gain_max)
-        cls.black_prob = black_prob
-        cls.shaded_dist_min = shaded_dist_min
-        cls.shaded_dist_max = shaded_dist_max
+        cls.draw_black = np.random.rand() < black_prob
+        cls.shaded_dist = np.random.uniform(shaded_dist_min, shaded_dist_max)
         
     def draw(self):
         sketch = self.init_sketch()
@@ -703,13 +680,8 @@ class DockingBaySimple(Decoration):
 class DockingBay(Decoration):
     def __init__(self, x, y, width, height, direction, from_module):
         super().__init__(x, y, width, height, direction, from_module)
-        self.union_middle = np.random.rand() < self.union_middle_prob
         self.flat_end_height = self.height * np.random.uniform(self.flat_end_height_gain_min, self.flat_end_height_gain_max)
         self.end_height = self.flat_end_height * np.random.uniform(self.end_height_gain_min, self.end_height_gain_max)
-        self.start_frac = np.random.uniform(self.start_frac_min, self.start_frac_max)
-        self.end_frac = np.random.uniform(self.end_frac_min, self.end_frac_max)
-        self.flat_start_frac = np.random.uniform(self.flat_start_frac_min, self.flat_start_frac_max)
-        self.flat_end_frac = np.random.uniform(self.flat_end_frac_min, self.flat_end_frac_max)
         
     @classmethod
     def update(cls, height_min, height_max, width_gain_min, width_gain_max, union_middle_prob, 
@@ -717,19 +689,15 @@ class DockingBay(Decoration):
                start_frac_min, start_frac_max, end_frac_min, end_frac_max, 
                flat_start_frac_min, flat_start_frac_max, flat_end_frac_min, flat_end_frac_max):
         super(DockingBay, cls).update(height_min, height_max, width_gain_min, width_gain_max)
-        cls.union_middle_prob = union_middle_prob
+        cls.union_middle = np.random.rand() < union_middle_prob
         cls.flat_end_height_gain_min = flat_end_height_gain_min
         cls.flat_end_height_gain_max = flat_end_height_gain_max
         cls.end_height_gain_min = end_height_gain_min
         cls.end_height_gain_max = end_height_gain_max
-        cls.start_frac_min = start_frac_min
-        cls.start_frac_max = start_frac_max
-        cls.end_frac_min = end_frac_min
-        cls.end_frac_max = end_frac_max
-        cls.flat_start_frac_min = flat_start_frac_min
-        cls.flat_start_frac_max = flat_start_frac_max
-        cls.flat_end_frac_min = flat_end_frac_min
-        cls.flat_end_frac_max = flat_end_frac_max
+        cls.start_frac = np.random.uniform(start_frac_min, start_frac_max)
+        cls.end_frac = np.random.uniform(end_frac_min, end_frac_max)
+        cls.flat_start_frac = np.random.uniform(flat_start_frac_min, flat_start_frac_max)
+        cls.flat_end_frac = np.random.uniform(flat_end_frac_min, flat_end_frac_max)
         
     def draw(self):
         sketch = self.init_sketch()
@@ -764,7 +732,6 @@ class DockingBay(Decoration):
 class Boxes(Decoration):
     def __init__(self, x, y, width, height, direction, from_module):
         super().__init__(x, y, width, height, direction, from_module)
-        self.draw_multi = np.random.rand() < self.prob_multi
         if self.draw_multi:
             self.num_box = np.random.randint(self.num_box_min, self.num_box_max + 1)
         else:
@@ -778,7 +745,7 @@ class Boxes(Decoration):
                box_height_gain_min, box_height_gain_max, box_box_width_gain_min, box_box_width_gain_max, 
                box_box_height_gain_min, box_box_height_gain_max, line_length_gain_min, line_length_gain_max):
         super(Boxes, cls).update(height_min, height_max, width_gain_min, width_gain_max)
-        cls.prob_multi = prob_multi
+        cls.draw_multi = np.random.rand() < prob_multi
         cls.num_box_min = num_box_min
         cls.num_box_max = num_box_max
         cls.box_width_gain_min = box_width_gain_min
@@ -816,17 +783,15 @@ class Boxes(Decoration):
     
 
 class Inflatable(Decoration):
+    line_types = ["EMPTY", "PARALLEL", "NORMAL"]
+
     def __init__(self, x, y, width, height, direction, from_module):
-        super().__init__(x, y, width, height, direction, from_module)
-        self.line_types = ["EMPTY", "PARALLEL", "NORMAL"]
-        self.line_choice = pick_random_element(self.line_types, self.prob_lines)
-        
-        self.corner_radius = np.min((self.width, self.height)) * np.random.uniform(self.corner_radius_gain_min, self.corner_radius_gain_max)
+        super().__init__(x, y, width, height, direction, from_module)        
+        self.corner_radius = np.min((self.width, self.height)) * self.corner_radius_gain
         self.connector_height = self.height * np.random.uniform(self.dock_height_gain_min, self.dock_height_gain_max)
         self.connector_width = self.connector_height * np.random.uniform(self.dock_width_gain_min, self.dock_width_gain_max)
-        self.shaded_connector_fill_dist = self.connector_height * np.random.uniform(self.shaded_dock_fill_dist_gain_min, self.shaded_dock_fill_dist_gain_max)
+        self.shaded_connector_fill_dist = self.connector_height * self.shaded_dock_fill_dist_gain
         self.capsule_width = self.width - self.connector_width
-        self.shaded_connector = np.random.rand() < self.shaded_connector_prob
         self.num_lines_parallel = np.random.randint(self.num_lines_parallel_min, self.num_lines_parallel_max + 1)
         self.num_lines_normal = np.random.randint(self.num_lines_normal_min, self.num_lines_normal_max + 1)
         self.sin_stop = 0.48
@@ -841,16 +806,14 @@ class Inflatable(Decoration):
               shaded_dock_fill_dist_gain_min, shaded_dock_fill_dist_gain_max, prob_lines, num_lines_parallel_min, num_lines_parallel_max,
               num_lines_normal_min, num_lines_normal_max):
         super(Inflatable, cls).update(height_min, height_max, width_gain_min, width_gain_max)
-        cls.corner_radius_gain_min = corner_radius_gain_min
-        cls.corner_radius_gain_max = corner_radius_gain_max
+        cls.line_choice = pick_random_element(cls.line_types, prob_lines)
+        cls.corner_radius_gain = np.random.uniform(corner_radius_gain_min, corner_radius_gain_max)
         cls.dock_height_gain_min = connector_height_gain_min
         cls.dock_height_gain_max = connector_height_gain_max
         cls.dock_width_gain_min = connector_width_gain_min
         cls.dock_width_gain_max = connector_width_gain_max
-        cls.shaded_connector_prob = shaded_connector_prob
-        cls.shaded_dock_fill_dist_gain_min = shaded_dock_fill_dist_gain_min
-        cls.shaded_dock_fill_dist_gain_max = shaded_dock_fill_dist_gain_max
-        cls.prob_lines = prob_lines
+        cls.shaded_connector = np.random.rand() < shaded_connector_prob
+        cls.shaded_dock_fill_dist_gain = np.random.uniform(shaded_dock_fill_dist_gain_min, shaded_dock_fill_dist_gain_max)
         cls.num_lines_parallel_min = num_lines_parallel_min
         cls.num_lines_parallel_max = num_lines_parallel_max
         cls.num_lines_normal_min = num_lines_normal_min
@@ -1200,7 +1163,7 @@ class SpacestationSketch(vsketch.SketchClass):
     prob_capsule_normal_lines = vsketch.Param(0.5, min_value=0.0)
     prob_capsule_square = vsketch.Param(0.2, min_value=0.0)
     
-    prob_connector_variation_1 = vsketch.Param(1.0, min_value=0.0)
+    prob_connector_trapezoid = vsketch.Param(1.0, min_value=0.0)
     prob_connector_simple = vsketch.Param(1.0, min_value=0.0)
     
     prob_solar_single = vsketch.Param(1.0, min_value=0.0)
@@ -1433,7 +1396,7 @@ class SpacestationSketch(vsketch.SketchClass):
         self.module_type_probs = {Capsule: normalize_vec_to_sum_one([self.prob_capsule_variation_1, self.prob_capsule_multi_window, self.prob_capsule_3d, 
                                                                      self.prob_capsule_parallel_lines, self.prob_capsule_normal_lines, 
                                                                      self.prob_capsule_square]),
-                                  Connector: normalize_vec_to_sum_one([self.prob_connector_variation_1, self.prob_connector_simple]),
+                                  Connector: normalize_vec_to_sum_one([self.prob_connector_trapezoid, self.prob_connector_simple]),
                                   SolarPanel: normalize_vec_to_sum_one([self.prob_solar_single, self.prob_solar_double]),
                                   Decoration: normalize_vec_to_sum_one([self.prob_decoration_antenna, self.prob_decoration_dock_simple,
                                                                         self.prob_decoration_dock, self.prob_decoration_boxes,
@@ -1465,8 +1428,10 @@ class SpacestationSketch(vsketch.SketchClass):
         self.inflatable_line_probs = normalize_vec_to_sum_one(probs_inflatable_line_probs)
     
     def init_modules(self):
-        self.module_types = {Capsule: [CapsuleVariation1, CapsuleMultiWindow, Capsule3D, CapsuleParallelLines, CapsuleNormalLines, SquareCapsule],
-                             Connector: [ConnectorVariation1, ConnectorSimple],
+        # TODO: only pick subset of all module types
+        self.module_types = {Capsule: [CapsuleVariation1, CapsuleMultiWindow, Capsule3D, CapsuleParallelLines, 
+                                       CapsuleNormalLines, SquareCapsule],
+                             Connector: [ConnectorTrapezoid, ConnectorSimple],
                              SolarPanel: [SolarPanelSingle, SolarPanelDouble],
                              Decoration: [Antenna, DockingBaySimple, DockingBay, Boxes, Inflatable]}
         
@@ -1558,6 +1523,11 @@ class SpacestationSketch(vsketch.SketchClass):
             for y in range(self.n_y):
                 with vsk.pushMatrix():
                     for x in range(self.n_x):
+                        # Call init modules. that function is changed to sample some of the variables.
+                        
+                        self.init_modules()
+                        
+                        
                         generator = StationGenerator(grid_width, grid_height, self.module_types, self.module_type_probs, self.probs_modules_parallel, 
                                                     self.probs_modules_normal, self.prob_connector_parallel_match_height, 
                                                     weight_continue_same_dir=self.weight_continue_same_dir)
