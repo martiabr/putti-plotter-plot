@@ -215,9 +215,6 @@ class CapsuleMultiWindow(Capsule):
         self.windows_size = self.width * np.random.uniform(self.windows_size_gain_min, self.windows_size_gain_max)
         self.nonwindows_size = (self.width - self.windows_size)
         self.window_dist = self.window_size * self.window_dist_gain
-        # windows_size = num_windows * window_size + (num_windows - 1) * window_dist
-        # windows_size = num_windows * (window_size + window_dist) - window_dist
-        # window_dist = windows_size - num_ ...
         
         self.num_windows = int((self.windows_size + self.window_dist) / (self.window_size + self.window_dist))
         if self.num_windows > 1:
@@ -1003,10 +1000,13 @@ class StationGenerator:
                         vsk.circle(point.x, point.y, radius=2e-2)
         vsk.stroke(1)
         
-    def draw(self, vsk, draw_modules=True, debug=False):
+    def draw(self, vsk, draw_modules=True, draw_floating_connectors=True, debug=False):
         if draw_modules:
             for module in self.modules:
-                vsk.sketch(module.draw())
+                if not draw_floating_connectors and isinstance(module, Connector) and len(module.open_points) > 0:
+                    pass
+                else:
+                    vsk.sketch(module.draw())
         
         if debug:
             vsk.circle(0, 0, radius=1e-1)  # origin
@@ -1137,7 +1137,7 @@ class SpacestationSketch(vsketch.SketchClass):
     draw_modules = vsketch.Param(True)
     debug = vsketch.Param(True)
     occult = vsketch.Param(False)
-    draw_floating_connectors = vsketch.Param(True)  # TODO
+    draw_floating_connectors = vsketch.Param(False)
     scale = vsketch.Param(0.6)
     
     num_tries = vsketch.Param(200, min_value=1)
@@ -1532,7 +1532,8 @@ class SpacestationSketch(vsketch.SketchClass):
                                                     self.probs_modules_normal, self.prob_connector_parallel_match_height, 
                                                     weight_continue_same_dir=self.weight_continue_same_dir)
                         generator.generate(num_tries=self.num_tries, num_consec_fails_max=self.num_consec_fails_max)
-                        generator.draw(vsk, draw_modules=self.draw_modules, debug=self.debug)
+                        generator.draw(vsk, draw_modules=self.draw_modules, draw_floating_connectors=self.draw_floating_connectors,
+                                       debug=self.debug)
                         
                         vsk.translate(grid_dist_x, 0)    
                 vsk.translate(0, -grid_dist_y)
@@ -1547,7 +1548,8 @@ class SpacestationSketch(vsketch.SketchClass):
                                                     self.probs_modules_normal, self.prob_connector_parallel_match_height, 
                                                     weight_continue_same_dir=self.weight_continue_same_dir)
                         generator.generate(num_tries=self.num_tries, num_consec_fails_max=self.num_consec_fails_max)
-                        generator.draw(vsk, draw_modules=self.draw_modules, debug=self.debug)
+                        generator.draw(vsk, draw_modules=self.draw_modules, draw_floating_connectors=self.draw_floating_connectors,
+                                       debug=self.debug)
         
         if self.occult:
             vsk.vpype("occult -i")
