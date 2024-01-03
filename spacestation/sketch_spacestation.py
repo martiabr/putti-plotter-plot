@@ -1134,6 +1134,12 @@ class SpacestationSketch(vsketch.SketchClass):
     WIDTH_FULL = 21
     HEIGHT_FULL = 29.7
     
+    module_types = {Capsule: [CapsuleVariation1, CapsuleMultiWindow, Capsule3D, CapsuleParallelLines, 
+                                CapsuleNormalLines, SquareCapsule],
+                        Connector: [ConnectorTrapezoid, ConnectorSimple],
+                        SolarPanel: [SolarPanelSingle, SolarPanelDouble],
+                        Decoration: [Antenna, DockingBaySimple, DockingBay, Boxes, Inflatable]}
+    
     draw_modules = vsketch.Param(True)
     debug = vsketch.Param(True)
     occult = vsketch.Param(False)
@@ -1151,11 +1157,48 @@ class SpacestationSketch(vsketch.SketchClass):
     grid_pad = vsketch.Param(0.3)
     quad_layers = vsketch.Param(2)
     
-    weight_continue_same_dir = vsketch.Param(6.0, min_value=0.0)
+    weight_continue_same_dir = vsketch.Param(10.0, min_value=0.0)
     
     prob_connector_parallel_match_height = vsketch.Param(0.9, min_value=0.0, max_value=1.0)
     
-    # Module probs:
+    # Module transition probs:
+    prob_capsule_capsule_parallel = vsketch.Param(1.0, min_value=0)
+    prob_capsule_connector_parallel = vsketch.Param(2.0, min_value=0)
+    prob_capsule_solar_parallel = vsketch.Param(0.4, min_value=0)
+    prob_capsule_decoration_parallel = vsketch.Param(1.0, min_value=0)
+
+    prob_capsule_capsule_normal = vsketch.Param(1.0, min_value=0)
+    prob_capsule_connector_normal = vsketch.Param(3.0, min_value=0)
+    prob_capsule_solar_normal = vsketch.Param(3.0, min_value=0)
+    prob_capsule_decoration_normal = vsketch.Param(1.0, min_value=0)
+    
+    # Number of choices to pick of each module type:
+    num_capsule_choices = vsketch.Param(3, min_value=1)
+    num_connector_choices = vsketch.Param(1, min_value=1)
+    num_solar_choices = vsketch.Param(1, min_value=1)
+    num_decorations_choices = vsketch.Param(3, min_value=1)
+    
+    # Probability of picking module subtype in list of modules:
+    prob_choice_capsule_variation_1 = vsketch.Param(1.0, min_value=0.0)
+    prob_choice_capsule_multi_window = vsketch.Param(0.5, min_value=0.0)
+    prob_choice_capsule_3d = vsketch.Param(0.5, min_value=0.0)
+    prob_choice_capsule_parallel_lines = vsketch.Param(0.5, min_value=0.0)
+    prob_choice_capsule_normal_lines = vsketch.Param(0.5, min_value=0.0)
+    prob_choice_capsule_square = vsketch.Param(0.2, min_value=0.0)
+    
+    prob_choice_connector_trapezoid = vsketch.Param(1.0, min_value=0.0)
+    prob_choice_connector_simple = vsketch.Param(1.0, min_value=0.0)
+    
+    prob_choice_solar_single = vsketch.Param(1.0, min_value=0.0)
+    prob_choice_solar_double = vsketch.Param(1.0, min_value=0.0)
+    
+    prob_choice_decoration_antenna = vsketch.Param(0.5, min_value=0.0)
+    prob_choice_decoration_dock_simple = vsketch.Param(1.0, min_value=0.0)
+    prob_choice_decoration_dock = vsketch.Param(2.0, min_value=0.0)
+    prob_choice_decoration_boxes = vsketch.Param(1.0, min_value=0.0)
+    prob_choice_decoration_inflatable = vsketch.Param(1.0, min_value=0.0)
+    
+    # Probability of picking module subtypes within drawing:
     prob_capsule_variation_1 = vsketch.Param(1.0, min_value=0.0)
     prob_capsule_multi_window = vsketch.Param(0.5, min_value=0.0)
     prob_capsule_3d = vsketch.Param(0.5, min_value=0.0)
@@ -1174,16 +1217,6 @@ class SpacestationSketch(vsketch.SketchClass):
     prob_decoration_dock = vsketch.Param(2.0, min_value=0.0)
     prob_decoration_boxes = vsketch.Param(1.0, min_value=0.0)
     prob_decoration_inflatable = vsketch.Param(1.0, min_value=0.0)
-    
-    prob_capsule_capsule_parallel = vsketch.Param(1.0, min_value=0)
-    prob_capsule_connector_parallel = vsketch.Param(2.0, min_value=0)
-    prob_capsule_solar_parallel = vsketch.Param(0.4, min_value=0)
-    prob_capsule_dock_parallel = vsketch.Param(1.0, min_value=0)
-
-    prob_capsule_capsule_normal = vsketch.Param(1.0, min_value=0)
-    prob_capsule_connector_normal = vsketch.Param(3.0, min_value=0)
-    prob_capsule_solar_normal = vsketch.Param(1.0, min_value=0)
-    prob_capsule_dock_normal = vsketch.Param(1.0, min_value=0)
     
     # Module params:
     capsule_height_min = vsketch.Param(1.0, min_value=0)
@@ -1380,19 +1413,33 @@ class SpacestationSketch(vsketch.SketchClass):
         
     def init_probs(self):
         probs_parallel = np.array([[self.prob_capsule_capsule_parallel, self.prob_capsule_connector_parallel,
-                                    self.prob_capsule_solar_parallel, self.prob_capsule_dock_parallel],
+                                    self.prob_capsule_solar_parallel, self.prob_capsule_decoration_parallel],
                                    [1.0, 0.0, 0.0, 0.0],
                                    4 * [np.nan],
                                    4 * [np.nan]])
         self.probs_modules_parallel = normalize_mat_to_row_sum_one(probs_parallel)
         
         probs_normal = np.array([[self.prob_capsule_capsule_normal, self.prob_capsule_connector_normal,
-                                  self.prob_capsule_solar_normal, self.prob_capsule_dock_normal],
+                                  self.prob_capsule_solar_normal, self.prob_capsule_decoration_normal],
                                  4 * [np.nan],
                                  4 * [np.nan],
                                  4 * [np.nan]])
         self.probs_modules_normal = normalize_mat_to_row_sum_one(probs_normal)
         
+        self.num_module_types_choices = {Capsule: self.num_capsule_choices, 
+                                         Connector: self.num_connector_choices,
+                                         SolarPanel: self.num_solar_choices,
+                                         Decoration: self.num_decorations_choices}
+        
+        self.module_type_probs_choice = {Capsule: normalize_vec_to_sum_one([self.prob_capsule_variation_1, self.prob_capsule_multi_window, self.prob_capsule_3d, 
+                                                                     self.prob_capsule_parallel_lines, self.prob_capsule_normal_lines, 
+                                                                     self.prob_capsule_square]),
+                                  Connector: normalize_vec_to_sum_one([self.prob_connector_trapezoid, self.prob_connector_simple]),
+                                  SolarPanel: normalize_vec_to_sum_one([self.prob_solar_single, self.prob_solar_double]),
+                                  Decoration: normalize_vec_to_sum_one([self.prob_decoration_antenna, self.prob_decoration_dock_simple,
+                                                                        self.prob_decoration_dock, self.prob_decoration_boxes,
+                                                                        self.prob_decoration_inflatable])}
+         
         self.module_type_probs = {Capsule: normalize_vec_to_sum_one([self.prob_capsule_variation_1, self.prob_capsule_multi_window, self.prob_capsule_3d, 
                                                                      self.prob_capsule_parallel_lines, self.prob_capsule_normal_lines, 
                                                                      self.prob_capsule_square]),
@@ -1427,14 +1474,19 @@ class SpacestationSketch(vsketch.SketchClass):
                                                 self.inflatable_parallel_lines_prob])
         self.inflatable_line_probs = normalize_vec_to_sum_one(probs_inflatable_line_probs)
     
-    def init_modules(self):
-        # TODO: only pick subset of all module types
-        self.module_types = {Capsule: [CapsuleVariation1, CapsuleMultiWindow, Capsule3D, CapsuleParallelLines, 
-                                       CapsuleNormalLines, SquareCapsule],
-                             Connector: [ConnectorTrapezoid, ConnectorSimple],
-                             SolarPanel: [SolarPanelSingle, SolarPanelDouble],
-                             Decoration: [Antenna, DockingBaySimple, DockingBay, Boxes, Inflatable]}
-        
+    def resample_module_choices(self):
+        # Pick subset of module subtypes for each module type: 
+        self.module_types_curr = {}
+        self.module_type_probs_curr = {}
+        for module_class in (Capsule, Connector, SolarPanel, Decoration):
+            idx_choices = np.random.choice(np.arange(len(self.module_types[module_class])), 
+                                           size=self.num_module_types_choices[module_class],
+                                           replace=False, p=self.module_type_probs_choice[module_class])
+            
+            self.module_types_curr[module_class] = [self.module_types[module_class][i] for i in idx_choices]
+            self.module_type_probs_curr[module_class] = normalize_vec_to_sum_one(self.module_type_probs[module_class][idx_choices])
+            
+    def update_module_params(self):
         # Capsules:     
         Capsule.update(self.capsule_height_min, self.capsule_height_max, self.capsule_width_gain_min,
                        self.capsule_width_gain_max)
@@ -1501,16 +1553,17 @@ class SpacestationSketch(vsketch.SketchClass):
                      self.boxes_box_box_height_gain_min, self.boxes_box_box_height_gain_max, self.boxes_line_length_gain_min, 
                      self.boxes_line_length_gain_max)
         Inflatable.update(self.inflatable_height_min, self.inflatable_height_max, self.inflatable_width_gain_min, 
-                          self.inflatable_width_gain_max, self.inflatable_corner_radius_gain_min, self.inflatable_corner_radius_gain_min,
+                          self.inflatable_width_gain_max, self.inflatable_corner_radius_gain_min, self.inflatable_corner_radius_gain_max,
                           self.inflatable_dock_height_gain_min, self.inflatable_dock_height_gain_max, self.inflatable_dock_width_gain_min, 
                           self.inflatable_dock_width_gain_max, self.inflatable_shaded_dock_prob, self.inflatable_shaded_dock_fill_dist_gain_min,
                           self.inflatable_shaded_dock_fill_dist_gain_max, self.inflatable_line_probs, self.inflatable_num_lines_parallel_min,
                           self.inflatable_num_lines_parallel_max, self.inflatable_num_lines_normal_min, self.inflatable_num_lines_normal_max)
         
     def draw(self, vsk: vsketch.Vsketch) -> None:
-        self.init_probs()
-        self.init_modules()
         self.init_drawing(vsk)
+        self.init_probs()
+        self.resample_module_choices()
+        self.update_module_params()
         
         width = (self.WIDTH_FULL - 2.0 * self.outer_pad) / self.scale
         height = (self.HEIGHT_FULL - 2.0 * self.outer_pad) / self.scale
@@ -1523,14 +1576,13 @@ class SpacestationSketch(vsketch.SketchClass):
             for y in range(self.n_y):
                 with vsk.pushMatrix():
                     for x in range(self.n_x):
-                        # Call init modules. that function is changed to sample some of the variables.
+                        self.resample_module_choices()
+                        self.update_module_params()
                         
-                        self.init_modules()
-                        
-                        
-                        generator = StationGenerator(grid_width, grid_height, self.module_types, self.module_type_probs, self.probs_modules_parallel, 
-                                                    self.probs_modules_normal, self.prob_connector_parallel_match_height, 
-                                                    weight_continue_same_dir=self.weight_continue_same_dir)
+                        generator = StationGenerator(grid_width, grid_height, self.module_types_curr, self.module_type_probs_curr,
+                                                     self.probs_modules_parallel, self.probs_modules_normal,
+                                                     self.prob_connector_parallel_match_height, 
+                                                     weight_continue_same_dir=self.weight_continue_same_dir)
                         generator.generate(num_tries=self.num_tries, num_consec_fails_max=self.num_consec_fails_max)
                         generator.draw(vsk, draw_modules=self.draw_modules, draw_floating_connectors=self.draw_floating_connectors,
                                        debug=self.debug)
@@ -1543,6 +1595,9 @@ class SpacestationSketch(vsketch.SketchClass):
                 if node.bottom:
                     with vsk.pushMatrix():
                         vsk.translate(node.x, node.y)
+                        
+                        self.resample_module_choices()
+                        self.update_module_params()
                         
                         generator = StationGenerator(node.width, node.height, self.module_types, self.module_type_probs, self.probs_modules_parallel, 
                                                     self.probs_modules_normal, self.prob_connector_parallel_match_height, 

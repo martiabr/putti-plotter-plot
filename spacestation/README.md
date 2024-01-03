@@ -70,8 +70,8 @@ Elements in the space stations:
       E.g. if we add a solar panel on one side it should be a high prob that a solar panel will be created on opposite side.
 - [x] Quadtree grid
 - [ ] Way to only sample a subset of all structure types. Otherwise things will look very chaotic. E.g. there is a 20% chance of having inflatable capsule as an option for a drawing, but a separate prob for actually drawing it when picking the next structure to add. Another example would to be only pick n out of m solar panel types for one drawing, again to make the single drawing more cohesive.
-- [ ] limit certain parameters (solar panels especially) to be sketch-wide instead of sampled for every module
-- [ ] Option to not draw "loose" connectors
+- [x] limit certain parameters (solar panels especially) to be sketch-wide instead of sampled for every module
+- [x] Option to not draw "loose" connectors
 
 Modules:
 - [x] double panel variation with more beams, probably just as prob in same class
