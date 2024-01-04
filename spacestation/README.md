@@ -90,13 +90,14 @@ Modules:
 - [x] Decoration: really rounded corners inflatable capsule (actually decoration since no building out from it)
 - [x] Decoration: Just a box, or multiple boxes. Centered, or for example one box on either end. Or a tiny box on the box. Small variations like that. Or line out from the box.
 - [x] Connector: narrow black connector, height is just gain of the smallest side. Also line shading.
+- [x] Capsule: add equal distant normal lines, e.g. a module with two equal distant lines is quite distinctive.
 - [ ] Connector: flat side + trapezoid side, possibly with flat side shaded or black. 
 - [ ] Capsule: normal lines, instead of symmetric on either side, just have two lines next to each other at a random x. Also with line shading or black shading!
 - [ ] Decoration: Cupola
+- [ ] Randomize antenna position
 - [ ] Solar panel: improve single solar panel with arm/connector
 - [ ] Capsule: multi small window (long and narrow capsule with dot windows)
 - [ ] Capsule: add small boxes to some normal lines, parallel lines capsules, as well as "empty" capsule
-- [ ] Capsule: add equal distant normal lines, e.g. a module with two equal distant lines is quite distinctive.
 - [ ] Antenna: actual little dish on the rod
 - [ ] DockSimple: trapezoid
 - [ ] Inflatable: normal lines with slight bend, just use ellipse arc
