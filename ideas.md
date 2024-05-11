@@ -11,6 +11,7 @@
   - Cats
   - [ ] Minimalist **planet generator** in grid. Randomization of size and shape, moons, rings, cities (just lines representing skyscrapers). Possibly experiement with shading but might be difficult.
   - [ ] **Space stations**. Can use some procedural dungeon generator type code. Think capsules, tubes, solar panels etc. Possibly in irregular grid. Somehow get the algo to fill the rect it has been assigned instead of growing out randomly.
+- [ ] Create a simple block letter font and apply different kinds of noise. End result: i wish it was 2006.
 - [ ] Nonlinear transforms: Transform grid lines by some nonlinear transform - conformal mapping type stuff. Little code and quick to draw but could look cool. One way to do this is to update the Truchet tiles with noise.
 - [ ] Revisit WFC with cooler tiles
 - [ ] Revisit Bauhaus/Kandinsky art with algorithm for building these artpieces instead of just random sampling
