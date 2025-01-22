@@ -4,6 +4,7 @@
 - [ ] **"Shoelace" chaos plot:** Could be textured with piano, guitar, trumpet styled lines for a music theme. The general challenge is how to get the depth correct. And how to generate a line that is chaotic but still evenly fills the domain. 
   - Approaches to this: 1. WFC, 2. Walk
 - [ ] Generative train network / tube map (WFC?)
+- [ ] Test vpype-perspective
 - Grids of objects. Can be as simple as polygons or circles with randomly sampled sizes. Or e.g. create a cactus creator algorithm that generates random cacti (or any other random fun object). Or even just some abstract shapes consisting of points, lines and boxes.
   - [x] Rocket generator would be awesome
   - [x] Robots
