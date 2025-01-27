@@ -231,6 +231,7 @@ class WFC():
                                 self.possibilities[row, col, tile_index] = False
                                 possibilties_updated = True  # flag cell as updated
                                 rules_finished_forward = True
+                                # TODO: just change rules_finished_forward to break?
                     
                     # reversed_dir = reverse_dir(rule.dir)
                     # if reversed_dir in valid_directions:
