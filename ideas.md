@@ -4,6 +4,7 @@
 - [ ] **"Shoelace" chaos plot:** Could be textured with piano, guitar, trumpet styled lines for a music theme. The general challenge is how to get the depth correct. And how to generate a line that is chaotic but still evenly fills the domain. 
   - Approaches to this: 1. WFC, 2. Walk
 - [ ] Generative train network / tube map (WFC?)
+- [ ] Test vpype-perspective
 - Grids of objects. Can be as simple as polygons or circles with randomly sampled sizes. Or e.g. create a cactus creator algorithm that generates random cacti (or any other random fun object). Or even just some abstract shapes consisting of points, lines and boxes.
   - [x] Rocket generator would be awesome
   - [x] Robots
@@ -11,6 +12,7 @@
   - Cats
   - [ ] Minimalist **planet generator** in grid. Randomization of size and shape, moons, rings, cities (just lines representing skyscrapers). Possibly experiement with shading but might be difficult.
   - [ ] **Space stations**. Can use some procedural dungeon generator type code. Think capsules, tubes, solar panels etc. Possibly in irregular grid. Somehow get the algo to fill the rect it has been assigned instead of growing out randomly.
+- [ ] Create a simple block letter font and apply different kinds of noise. End result: i wish it was 2006.
 - [ ] Nonlinear transforms: Transform grid lines by some nonlinear transform - conformal mapping type stuff. Little code and quick to draw but could look cool. One way to do this is to update the Truchet tiles with noise.
 - [ ] Revisit WFC with cooler tiles
 - [ ] Revisit Bauhaus/Kandinsky art with algorithm for building these artpieces instead of just random sampling
