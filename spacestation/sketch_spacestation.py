@@ -579,14 +579,23 @@ class SolarPanel(Module):
 
 
 class SolarPanelSingle(SolarPanel):
+    @classmethod
+    def update(cls, arm_width_min, arm_width_max, arm_length_min, arm_length_max):
+        cls.arm_width = np.random.uniform(arm_width_min, arm_width_max)
+        cls.arm_length = np.random.uniform(arm_length_min, arm_length_max)
+        
     def draw(self):
         sketch = self.init_sketch()
+        
+        sketch.rect(0.5 * self.arm_length, 0, self.arm_length, self.arm_width, mode="center")
+        sketch.translate(self.arm_length, 0)
         
         for y in np.linspace(-0.5 * self.height, 0.5 * self.height, self.num_panels_y + 1):
             sketch.line(0, y, self.width, y)
             
         for x in np.linspace(0, self.width, self.num_panels_x + 1):
             sketch.line(x, -0.5 * self.height, x, 0.5 * self.height)
+            
         return sketch
     
 
@@ -764,6 +773,83 @@ class DockingBay(Decoration):
         
         return sketch
 
+
+class Cupola(Decoration):
+    def __init__(self, x, y, width, height, direction, from_module):
+        super().__init__(x, y, width, height, direction, from_module)
+        self.connection_width = self.width * self.connection_width_gain
+        self.connection_height = self.height * self.connection_height_gain
+        self.flat_width = self.width * self.flat_width_gain
+        self.windows_top_height = self.height * self.windows_top_height_gain
+        self.top_width = self.width * self.top_width_gain
+        self.top_height = self.windows_top_height * self.top_height_gain
+        self.windows_width = self.width - self.connection_width - self.flat_width - self.top_width
+        self.windows_inside_width = self.windows_width * self.windows_inside_width_gain
+        self.windows_height_pad = self.height * self.windows_height_pad_gain
+        self.fill_dist_top = self.height * self.fill_dist_top_gain
+        self.fill_dist_flat = self.height * self.fill_dist_flat_gain
+        
+    @classmethod
+    def update(cls, height_min, height_max, width_gain_min, width_gain_max, connection_width_gain_min, connection_width_gain_max,
+               connection_height_gain_min, connection_height_gain_max, flat_width_gain_min, flat_width_gain_max, 
+               windows_top_height_gain_min, windows_top_height_gain_max, windows_inside_width_gain_min, windows_inside_width_gain_max,
+               windows_height_pad_gain_min, windows_height_pad_gain_max,
+               top_width_gain_min, top_width_gain_max, top_height_gain_min, top_height_gain_max, prob_windows, prob_shaded_top,
+               prob_shaded_flat, fill_dist_top_gain_min, fill_dist_top_gain_max, fill_dist_flat_gain_min, fill_dist_flat_gain_max):
+        super(Cupola, cls).update(height_min, height_max, width_gain_min, width_gain_max)
+        cls.connection_width_gain = np.random.uniform(connection_width_gain_min, connection_width_gain_max)
+        cls.connection_height_gain = np.random.uniform(connection_height_gain_min, connection_height_gain_max)
+        cls.flat_width_gain = np.random.uniform(flat_width_gain_min, flat_width_gain_max)
+        cls.windows_top_height_gain = np.random.uniform(windows_top_height_gain_min, windows_top_height_gain_max)
+        cls.windows_inside_width_gain = np.random.uniform(windows_inside_width_gain_min, windows_inside_width_gain_max)
+        cls.windows_height_pad_gain = np.random.uniform(windows_height_pad_gain_min, windows_height_pad_gain_max)
+        cls.top_width_gain = np.random.uniform(top_width_gain_min, top_width_gain_max)
+        cls.top_height_gain = np.random.uniform(top_height_gain_min, top_height_gain_max)
+        cls.num_windows = np.random.choice([1, 2, 3, 4], p=prob_windows)
+        cls.fill_dist_top_gain = np.random.uniform(fill_dist_top_gain_min, fill_dist_top_gain_max)
+        cls.fill_dist_flat_gain = np.random.uniform(fill_dist_flat_gain_min, fill_dist_flat_gain_max)
+        cls.shaded_top = np.random.rand() < prob_shaded_top
+        cls.shaded_flat = np.random.rand() < prob_shaded_flat
+        
+    def draw(self):
+        sketch = self.init_sketch()
+        
+        if self.shaded_top:
+            sketch.sketch(draw_shaded_rect(0.5 * self.connection_width, 0, self.connection_width, self.connection_height,
+                                           fill_distance=self.fill_dist_top))
+        else:
+            sketch.sketch(draw_filled_rect(0.5 * self.connection_width, 0, self.connection_width, self.connection_height))
+        sketch.translate(self.connection_width, 0)
+        
+        if self.shaded_flat:
+            sketch.sketch(draw_shaded_rect(0.5 * self.flat_width, 0, self.flat_width, self.height,
+                                           fill_distance=self.fill_dist_flat))
+        else:
+            sketch.rect(0.5 * self.flat_width, 0, self.flat_width, self.height, mode="center")
+        sketch.translate(self.flat_width, 0)
+        
+        # trapezoid from connection_width
+        
+        sketch.polygon([(0, -0.5 * self.height), 
+                        (self.windows_width, -0.5 * self.windows_top_height), 
+                        (self.windows_width, 0.5 * self.windows_top_height),
+                        (0, 0.5 * self.height)])
+        
+        sketch.polygon([(0.5 * (self.windows_width - self.windows_inside_width), -0.5 * self.height), 
+                        (0.5 * (self.windows_width - self.windows_inside_width), -self.windows_height_pad), 
+                        (0.5 * (self.windows_width + self.windows_inside_width), -self.windows_height_pad),
+                        (0.5 * (self.windows_width + self.windows_inside_width), -0.5 * self.height)])
+        
+        sketch.translate(self.windows_width, 0)
+        
+        if self.shaded_top:
+            sketch.sketch(draw_shaded_rect(0.5 * self.top_width, 0, self.top_width, self.top_height,
+                                           fill_distance=self.fill_dist_top))
+        else:
+            sketch.sketch(draw_filled_rect(0.5 * self.top_width, 0, self.top_width, self.top_height))
+        
+        return sketch
+    
 
 class Boxes(Decoration):
     def __init__(self, x, y, width, height, direction, from_module):
@@ -1177,7 +1263,7 @@ class SpacestationSketch(vsketch.SketchClass):
                                 CapsuleNormalLines, SquareCapsule],
                         Connector: [ConnectorTrapezoid, ConnectorTrapezoidExtended, ConnectorSimple],
                         SolarPanel: [SolarPanelSingle, SolarPanelDouble],
-                        Decoration: [Antenna, DockingBaySimple, DockingBay, Boxes, Inflatable]}
+                        Decoration: [Antenna, DockingBaySimple, DockingBay, Cupola, Boxes, Inflatable]}
     
     draw_modules = vsketch.Param(True)
     debug = vsketch.Param(True)
@@ -1235,6 +1321,7 @@ class SpacestationSketch(vsketch.SketchClass):
     prob_choice_decoration_antenna = vsketch.Param(3.0, min_value=0.0)
     prob_choice_decoration_dock_simple = vsketch.Param(1.0, min_value=0.0)
     prob_choice_decoration_dock = vsketch.Param(1.0, min_value=0.0)
+    prob_choice_decoration_cupola = vsketch.Param(1.0, min_value=0.0)
     prob_choice_decoration_boxes = vsketch.Param(3.0, min_value=0.0)
     prob_choice_decoration_inflatable = vsketch.Param(1.0, min_value=0.0)
     
@@ -1253,10 +1340,11 @@ class SpacestationSketch(vsketch.SketchClass):
     prob_solar_single = vsketch.Param(1.0, min_value=0.0)
     prob_solar_double = vsketch.Param(1.0, min_value=0.0)
     
-    prob_decoration_antenna = vsketch.Param(0.5, min_value=0.0)
+    prob_decoration_antenna = vsketch.Param(1.5, min_value=0.0)
     prob_decoration_dock_simple = vsketch.Param(1.0, min_value=0.0)
-    prob_decoration_dock = vsketch.Param(2.0, min_value=0.0)
-    prob_decoration_boxes = vsketch.Param(1.0, min_value=0.0)
+    prob_decoration_dock = vsketch.Param(1.0, min_value=0.0)
+    prob_decoration_cupola = vsketch.Param(1.0, min_value=0.0)
+    prob_decoration_boxes = vsketch.Param(2.0, min_value=0.0)
     prob_decoration_inflatable = vsketch.Param(1.0, min_value=0.0)
     
     # Module params:
@@ -1372,6 +1460,11 @@ class SpacestationSketch(vsketch.SketchClass):
     solar_panel_dist_x_max = vsketch.Param(0.20, min_value=0)
     solar_panel_num_y_min = vsketch.Param(2, min_value=0)
     solar_panel_num_y_max = vsketch.Param(4, min_value=0)
+    
+    solar_panel_single_arm_width_min = vsketch.Param(0.1, min_value=0)
+    solar_panel_single_arm_width_max = vsketch.Param(0.2, min_value=0)  
+    solar_panel_single_arm_length_min = vsketch.Param(0.2, min_value=0)
+    solar_panel_single_arm_length_max = vsketch.Param(0.4, min_value=0)  
 
     solar_panel_double_connector_width_min = vsketch.Param(0.12, min_value=0)
     solar_panel_double_connector_width_max = vsketch.Param(0.3, min_value=0)  
@@ -1421,6 +1514,37 @@ class SpacestationSketch(vsketch.SketchClass):
     dock_flat_end_frac_min = vsketch.Param(0.1, min_value=0)
     dock_flat_end_frac_max = vsketch.Param(0.2, min_value=0)
     
+    cupola_height_min = vsketch.Param(1.0, min_value=0)
+    cupola_height_max = vsketch.Param(1.0, min_value=0)
+    cupola_width_gain_min = vsketch.Param(0.4, min_value=0)
+    cupola_width_gain_max = vsketch.Param(0.7, min_value=0)
+    cupola_connection_width_gain_min = vsketch.Param(0.03, min_value=0) 
+    cupola_connection_width_gain_max = vsketch.Param(0.1, min_value=0)
+    cupola_connection_height_gain_min = vsketch.Param(0.7, min_value=0) 
+    cupola_connection_height_gain_max = vsketch.Param(0.9, min_value=0) 
+    cupola_flat_width_gain_min = vsketch.Param(0.2, min_value=0)
+    cupola_flat_width_gain_max = vsketch.Param(0.3, min_value=0)
+    cupola_windows_top_height_gain_min = vsketch.Param(0.6, min_value=0)
+    cupola_windows_top_height_gain_max = vsketch.Param(0.8, min_value=0)
+    cupola_windows_inside_width_gain_min = vsketch.Param(0.6, min_value=0)
+    cupola_windows_inside_width_gain_max = vsketch.Param(0.8, min_value=0)
+    cupola_windows_height_pad_gain_min = vsketch.Param(0.075, min_value=0)
+    cupola_windows_height_pad_gain_max = vsketch.Param(0.15, min_value=0)
+    cupola_top_width_gain_min = vsketch.Param(0.03, min_value=0) 
+    cupola_top_width_gain_max = vsketch.Param(0.1, min_value=0)
+    cupola_top_height_gain_min = vsketch.Param(0.8, min_value=0) 
+    cupola_top_height_gain_max = vsketch.Param(0.6, min_value=0)
+    cupola_num_windows_probs_1 = vsketch.Param(1.0, min_value=0)
+    cupola_num_windows_probs_2 = vsketch.Param(1.0, min_value=0) 
+    cupola_num_windows_probs_3 = vsketch.Param(2.0, min_value=0)
+    cupola_num_windows_probs_4 = vsketch.Param(1.0, min_value=0) 
+    cupola_prob_shaded_top = vsketch.Param(0.5, min_value=0) 
+    cupola_prob_shaded_flat = vsketch.Param(0.3, min_value=0) 
+    cupola_fill_dist_top_gain_min = vsketch.Param(0.02, min_value=0) 
+    cupola_fill_dist_top_gain_max = vsketch.Param(0.1, min_value=0) 
+    cupola_fill_dist_flat_gain_min = vsketch.Param(0.1, min_value=0) 
+    cupola_fill_dist_flat_gain_max = vsketch.Param(0.25, min_value=0)  
+      
     boxes_height_min = vsketch.Param(1.0, min_value=0)
     boxes_height_max = vsketch.Param(2.0, min_value=0)
     boxes_width_gain_min = vsketch.Param(0.15, min_value=0)
@@ -1495,8 +1619,8 @@ class SpacestationSketch(vsketch.SketchClass):
                                                                        self.prob_choice_connector_simple]),
                                   SolarPanel: normalize_vec_to_sum_one([self.prob_choice_solar_single, self.prob_choice_solar_double]),
                                   Decoration: normalize_vec_to_sum_one([self.prob_choice_decoration_antenna, self.prob_choice_decoration_dock_simple,
-                                                                        self.prob_choice_decoration_dock, self.prob_choice_decoration_boxes,
-                                                                        self.prob_choice_decoration_inflatable])}
+                                                                        self.prob_choice_decoration_dock, self.prob_choice_decoration_cupola, 
+                                                                        self.prob_choice_decoration_boxes, self.prob_choice_decoration_inflatable])}
          
         self.module_type_probs = {Capsule: normalize_vec_to_sum_one([self.prob_capsule_variation_1, self.prob_capsule_multi_window, self.prob_capsule_3d, 
                                                                      self.prob_capsule_parallel_lines, self.prob_capsule_normal_lines, 
@@ -1505,8 +1629,8 @@ class SpacestationSketch(vsketch.SketchClass):
                                                                        self.prob_connector_simple]),
                                   SolarPanel: normalize_vec_to_sum_one([self.prob_solar_single, self.prob_solar_double]),
                                   Decoration: normalize_vec_to_sum_one([self.prob_decoration_antenna, self.prob_decoration_dock_simple,
-                                                                        self.prob_decoration_dock, self.prob_decoration_boxes,
-                                                                        self.prob_decoration_inflatable])}
+                                                                        self.prob_decoration_dock, self.prob_decoration_cupola,
+                                                                        self.prob_decoration_boxes, self.prob_decoration_inflatable])}
         
         probs_capsule_normal_line = np.array([self.capsule_normal_lines_prob_random, self.capsule_normal_lines_prob_double_thin, 
                                               self.capsule_normal_lines_prob_double_flat, self.capsule_normal_lines_prob_double_multi,
@@ -1532,6 +1656,10 @@ class SpacestationSketch(vsketch.SketchClass):
         probs_multi_window_line_probs = np.array([self.capsule_multi_window_no_lines_prob, self.capsule_multi_window_parallel_lines_prob, 
                                                   self.capsule_multi_window_normal_lines_prob, self.capsule_multi_window_box_prob])
         self.capsule_multi_window_line_probs = normalize_vec_to_sum_one(probs_multi_window_line_probs)
+        
+        cupola_num_windows_probs = np.array([self.cupola_num_windows_probs_1, self.cupola_num_windows_probs_2, 
+                                             self.cupola_num_windows_probs_3, self.cupola_num_windows_probs_4])
+        self.cupola_num_windows_probs = normalize_vec_to_sum_one(cupola_num_windows_probs)
         
         probs_inflatable_line_probs = np.array([self.inflatable_empty_prob, self.inflatable_parallel_lines_prob, 
                                                 self.inflatable_parallel_lines_prob])
@@ -1594,6 +1722,8 @@ class SpacestationSketch(vsketch.SketchClass):
         SolarPanel.update(self.solar_height_min, self.solar_height_max, self.solar_width_gain_min,
                           self.solar_width_gain_max, self.solar_panel_num_y_min, self.solar_panel_num_y_max, 
                           self.solar_panel_dist_x_min, self.solar_panel_dist_x_max)
+        SolarPanelSingle.update(self.solar_panel_single_arm_width_min, self.solar_panel_single_arm_width_max,
+                                self.solar_panel_single_arm_length_min, self.solar_panel_single_arm_length_max)
         SolarPanelDouble.update(self.solar_panel_double_connector_width_min, self.solar_panel_double_connector_width_max, 
                                 self.solar_panel_double_connector_height_min, self.solar_panel_double_connector_height_max, 
                                 self.solar_panel_double_panel_dist_min, self.solar_panel_double_panel_dist_max, 
@@ -1614,6 +1744,16 @@ class SpacestationSketch(vsketch.SketchClass):
                           self.dock_start_frac_max, self.dock_end_frac_min, self.dock_end_frac_max,
                           self.dock_flat_start_frac_min, self.dock_flat_start_frac_max, self.dock_flat_end_frac_min,
                           self.dock_flat_end_frac_max)
+        Cupola.update(self.cupola_height_min, self.cupola_height_max, self.cupola_width_gain_min, self.cupola_width_gain_max,
+                      self.cupola_connection_width_gain_min, self.cupola_connection_width_gain_max,
+                      self.cupola_connection_height_gain_min, self.cupola_connection_height_gain_max, self.cupola_flat_width_gain_min,
+                      self.cupola_flat_width_gain_max, self.cupola_windows_top_height_gain_min, self.cupola_windows_top_height_gain_max,
+                      self.cupola_windows_inside_width_gain_min, self.cupola_windows_inside_width_gain_max,
+                      self.cupola_windows_height_pad_gain_min, self.cupola_windows_height_pad_gain_max,
+                      self.cupola_top_width_gain_min, self.cupola_top_width_gain_max,
+                      self.cupola_top_height_gain_min, self.cupola_top_height_gain_max, self.cupola_num_windows_probs, 
+                      self.cupola_prob_shaded_top, self.cupola_prob_shaded_flat, self.cupola_fill_dist_top_gain_min, 
+                      self.cupola_fill_dist_top_gain_max, self.cupola_fill_dist_flat_gain_min, self.cupola_fill_dist_flat_gain_max)
         Boxes.update(self.boxes_height_min, self.boxes_height_max, self.boxes_width_gain_min, self.boxes_width_gain_max,
                      self.boxes_prob_multi, self.boxes_prob_box_on_box, self.boxes_prob_line_on_box, 
                      self.boxes_num_box_multi_min, self.boxes_num_box_multi_max,

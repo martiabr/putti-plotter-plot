@@ -91,9 +91,10 @@ Modules:
 - [x] Decoration: Just a box, or multiple boxes. Centered, or for example one box on either end. Or a tiny box on the box. Small variations like that. Or line out from the box.
 - [x] Connector: narrow black connector, height is just gain of the smallest side. Also line shading.
 - [x] Capsule: add equal distant normal lines, e.g. a module with two equal distant lines is quite distinctive.
-- [ ] Connector: flat side + trapezoid side, possibly with flat side shaded or black. 
+- [x] Connector: flat side + trapezoid side, possibly with flat side shaded or black. 
 - [ ] Capsule: normal lines, instead of symmetric on either side, just have two lines next to each other at a random x. Also with line shading or black shading!
 - [ ] Decoration: Cupola
+- [ ] Connector: Fat ring that is fatter than both start and end, maybe with other black/shaded rings on the sides
 - [ ] Randomize antenna position
 - [ ] Solar panel: improve single solar panel with arm/connector
 - [ ] Capsule: multi small window (long and narrow capsule with dot windows)
