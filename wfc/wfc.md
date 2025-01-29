@@ -108,7 +108,10 @@ How to do this?
 - [x] Progress bar
 - [ ] **Speed up by having variations of same tile. The only unique thing here is the valid directions. This will give much more maintainable speeds as adding variations will not make things slower**
 - [ ] Investigate need of reverse check
-- [ ] Add unique queue? 
+- [ ] Add unique queue?
+- [ ] Add easy random init of partially filled tileset based on other rules
+- [ ] Duplicating tiles on several layers, tiles may belong to zero, one, or multiple "categories" which correspond to each layer.
+  - [ ] Constraint on number of "connected" groups from each category/layer? 
 
 ---
 
