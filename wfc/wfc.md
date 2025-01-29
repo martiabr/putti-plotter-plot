@@ -3,16 +3,14 @@ We have a boolean 3D array of size N_x x N_y x N_tiles that keeps track of every
 
 ---
 
-https://www.boristhebrave.com/2020/04/13/wave-function-collapse-explained/
-https://www.gridbugs.org/wave-function-collapse/
-https://www.procjam.com/tutorials/wfc/
-https://robertheaton.com/2018/12/17/wavefunction-collapse-algorithm/
-https://terbium.io/2018/11/wave-function-collapse/
-
-
-https://www.jackbrewer.co.uk/plot/truchet-tiles
-https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.378.5320&rep=rep1&type=pdf#page=69
-https://www.skillshare.com/projects/Truchet-Tiles-in-Python-Mode-for-Processing/390887
+- https://www.boristhebrave.com/2020/04/13/wave-function-collapse-explained/
+- https://www.gridbugs.org/wave-function-collapse/
+- https://www.procjam.com/tutorials/wfc/
+- https://robertheaton.com/2018/12/17/wavefunction-collapse-algorithm/
+- https://terbium.io/2018/11/wave-function-collapse/
+- https://www.jackbrewer.co.uk/plot/truchet-tiles
+- https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.378.5320&rep=rep1&type=pdf#page=69
+- https://www.skillshare.com/projects/Truchet-Tiles-in-Python-Mode-for-Processing/390887
 
 ---
 
