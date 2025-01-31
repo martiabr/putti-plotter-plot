@@ -106,6 +106,8 @@ How to do this?
 - [x] Progress bar
 - [ ] **Speed up by having variations of same tile. The only unique thing here is the valid directions. This will give much more maintainable speeds as adding variations will not make things slower**
 - [ ] Change to depth first search
+- [ ] Calculate entropy in batch after propagation - it is not used in backtracking search, just need to know which cells are already collapsed, which is more efficiently stored as bool array anyway
+- [ ] Force single tile option cells to collapse during search?
 - [ ] Depth to search per iteration? How to do this without breaking any rule logic?
 - [ ] Iterate through and draw between each
 - [ ] Start from center?
