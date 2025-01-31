@@ -105,7 +105,7 @@ How to do this?
 - [x] Edge constraints
 - [x] Progress bar
 - [ ] **Speed up by having variations of same tile. The only unique thing here is the valid directions. This will give much more maintainable speeds as adding variations will not make things slower**
-- [ ] Investigate need of reverse check
+- [ ] Change to depth first search
 - [ ] Depth to search per iteration?
 - [ ] Iterate through and draw between each
 - [ ] Start from center?
