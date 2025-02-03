@@ -410,6 +410,22 @@ class WFC():
         # alternative is simply to iterate through all cells in order.
         # when we hit a tile with other directions start depth first searching
         # keeping track of each isolated track
+        # should work fine, just remember to add dir if 1 dir, both dirs of same layer if back/forwards, 
+        # two different layer dirs if two not back/forwards, and so on.
+        # since the depth first search searches anything it can, there should not be a case where multiple different colors meet head on.
+        
+        # Another question though is merging layers that do not connect. both what algo to use and how to actually go through the tiles and merge.
+        # Could do an actual graph colouring problem but that seems overkill. How would it look?
+            # Each layer (corresponding to single line) is a node
+            # Edges are connections between the lines
+            # The easiest is simply to construct this graph while running the search that assigns layers to the tiles
+            # All of this also mean it would be nasty to set the layers in the main data structure, rather use something intermediate, and set at the end after graph colouring
+            # A problem here is that we dont necessarily want the minimum number of colours.
+            # Greedy colouring: assign first available colour not in use by any neighbour
+            # A result of this is that layer 0, 1, 2 is used a lot while upper colours are not used
+            # An augmented version of this is "we have n colours, use a random colour that is not in use by any neighbour"
+            # Or "load-balancing" my keeping track of count of each layer and choosing the least used layer. 
+            # Or include some patial information.
         
           
 class WfcSketch(vsketch.SketchClass):
