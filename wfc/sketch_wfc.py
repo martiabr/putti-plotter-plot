@@ -161,34 +161,44 @@ def draw_map(map, tileset, vsk, debug_tile_indices=False, debug_cell_indices=Fal
         
 
 class WFC():
-    def __init__(self, tileset, ruleset, N_rows, N_cols, init_map=None, invalid_edge_tiles=None) -> None:
+    def __init__(self, tileset, ruleset, N_rows, N_cols, init_map=None, invalid_edge_tiles=None, debug=False) -> None:
         self.tileset = tileset
         self.ruleset = ruleset
         self.N_rows = N_rows
         self.N_cols = N_cols
         self.N_tiles = len(self.tileset)
-        self.valid_edge_tiles = invalid_edge_tiles        
-        
-        self.possibilities = np.full((self.N_rows, self.N_cols, self.N_tiles), True)
-        
-        if init_map is not None:
-            self.final_map = init_map
-            self.collapsed = np.isnan(init_map)
-            # TODO 
-        else:
-            self.final_map = np.full((self.N_rows, self.N_cols), np.nan)
-            self.collapsed = np.full((self.N_rows, self.N_cols), False)
-            
-        if invalid_edge_tiles is not None:  # remove invalid possibilties along edges
-            self.remove_edge_possibilities(invalid_edge_tiles)
-            
-        self.init_possibilities = np.copy(self.possibilities)
-        
-        self.entropy = self.calculate_entropy()
+        self.valid_edge_tiles = invalid_edge_tiles  
+        self.debug = debug
         
         # self.neighbour_indices = np.array([[-1,0], [1,0], [0,-1], [0,1]])
         self.neighbour_indices = np.array([[0,1], [-1,1], [-1,0], [-1,-1], [0,-1], [1,-1], [1,0], [1,1]])
-    
+        
+        self.possibilities = np.full((self.N_rows, self.N_cols, self.N_tiles), True)
+        if invalid_edge_tiles is not None:  # remove invalid possibilties along edges
+            self.remove_edge_possibilities(invalid_edge_tiles)
+        self.init_possibilities = np.copy(self.possibilities)
+            
+        self.entropy = self.calculate_entropy()
+            
+        if init_map is not None:
+            self.final_map = init_map.copy()
+            self.collapsed = ~np.isnan(init_map)
+            init_stack = []
+            for r, c in np.argwhere(self.collapsed):
+                # Collapse probabilities:
+                self.possibilities[r, c, :] = False
+                self.possibilities[r, c, int(init_map[r, c])] = True 
+
+                # Add neighbours to stack to update neighbouring probabilities:
+                neighbour_indices = self.get_valid_noncollapsed_neighbours(r, c)
+                neighbour_indices = [(i, j) for i, j in neighbour_indices if (i, j) not in init_stack]
+                init_stack.extend(neighbour_indices)
+            self.propagate_constraints(init_stack, repair=False)
+        else:
+            self.final_map = np.full((self.N_rows, self.N_cols), np.nan)
+            self.collapsed = np.full((self.N_rows, self.N_cols), False)
+        self.entropy = self.calculate_entropy()
+                    
     def remove_edge_possibilities(self, invalid_edge_tiles):
         for dir, tiles in invalid_edge_tiles.items():
             if dir == Direction.RIGHT:
@@ -217,6 +227,7 @@ class WFC():
         valid_possibilities = self.get_valid_possibilities(row, col)
         p = np.array([possibility.prob for possibility in valid_possibilities])
         E = - np.sum(p * np.log(p))
+        # E = np.sum(p)
         return E
     
     def calculate_entropy(self):
@@ -276,24 +287,10 @@ class WFC():
         neighbour_indices = np.array([indices for indices in neighbour_indices if not self.collapsed[indices[0],indices[1]]])
         return neighbour_indices
     
-    def propagate(self, row_collapsed, col_collapsed, repair=False, debug=False):
-        # find neighbours that are not collapsed and not outside bounds
-        # add them to FIFO queue
-        # iterate
-        # go through ruleset for the still valid choices
-        # if any rules are not satisfied anymore, break and set possibility to False and continue to next possibility
-        # therefore it would make sense for the ruleset to be categorized by tile_1 and tile_2. 
-        # So when checking neighbour n for tile possibility t we need to check the rules of tile t that relates to the collapsed tile at x,y.
-        # Need to think about this more. For now just check all.
-        
-        neighbour_indices = self.get_valid_noncollapsed_neighbours(row_collapsed, col_collapsed)
-        np.random.shuffle(neighbour_indices)
-        
-        # queue = deque([indices for indices in neighbour_indices])
-        # if debug: print("Neighbours in queue:\n", queue,"\n")
-        stack = [tuple(indices) for indices in neighbour_indices]
+    def propagate_constraints(self, stack, repair=False):    
+        stack = stack[:]  # copy
         in_stack = set(stack)
-        # if debug: print("Initial neighbours in stack:", stack)
+        # if self.debug: print("Initial neighbours in stack:", stack)
         
         cells_updated = set()
         
@@ -301,29 +298,28 @@ class WFC():
             # row, col = queue.popleft()
             row, col = stack.pop()
             in_stack.remove((row, col))
-            # if debug: print(f"Popped ({row}, {col}).")
+            # if self.debug: print(f"Popped ({row}, {col}).")
             
             valid_tile_indices = self.get_valid_possibilities_indices(row, col)
-            # if debug: print(f"Valid tiles: {valid_tile_indices}")
-            
             valid_directions = self.get_valid_directions(row, col)
-            # if debug: print(f"Valid directions: {[d.name for d in valid_directions]}")
             possibilties_updated = False
+            # if self.debug: print(f"Valid tiles: {valid_tile_indices}")
+            # if self.debug: print(f"Valid directions: {[d.name for d in valid_directions]}")
             
             for tile_index in valid_tile_indices:
-                # if debug: print(f"Checking tile {tile_index}")
+                # if self.debug: print(f"Checking tile {tile_index}")
                 rules = self.ruleset[tile_index]
-                
                 for rule in rules:
-                    # if debug: print(f"\tChecking rule: tile {rule.dir} of T{rule.tile.index} must be T{rule.other_tile.index} {rule.must_be}")
+                    # if self.debug: print(f"\tChecking rule: tile {rule.dir} of T{rule.tile.index} must be T{rule.other_tile.index} {rule.must_be}")
                     if rule.dir in valid_directions:
                         row_other, col_other = dir_to_cell(row, col, rule.dir)
-                        # if debug: print(f"\t\tCell to check is ({row_other}, {col_other}).")
+                        # if self.debug: print(f"\t\tCell to check is ({row_other}, {col_other}).")
                         if (rule.must_be and not self.possibilities[row_other, col_other, rule.other_tile.index]) or \
                             (not rule.must_be and self.is_collapsed(row_other, col_other) and \
                             self.final_map[row_other, col_other] == rule.other_tile.index):
-                                if debug: print(f"\t**'{rule}' broken. Removing possibility T{tile_index} from ({row}, {col}).**")
+                                if self.debug: print(f"\t**'{rule}' broken. Removing possibility T{tile_index} from ({row}, {col}).**")
                                 # print(row_other, col_other, rule.other_tile.index)
+                                # print(f"({row}, {col}) {rule}")
                                 # print(self.is_collapsed(row_other, col_other), self.final_map[row_other, col_other])
                                 self.possibilities[row, col, tile_index] = False
                                 possibilties_updated = True  # flag cell as updated
@@ -336,24 +332,20 @@ class WFC():
                 if repair and np.sum(self.possibilities[row, col]) == 0:
                     if True: print(f"No possibilities for ({row}, {col}). Attempting to repair.")
                     cells_to_reset = self.get_valid_neighbours(row, col)
+                    np.random.shuffle(cells_to_reset)
                     cells_to_reset = [[row, col]] + cells_to_reset.tolist()
-                    # self.possibilities[cells_to_reset] = True
-                    # self.collapsed[cells_to_reset] = False
-                    # self.final_map[cells_to_reset] = np.nan
                     for r, c in cells_to_reset:  # TODO: dont do loop
-                        # if not self.is_collapsed(r, c):  # Don't reset collapsed cells
                         self.possibilities[r, c] = self.init_possibilities[r, c]
                         self.collapsed[r, c] = False
                         self.final_map[r, c] = np.nan
                         if (r, c) not in in_stack:
                             stack.append((r, c))
                             in_stack.add((r, c))
-                    
-                    if debug: print(f"Repair applied. Reset and added {len(cells_to_reset)} cells back to the stack.")
+                    if self.debug: print(f"Repair applied. Reset and added {len(cells_to_reset)} cells back to the stack.")
                 else:
                     valid_noncollapsed_neighbours = self.get_valid_noncollapsed_neighbours(row, col)
                     # np.random.shuffle(valid_noncollapsed_neighbours)
-                    # if debug: print("Valid noncollapsed neighbours:\n", valid_noncollapsed_neighbours)
+                    # if self.debug: print("Valid noncollapsed neighbours:\n", valid_noncollapsed_neighbours)
 
                     # Add neighbours to stack:
                     for indices in valid_noncollapsed_neighbours:
@@ -361,38 +353,65 @@ class WFC():
                         if neighbor_tuple not in in_stack:
                             stack.append(neighbor_tuple)
                             in_stack.add(neighbor_tuple)
-                    # if debug: print("Updated stack:\n", stack)
+                    # if self.debug: print("Updated stack:\n", stack)
             
-            # if debug: print("\n")
+            # if self.debug: print("\n")
             
         # Update entropy for cells that were updated:
         for row, col in cells_updated:  
             self.entropy[row, col] = self.calculate_cell_entropy(row, col)
-            # if debug: print("Entropy:\n", self.entropy)
-            
-    def iterate(self, debug=False):
+            # if self.debug: print("Entropy:\n", self.entropy)
+    
+    def propagate_constraints_from(self, row, col, repair=False):
+        neighbour_indices = self.get_valid_noncollapsed_neighbours(row, col)
+        if neighbour_indices.shape[0] > 0:
+            # np.random.shuffle(neighbour_indices)
+            stack = [tuple(indices) for indices in neighbour_indices]
+            self.propagate_constraints(stack, repair=repair)
+         
+    def iterate(self):
+        # print(self.collapsed)
         row, col = self.pick_lowest_entropy_cell(self.entropy)
         tile_index = self.collapse_cell(row, col)
-        if debug: 
+        if self.debug: 
             print(f"Picked Tile {tile_index} at ({row}, {col}).")
             print("Map after collapse:\n", self.final_map)
             # print("Entropy after collapse:\n", self.entropy)
-        self.propagate(row, col, repair=True, debug=debug)
-        if debug: 
+        self.propagate_constraints_from(row, col, repair=True)
+        if self.debug: 
             # print("Entropy after propagation:\n", self.entropy, "\n")
             print("Map after propagation:\n", self.final_map)
         return self.collapsed.all()
     
-    def solve(self, debug=False):
+    def solve(self):
         with tqdm(total=self.N_rows * self.N_cols) as pbar:
-            while not self.iterate(debug):
+            while not self.iterate():
                 pbar.update(1)
             pbar.update(1)
+        
         # for i in trange(self.N_rows * self.N_cols):
-        # for i in trange(8):
-        #     self.iterate(debug)
-        # TODO: there is something funky going on with rules not being correct. Possibly because of the edge stuff
-            
+        # for i in trange(49):
+        #     self.iterate()
+
+        self.solve_layers()
+        
+    def solve_layers(self):
+        visited = np.full((self.N_rows, self.N_cols), False)
+        
+        stack = []
+        
+        # specify tiles to start iterating from
+        # need a default layer for cells we dont visit - could extend algo to guarantee that we visit all cells
+        # tiles now have a main sketch + one sketch per direction amongst its valid directions
+        # if only one other direction, add next cell to same layer
+        # depth first
+        # if other directions, they are added to stack after the main forward direction
+        
+        # alternative is simply to iterate through all cells in order.
+        # when we hit a tile with other directions start depth first searching
+        # keeping track of each isolated track
+        
+          
 class WfcSketch(vsketch.SketchClass):
     debug_grid = vsketch.Param(False)
     debug_tile_indices = vsketch.Param(False)
@@ -523,7 +542,7 @@ class WfcSketch(vsketch.SketchClass):
         return tiles, valid_directions, ruleset
 
     def generate_metro_tileset(self, circle_radius=0.1, turn_radius=0.5, stop_length=0.5):
-        probs_list = [[4], 2*[3], 2*[3], 
+        probs_list = [[10], 2*[3], 2*[3], 
                       4*[1], 4*[1], 4*[1], # turns
                       # 2*[2], 4*[0.5], 4*[0.5], [0.2], # circles
                       2*[3], 4*[0.2], [0.2], # circles
@@ -650,16 +669,34 @@ class WfcSketch(vsketch.SketchClass):
                 
         # Generate all rules based on valid_directions:
         ruleset = [[] for i in range(len(tiles))]
-        for i, valid_dirs in enumerate(valid_directions):
-            for j, other_valid_dirs in enumerate(valid_directions):
+        for i, valid_dirs in enumerate(valid_directions):  # for valid dirs in tile i
+            for j, other_valid_dirs in enumerate(valid_directions):  # for valid dirs in tile j
                 for dir in Direction:
                     opposite_dir = reverse_dir(dir)
                     # "If tile i connects to the right and tile j does not connect to the left, the relation is illegal"
                     if (dir in valid_dirs and opposite_dir not in other_valid_dirs) or \
                         (dir not in valid_dirs and opposite_dir in other_valid_dirs):
                             ruleset[i].append(Rule(tiles[i], dir, tiles[j], must_be=False))
-                    # TODO: also extend this checks to consider diagonals properly
-                    # 
+
+            # "if tile has dir upper right, then tile to the right cannot have dir upper left,"
+            # and tile above cannot have dir lower right"
+            # This means to again check all combinations, and to take the diagonal dirs only, find the two around it 
+            # and check if they have valid dirs that points towards the same point 
+            for dir in valid_dirs:
+                if dir in [Direction.UPPER_RIGHT, Direction.UPPER_LEFT, Direction.LOWER_RIGHT, Direction.LOWER_LEFT]:
+                    dir_prev = Direction((dir.value - 3 - 4) % 8)
+                    dir_prev_diag = Direction((dir.value - 2) % 8)
+                        
+                    dir_next = Direction((dir.value + 3 + 4) % 8)  # TODO: debug
+                    dir_next_diag = Direction((dir.value + 2) % 8)
+
+                    for j, other_valid_dirs in enumerate(valid_directions):  # for valid dirs in tile j
+                        if dir_prev_diag in other_valid_dirs:
+                            print(Rule(tiles[i], dir_prev, tiles[j], must_be=False))
+                            ruleset[i].append(Rule(tiles[i], dir_prev, tiles[j], must_be=False))
+                        if dir_next_diag in other_valid_dirs:
+                            print(Rule(tiles[i], dir_next, tiles[j], must_be=False))
+                            ruleset[i].append(Rule(tiles[i], dir_next, tiles[j], must_be=False))
         
         return tiles, valid_directions, ruleset
                 
@@ -696,7 +733,6 @@ class WfcSketch(vsketch.SketchClass):
                         invalid_edge_tiles[dir].append(i)
         else:
             invalid_edge_tiles = None
-        # invalid_edge_tiles = None
         
         valid_dirs = valid_directions if self.debug_valid_dirs else None
         if self.debug_tiles_order:
@@ -705,8 +741,18 @@ class WfcSketch(vsketch.SketchClass):
             draw_map(map, tileset, vsk, debug_tile_indices=self.debug_tile_indices, debug_cell_indices=self.debug_cell_indices, 
                      valid_dirs=valid_dirs, size=self.tile_size)
         else:
-            wfc = WFC(tileset, ruleset, self.n_rows, self.n_cols, invalid_edge_tiles=invalid_edge_tiles)
-            wfc.solve(debug=self.debug_print)
+            init_map = None
+            if self.use_custom_init:
+                init_map = np.full((self.n_rows, self.n_cols), np.nan)
+                init_map[4, 0] = 31
+                init_map[1, 9] = 33
+                init_map[9, 7] = 32
+                # TODO: do this proper
+                
+            
+            wfc = WFC(tileset, ruleset, self.n_rows, self.n_cols, invalid_edge_tiles=invalid_edge_tiles, init_map=init_map, 
+                      debug=self.debug_print)
+            wfc.solve()
             wfc.draw(vsk, debug_tile_indices=self.debug_tile_indices, debug_cell_indices=self.debug_cell_indices, 
                      valid_dirs=valid_dirs, size=self.tile_size)
 
