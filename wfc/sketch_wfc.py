@@ -426,6 +426,20 @@ class WFC():
             # An augmented version of this is "we have n colours, use a random colour that is not in use by any neighbour"
             # Or "load-balancing" my keeping track of count of each layer and choosing the least used layer. 
             # Or include some patial information.
+
+
+        # Search algo:
+        # If has prev: get dir from prev to curr, get layer on prev (in dir if multiple)
+        # Otherwise assign new colour
+
+        # if single sketch, just assign layer, otherwise set layer in reverse dir, non-dir layers are set to default (0)
+        
+        # if two dirs: get next dir, get next cell, append
+        # if more: 
+            # if has forward dir, colour it and append (after any other so it is popped first - depth first)
+            # other dirs are given new colours and apoended (before forward)
+            # if opposite they are given same colour/layer
+
         
           
 class WfcSketch(vsketch.SketchClass):
