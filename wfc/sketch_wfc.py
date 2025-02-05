@@ -53,7 +53,7 @@ def dir_to_delta(dir):
 # @njit(cache=True)
 def dir_to_cell(row, col, dir):
     delta = dir_to_delta(dir)
-    return np.array([row, col]) + delta
+    return np.array([row, col], dtype=int) + delta
 
 def delta_to_dir(delta):
     # if np.allclose(delta, np.array([0, 1])):
@@ -466,6 +466,24 @@ class WFC():
                                 layer_count += 1
                             else:
                                 layers_all[r][c][layer] = 0
+
+                # TODO: refactor to avoid big outer if else?
+                
+                # Append new cells:
+                for dir in valid_dirs:
+                    if dir not in (prev_dir, prev_dir_reverse):  # add all cells except reverse (thats where we came from), and forward (important to add this on top of stack after others)
+                        neighbour = dir_to_cell(r, c, dir)
+                        r_neighbour, c_neighbour = int(neighbour[0]), int(neighbour[1])
+                        stack.append(((r_neighbour, c_neighbour), (r, c)))
+                if prev_dir in valid_dirs:
+                    neighbour = dir_to_cell(r, c, dir)
+                    r_neighbour, c_neighbour = int(neighbour[0]), int(neighbour[1])
+                    stack.append(((r_neighbour, c_neighbour), (r, c)))
+                    # TODO: refactor this operation to avoid copy paste
+                    # Now this should be possible instead with int dtype?
+                    # r_n, c_n = dir_to_cell(r, c, dir)
+                    # stack.append(((r_n, c_n), (r, c)))
+            
             else:  # if there is no prev tile, just assign new colours
                 if len(layers) == 1:  # if a single layer, just assign new 
                     layers_all[r][c][layers[0]] = layer_count 
@@ -478,14 +496,12 @@ class WFC():
                         else:
                             layers[r][c][layer] = 0
                 
-                            
-                    
+                # Append all cells, order is irrelevant when not coming from somewhere else:
                 for dir in valid_dirs:
                     # Add neighbour to stack:
                     neighbour = dir_to_cell(r, c, dir)
                     r_neighbour, c_neighbour = int(neighbour[0]), int(neighbour[1])
-                    if not visited[r_neighbour, c_neighbour]:
-                        stack.append(((r_neighbour, c_neighbour), (r, c)))
+                    stack.append(((r_neighbour, c_neighbour), (r, c)))
             
             
             # when popping, need to assign color 
