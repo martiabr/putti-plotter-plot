@@ -89,13 +89,15 @@ def reverse_dir(dir):
 
 
 class Tile():
-    def __init__(self, subsketch, prob, index) -> None:
-        self.subsketch = subsketch
-        self.prob = prob
+    def __init__(self, index, prob, valid_dirs, sketches) -> None: 
         self.index = index
+        self.prob = prob
+        self.sketches = sketches
+        self.valid_dirs = valid_dirs
     
     def draw(self, vsk):
-        vsk.sketch(self.subsketch)
+        for key, sketch in self.sketches.items():
+            vsk.sketch(sketch)
         
     
 class Rule():
@@ -148,12 +150,16 @@ def draw_map(map, tileset, vsk, debug_tile_indices=False, debug_cell_indices=Fal
                     if not np.isnan(map[row, col]):
                         tile = int(map[row, col])
                         if tile >= 0:
-                            vsk.sketch(tileset[tile].subsketch)
+                            tileset[tile].draw(vsk)
                             
                             if valid_dirs is not None:
                                 vsk.stroke(2)
                                 for dir in valid_dirs[tile]:
                                     vsk.circle(0.4 * dir_to_delta(dir)[1], 0.4 * dir_to_delta(dir)[0], 0.05 * size)
+                                # for key in tileset[tile].sketches.keys():
+                                #     if key in [dir for dir in Direction]:
+                                #         vsk.circle(0.4 * dir_to_delta(key)[1], 0.4 * dir_to_delta(key)[0], 0.05 * size)
+                                    
                                 vsk.stroke(1)
                             
                     vsk.translate(1.0, 0)
@@ -393,13 +399,122 @@ class WFC():
         # for i in trange(49):
         #     self.iterate()
 
-        self.solve_layers()
+        self.solve_layers(self.final_map)
         
-    def solve_layers(self):
+    def solve_layers(self, tile_map):
         visited = np.full((self.N_rows, self.N_cols), False)
+        stack = deque([[(row, col), (None, None)] for row in range(self.N_rows) for col in range(self.N_cols)])
         
-        stack = []
+        layer_count = 1
+        layers_all = [[{} for _ in range(self.N_rows)] for _ in range(self.N_cols)]  # for each key in (row, col) assign a layer int
         
+        # Search algo:
+        # If has prev: get dir from prev to curr, get layer on prev (in dir if multiple)
+        # Otherwise assign new colour
+
+        # if single sketch, just assign layer, otherwise set layer in reverse dir, non-dir layers are set to default (0)
+        
+        # if two dirs: get next dir, get next cell, append
+        # if more: 
+            # if has forward dir, colour it and append (after any other so it is popped first - depth first)
+            # other dirs are given new colours and apoended (before forward)
+            # if opposite they are given same colour/layer
+        
+        # Choose either to have loop of each tile + stack inside loop, or just a stack. If so, how to keep track of previous tile etc...
+        # for row, col in [(r, c) for r in range(self.N_rows) for c in range(self.N_cols)]:
+            # if not visited[row, col]:
+            #     stack = deque([[(row, col), (None, None)]])  # [(row, col), (from_row, from_col)]
+            #     while stack:
+            
+        while stack:
+            (r, c), (r_prev, c_prev) = stack.pop()
+            tile_index = int(tile_map[r, c])
+            tile = self.tileset[tile_index]
+            layers = tile.sketches.keys()
+            valid_dirs = self.get_valid_directions(r, c)
+            
+            # Colour assignment:
+            if r_prev is not None:  # if there is a prev tile
+                # Get prev tile's layers:
+                prev_dir = delta_to_dir(np.array([r, c]) - np.array([r_prev, c_prev]))
+                prev_dir_reverse = reverse_dir(prev_dir)
+                prev_tile_index = int(tile_map[r_prev, c_prev])
+                prev_tile = self.tileset[prev_tile_index]
+                prev_layers = prev_tile.sketches.keys()
+                
+                # Get color from prev tile to propagate to curr tile:
+                color = 0
+                if len(prev_layers) == 1:
+                    layer = prev_layers[0]
+                    color = layers_all[r_prev][c_prev][layer]
+                elif prev_dir in prev_layers:
+                    color = layers_all[r_prev][c_prev][prev_dir]
+                
+                # Assign color from prev tile to curr tile:
+                if len(layers) == 1:
+                    layers_all[r][c][layers[0]] = color
+                else:
+                    if prev_dir_reverse in layers:  # reverse colour should be colored same
+                        layers_all[r][c][prev_dir_reverse] = color
+                    if prev_dir in layers:  # forward colour should be colored same
+                        layers_all[r][c][prev_dir] = color
+                    
+                    for layer in layers:  # assign remaining layers as new colours (except ones not a direction which go to default (0))
+                        if layer not in layers_all[r][c].keys():
+                            if layer in Direction:
+                                layers_all[r][c][layer] = layer_count
+                                layer_count += 1
+                            else:
+                                layers_all[r][c][layer] = 0
+            else:  # if there is no prev tile, just assign new colours
+                if len(layers) == 1:  # if a single layer, just assign new 
+                    layers_all[r][c][layers[0]] = layer_count 
+                    layer_count += 1
+                else:  # if multiple layers, assign new colours to each layer that is a direction, others go to default (0)
+                    for layer in layers:
+                        if layer in Direction:
+                            layers[r][c][layer] = layer_count
+                            layer_count += 1
+                        else:
+                            layers[r][c][layer] = 0
+                
+                            
+                    
+                for dir in valid_dirs:
+                    # Add neighbour to stack:
+                    neighbour = dir_to_cell(r, c, dir)
+                    r_neighbour, c_neighbour = int(neighbour[0]), int(neighbour[1])
+                    if not visited[r_neighbour, c_neighbour]:
+                        stack.append(((r_neighbour, c_neighbour), (r, c)))
+            
+            
+            # when popping, need to assign color 
+            # if didnt come from somewhere, set all new colours
+            # if came somewhere, that part is that colour, handle main, and set others to new colours
+            # in case of just one layer then all is that colour
+            
+            # for each item in stack, need to keep track of 
+            # 1. where we came from
+            # 2. 
+            
+            # if first iteration of queue, just go all directions
+            # meaning add all to stack
+            
+                
+                
+            
+            # if len(valid_dirs) == 1:  # if only one valid direction, just go there
+            #     dir = valid_dirs[0]
+                
+            
+            # if len(valid_dirs) == 2:
+            #         pass
+            #     elif
+            
+            
+            
+            visited[r, c] = True
+            
         # specify tiles to start iterating from
         # need a default layer for cells we dont visit - could extend algo to guarantee that we visit all cells
         # tiles now have a main sketch + one sketch per direction amongst its valid directions
@@ -413,6 +528,12 @@ class WFC():
         # should work fine, just remember to add dir if 1 dir, both dirs of same layer if back/forwards, 
         # two different layer dirs if two not back/forwards, and so on.
         # since the depth first search searches anything it can, there should not be a case where multiple different colors meet head on.
+        
+        # To start searching we need:
+            # separate tile sketch into dict with keys being directions + main. kind of messy. Could separate main and otehr dirs...
+            # also need to store layer/color of each of these sketches - this is only needed in solve_layers.
+            # So it can be separated from the tile class?
+            
         
         # Another question though is merging layers that do not connect. both what algo to use and how to actually go through the tiles and merge.
         # Could do an actual graph colouring problem but that seems overkill. How would it look?
@@ -428,17 +549,7 @@ class WFC():
             # Or include some patial information.
 
 
-        # Search algo:
-        # If has prev: get dir from prev to curr, get layer on prev (in dir if multiple)
-        # Otherwise assign new colour
 
-        # if single sketch, just assign layer, otherwise set layer in reverse dir, non-dir layers are set to default (0)
-        
-        # if two dirs: get next dir, get next cell, append
-        # if more: 
-            # if has forward dir, colour it and append (after any other so it is popped first - depth first)
-            # other dirs are given new colours and apoended (before forward)
-            # if opposite they are given same colour/layer
 
         
           
@@ -485,55 +596,51 @@ class WfcSketch(vsketch.SketchClass):
         
         tile_sketches = []
         for i in range(probs.shape[0]):
-            tile_sketches.append(self.new_tile_sketch())
+            tile_sketches.append({"main": self.new_tile_sketch()})
         
         for w in [width, -width]:
-            tile_sketches[0].arc(-0.5, -0.5, 1.0 + w, 1.0 + w, 3*np.pi/2, 2*np.pi)
-            tile_sketches[0].arc(0.5, 0.5, 1.0 + w, 1.0 + w, np.pi/2, np.pi)
+            tile_sketches[0]["main"].arc(-0.5, -0.5, 1.0 + w, 1.0 + w, 3*np.pi/2, 2*np.pi)
+            tile_sketches[0]["main"].arc(0.5, 0.5, 1.0 + w, 1.0 + w, np.pi/2, np.pi)
         
-            tile_sketches[1].arc(0.5,  -0.5, 1.0 + w, 1.0 + w, np.pi, 3*np.pi/2)
-            tile_sketches[1].arc( -0.5, 0.5, 1.0 + w, 1.0 + w, 0, np.pi/2)
+            tile_sketches[1]["main"].arc(0.5,  -0.5, 1.0 + w, 1.0 + w, np.pi, 3*np.pi/2)
+            tile_sketches[1]["main"].arc( -0.5, 0.5, 1.0 + w, 1.0 + w, 0, np.pi/2)
         
-            tile_sketches[2].line(0.5 * w, -0.5, 0.5 * w, -0.5 * width)
-            tile_sketches[2].line(0.5 * w, 0.5 * width, 0.5 * w, 0.5)
-            tile_sketches[2].line(-0.5, 0.5 * w, -0.5 * width, 0.5 * w)
-            tile_sketches[2].line(0.5, 0.5 * w, 0.5 * width, 0.5 * w)
+            tile_sketches[2]["main"].line(0.5 * w, -0.5, 0.5 * w, -0.5 * width)
+            tile_sketches[2]["main"].line(0.5 * w, 0.5 * width, 0.5 * w, 0.5)
+            tile_sketches[2]["main"].line(-0.5, 0.5 * w, -0.5 * width, 0.5 * w)
+            tile_sketches[2]["main"].line(0.5, 0.5 * w, 0.5 * width, 0.5 * w)
             
-            tile_sketches[3].line(0.5 * w, -0.5, 0.5 * w, 0.5)
-            tile_sketches[4].line(-0.5, 0.5 * w, 0.5, 0.5 * w)
+            tile_sketches[3]["main"].line(0.5 * w, -0.5, 0.5 * w, 0.5)
+            tile_sketches[4]["main"].line(-0.5, 0.5 * w, 0.5, 0.5 * w)
             
-            tile_sketches[5].arc(-0.5, -0.5, 1.0 + w, 1.0 + w, 3*np.pi/2, 2*np.pi)
+            tile_sketches[5]["main"].arc(-0.5, -0.5, 1.0 + w, 1.0 + w, 3*np.pi/2, 2*np.pi)
 
-            tile_sketches[9].line(0.5 * w, -0.5, 0.5 * w, -0.5 * width)
+            tile_sketches[9]["main"].line(0.5 * w, -0.5, 0.5 * w, -0.5 * width)
             
             length = radius * np.sin(np.arccos(0.5 * width / radius))
-            tile_sketches[17].line(0.5 * w, -0.5, 0.5 * w, -length)
-            tile_sketches[17].line(0.5 * w, length, 0.5 * w, 0.5)
-            tile_sketches[17].line(-0.5, 0.5 * w, -length, 0.5 * w)
-            tile_sketches[17].line(0.5, 0.5 * w, length, 0.5 * w)
-            tile_sketches[17].circle(0, 0, radius=radius)
+            tile_sketches[17]["main"].line(0.5 * w, -0.5, 0.5 * w, -length)
+            tile_sketches[17]["main"].line(0.5 * w, length, 0.5 * w, 0.5)
+            tile_sketches[17]["main"].line(-0.5, 0.5 * w, -length, 0.5 * w)
+            tile_sketches[17]["main"].line(0.5, 0.5 * w, length, 0.5 * w)
+            tile_sketches[17]["main"].circle(0, 0, radius=radius)
             
-            tile_sketches[18].sketch(tile_sketches[17])
-            tile_sketches[18].circle(0, 0, 1e-4)
+            tile_sketches[18]["main"].sketch(tile_sketches[17]["main"])
+            tile_sketches[18]["main"].circle(0, 0, 1e-4)
             
         
-        tile_sketches[9].line(-0.5, -0.5 * width, -0.5 * width, -0.5 * width)
-        tile_sketches[9].line(0.5 * width   , -0.5 * width, 0.5, -0.5 * width)
-        tile_sketches[9].line(-0.5, 0.5 * width, 0.5, 0.5 * width)
+        tile_sketches[9]["main"].line(-0.5, -0.5 * width, -0.5 * width, -0.5 * width)
+        tile_sketches[9]["main"].line(0.5 * width   , -0.5 * width, 0.5, -0.5 * width)
+        tile_sketches[9]["main"].line(-0.5, 0.5 * width, 0.5, 0.5 * width)
         
-        tile_sketches[13].line(-0.5 * width, -0.5, -0.5 * width, 0.5 * width)
-        tile_sketches[13].line(0.5 * width, -0.5, 0.5 * width, -0.5 * width)
-        tile_sketches[13].line(0.5 * width, -0.5 * width, 0.5, -0.5 * width)
-        tile_sketches[13].line(-0.5 * width, 0.5 * width, 0.5, 0.5 * width)
+        tile_sketches[13]["main"].line(-0.5 * width, -0.5, -0.5 * width, 0.5 * width)
+        tile_sketches[13]["main"].line(0.5 * width, -0.5, 0.5 * width, -0.5 * width)
+        tile_sketches[13]["main"].line(0.5 * width, -0.5 * width, 0.5, -0.5 * width)
+        tile_sketches[13]["main"].line(-0.5 * width, 0.5 * width, 0.5, 0.5 * width)
         
         for i in [6, 7, 8, 10, 11, 12, 14, 15, 16]:
-            tile_sketches[i].rotate(0.5 * np.pi)
-            tile_sketches[i].sketch(tile_sketches[i-1])
+            tile_sketches[i]["main"].rotate(0.5 * np.pi)
+            tile_sketches[i]["main"].sketch(tile_sketches[i-1]["main"])
         
-        tiles = []
-        for index, (sketch, prob) in enumerate(zip(tile_sketches, probs)):
-            tiles.append(Tile(sketch, prob, index))
-            
         valid_directions = [[Direction.RIGHT, Direction.UP, Direction.LEFT, Direction.DOWN],  # 0  
                             [Direction.RIGHT, Direction.UP, Direction.LEFT, Direction.DOWN],  # 1
                             [Direction.RIGHT, Direction.UP, Direction.LEFT, Direction.DOWN],  # 2
@@ -558,6 +665,10 @@ class WfcSketch(vsketch.SketchClass):
                             [Direction.RIGHT, Direction.UP, Direction.LEFT, Direction.DOWN],  # 17
                             [Direction.RIGHT, Direction.UP, Direction.LEFT, Direction.DOWN]]  # 18
         
+        tiles = []
+        for index, (prob, valid_dirs, sketches) in enumerate(zip(probs, valid_directions, tile_sketches)):
+            tiles.append(Tile(index, prob, valid_dirs, sketches)) 
+            
         # Generate all rules based on valid_directions:
         ruleset = [[] for i in range(len(tiles))]
         for i, valid_dirs in enumerate(valid_directions):
@@ -584,36 +695,38 @@ class WfcSketch(vsketch.SketchClass):
         
         tile_sketches = []
         for i in range(probs.shape[0]):
-            tile_sketches.append(self.new_tile_sketch())
+            tile_sketches.append({"main": self.new_tile_sketch()}) 
         
         i_forward = 1
-        tile_sketches[i_forward].line(0.0, -0.5, 0.0, 0.5)
+        tile_sketches[i_forward]["main"].line(0.0, -0.5, 0.0, 0.5)
         
         i_diag = i_forward + 2
-        tile_sketches[i_diag].line(0.5, -0.5, -0.5, 0.5)
+        tile_sketches[i_diag]["main"].line(0.5, -0.5, -0.5, 0.5)
         
         i_eight_turn_up = i_diag + 2
         x = turn_radius / (np.sqrt(2) + 1)
         a = x / np.sqrt(2)
-        tile_sketches[i_eight_turn_up].arc(-x, -turn_radius, 2*turn_radius, 2*turn_radius, 1.5*np.pi, 1.75 * np.pi)
-        tile_sketches[i_eight_turn_up].line(-0.5, 0.0, -x, 0.0)
-        tile_sketches[i_eight_turn_up].line(a, -a, 0.5, -0.5)
+        tile_sketches[i_eight_turn_up]["main"].arc(-x, -turn_radius, 2*turn_radius, 2*turn_radius, 1.5*np.pi, 1.75 * np.pi)
+        tile_sketches[i_eight_turn_up]["main"].line(-0.5, 0.0, -x, 0.0)
+        tile_sketches[i_eight_turn_up]["main"].line(a, -a, 0.5, -0.5)
         
         i_eight_turn_down = i_eight_turn_up + 4
-        tile_sketches[i_eight_turn_down].arc(-x, turn_radius, 2*turn_radius, 2*turn_radius, 0.25*np.pi, 0.5 * np.pi)
-        tile_sketches[i_eight_turn_down].line(-0.5, 0.0, -x, 0.0)
-        tile_sketches[i_eight_turn_down].line(a, a, 0.5, 0.5)
+        tile_sketches[i_eight_turn_down]["main"].arc(-x, turn_radius, 2*turn_radius, 2*turn_radius, 0.25*np.pi, 0.5 * np.pi)
+        tile_sketches[i_eight_turn_down]["main"].line(-0.5, 0.0, -x, 0.0)
+        tile_sketches[i_eight_turn_down]["main"].line(a, a, 0.5, 0.5)
         
         i_quarter_turn = i_eight_turn_down + 4
         quarter_turn_radius = 0.5 * turn_radius
-        tile_sketches[i_quarter_turn].arc(-quarter_turn_radius, -quarter_turn_radius, 2*quarter_turn_radius, 2*quarter_turn_radius, 1.5*np.pi, 2.0 * np.pi)
-        tile_sketches[i_quarter_turn].line(-0.5, 0.0, -quarter_turn_radius, 0.0)
-        tile_sketches[i_quarter_turn].line(0.0, -quarter_turn_radius, 0.0, -0.5)
+        tile_sketches[i_quarter_turn]["main"].arc(-quarter_turn_radius, -quarter_turn_radius, 2*quarter_turn_radius, 2*quarter_turn_radius, 1.5*np.pi, 2.0 * np.pi)
+        tile_sketches[i_quarter_turn]["main"].line(-0.5, 0.0, -quarter_turn_radius, 0.0)
+        tile_sketches[i_quarter_turn]["main"].line(0.0, -quarter_turn_radius, 0.0, -0.5)
         
         i_circle_forward = i_quarter_turn + 4
-        tile_sketches[i_circle_forward].line(0.0, -0.5, 0.0, -circle_radius)
-        tile_sketches[i_circle_forward].line(0.0, circle_radius, 0.0, 0.5)
-        tile_sketches[i_circle_forward].circle(0, 0, radius=circle_radius)
+        tile_sketches[i_circle_forward]["main"].circle(0, 0, radius=circle_radius)
+        tile_sketches[i_circle_forward][Direction.UP] = self.new_tile_sketch()
+        tile_sketches[i_circle_forward][Direction.UP].line(0.0, -0.5, 0.0, -circle_radius)
+        tile_sketches[i_circle_forward][Direction.DOWN] = self.new_tile_sketch()
+        tile_sketches[i_circle_forward][Direction.DOWN].line(0.0, circle_radius, 0.0, 0.5)
     
         # i_circle_quarter_turn = i_circle_forward + 2
         # tile_sketches[i_circle_quarter_turn].line(0.0, -0.5, 0.0, -circle_radius)
@@ -622,34 +735,48 @@ class WfcSketch(vsketch.SketchClass):
     
         # i_circle_triple = i_circle_quarter_turn + 4
         i_circle_triple = i_circle_forward + 2
-        tile_sketches[i_circle_triple].sketch(tile_sketches[i_circle_forward])
-        tile_sketches[i_circle_triple].line(0.5, 0.0, circle_radius, 0.0)
+        for dir in tile_sketches[i_circle_forward]:
+            tile_sketches[i_circle_triple][dir] = self.new_tile_sketch()
+            tile_sketches[i_circle_triple][dir].sketch(tile_sketches[i_circle_forward][dir])
+        tile_sketches[i_circle_triple][Direction.RIGHT] = self.new_tile_sketch()
+        tile_sketches[i_circle_triple][Direction.RIGHT].line(0.5, 0.0, circle_radius, 0.0)
         
         i_circle_all = i_circle_triple + 4
-        tile_sketches[i_circle_all].sketch(tile_sketches[i_circle_triple])
-        tile_sketches[i_circle_all].line(-0.5, 0.0, -circle_radius, 0.0)
+        for dir in tile_sketches[i_circle_triple]:
+            tile_sketches[i_circle_all][dir] = self.new_tile_sketch()
+            tile_sketches[i_circle_all][dir].sketch(tile_sketches[i_circle_triple][dir])
+        tile_sketches[i_circle_all][Direction.LEFT] = self.new_tile_sketch()
+        tile_sketches[i_circle_all][Direction.LEFT].line(-0.5, 0.0, -circle_radius, 0.0)
         
         i_circle_diag_forward = i_circle_all + 1
-        tile_sketches[i_circle_diag_forward].circle(0, 0, radius=circle_radius)
-        tile_sketches[i_circle_diag_forward].line(-0.5, 0.5, -0.5 * np.sqrt(2) * circle_radius, 0.5 * np.sqrt(2) * circle_radius)
-        tile_sketches[i_circle_diag_forward].line(0.5, -0.5, 0.5 * np.sqrt(2) * circle_radius, -0.5 * np.sqrt(2) * circle_radius)
+        tile_sketches[i_circle_diag_forward]["main"].circle(0, 0, radius=circle_radius)
+        tile_sketches[i_circle_diag_forward][Direction.LOWER_LEFT] = self.new_tile_sketch()
+        tile_sketches[i_circle_diag_forward][Direction.LOWER_LEFT].line(-0.5, 0.5, -0.5 * np.sqrt(2) * circle_radius, 0.5 * np.sqrt(2) * circle_radius)
+        tile_sketches[i_circle_diag_forward][Direction.UPPER_RIGHT] = self.new_tile_sketch()
+        tile_sketches[i_circle_diag_forward][Direction.UPPER_RIGHT].line(0.5, -0.5, 0.5 * np.sqrt(2) * circle_radius, -0.5 * np.sqrt(2) * circle_radius)
         
         i_circle_diag_triple = i_circle_diag_forward + 2
-        tile_sketches[i_circle_diag_triple].sketch(tile_sketches[i_circle_diag_forward])
-        tile_sketches[i_circle_diag_triple].line(0.5, 0.5, 0.5 * np.sqrt(2) * circle_radius, 0.5 * np.sqrt(2) * circle_radius)
+        for dir in tile_sketches[i_circle_diag_forward]:
+            tile_sketches[i_circle_diag_triple][dir] = self.new_tile_sketch()
+            tile_sketches[i_circle_diag_triple][dir].sketch(tile_sketches[i_circle_diag_forward][dir])
+        tile_sketches[i_circle_diag_triple][Direction.LOWER_RIGHT] = self.new_tile_sketch()
+        tile_sketches[i_circle_diag_triple][Direction.LOWER_RIGHT].line(0.5, 0.5, 0.5 * np.sqrt(2) * circle_radius, 0.5 * np.sqrt(2) * circle_radius)
         
         i_circle_diag_all = i_circle_diag_triple + 4
-        tile_sketches[i_circle_diag_all].sketch(tile_sketches[i_circle_diag_triple])
-        tile_sketches[i_circle_diag_all].line(-0.5, -0.5, -0.5 * np.sqrt(2) * circle_radius, -0.5 * np.sqrt(2) * circle_radius)
+        for dir in tile_sketches[i_circle_diag_triple]:
+            tile_sketches[i_circle_diag_all][dir] = self.new_tile_sketch()
+            tile_sketches[i_circle_diag_all][dir].sketch(tile_sketches[i_circle_diag_triple][dir])
+        tile_sketches[i_circle_diag_all][Direction.UPPER_LEFT] = self.new_tile_sketch()
+        tile_sketches[i_circle_diag_all][Direction.UPPER_LEFT].line(-0.5, -0.5, -0.5 * np.sqrt(2) * circle_radius, -0.5 * np.sqrt(2) * circle_radius)
         
         i_stop = i_circle_diag_all + 1
-        tile_sketches[i_stop].line(0.0, 0.0, 0.5, 0.0)
-        tile_sketches[i_stop].line(0.0, 0.5*stop_length, 0.0, -0.5*stop_length)
+        tile_sketches[i_stop]["main"].line(0.0, 0.0, 0.5, 0.0)
+        tile_sketches[i_stop]["main"].line(0.0, 0.5*stop_length, 0.0, -0.5*stop_length)
         
         i_stop_diag = i_stop + 4
         stop_length_diag = stop_length / np.sqrt(2)
-        tile_sketches[i_stop_diag].line(0.0, 0.0, 0.5, -0.5)
-        tile_sketches[i_stop_diag].line(-0.5*stop_length_diag, -0.5*stop_length_diag,
+        tile_sketches[i_stop_diag]["main"].line(0.0, 0.0, 0.5, -0.5)
+        tile_sketches[i_stop_diag]["main"].line(-0.5*stop_length_diag, -0.5*stop_length_diag,
                                         0.5*stop_length_diag, 0.5*stop_length_diag)
         
     
@@ -685,18 +812,25 @@ class WfcSketch(vsketch.SketchClass):
         valid_directions[i_stop] = [Direction.RIGHT]
         valid_directions[i_stop_diag] = [Direction.UPPER_RIGHT]
         
+        directions = [dir for dir in Direction]
         for i in indices_quarter_rot:
-            tile_sketches[i].rotate(-0.5 * np.pi)
-            tile_sketches[i].sketch(tile_sketches[i-1])
+            for dir in tile_sketches[i-1].keys():
+                if dir in directions:
+                    dir_i = Direction((dir.value + 2) % 8)
+                else:
+                    dir_i = dir  # if not direction, just copy
+                tile_sketches[i][dir_i] = self.new_tile_sketch()
+                tile_sketches[i][dir_i].rotate(-0.5 * np.pi)
+                tile_sketches[i][dir_i].sketch(tile_sketches[i-1][dir])
             
             for direction in valid_directions[i-1]:
                 valid_directions[i].append(Direction((direction.value + 2) % 8))
         
         
         tiles = []
-        for index, (sketch, prob) in enumerate(zip(tile_sketches, probs)):
-            tiles.append(Tile(sketch, prob, index))
-                
+        for index, (prob, valid_dirs, sketches) in enumerate(zip(probs, valid_directions, tile_sketches)):
+            tiles.append(Tile(index, prob, valid_dirs, sketches)) 
+        
         # Generate all rules based on valid_directions:
         ruleset = [[] for i in range(len(tiles))]
         for i, valid_dirs in enumerate(valid_directions):  # for valid dirs in tile i
@@ -717,17 +851,17 @@ class WfcSketch(vsketch.SketchClass):
                     dir_prev = Direction((dir.value - 3 - 4) % 8)
                     dir_prev_diag = Direction((dir.value - 2) % 8)
                         
-                    dir_next = Direction((dir.value + 3 + 4) % 8)  # TODO: debug
+                    dir_next = Direction((dir.value + 3 + 4) % 8)
                     dir_next_diag = Direction((dir.value + 2) % 8)
 
                     for j, other_valid_dirs in enumerate(valid_directions):  # for valid dirs in tile j
                         if dir_prev_diag in other_valid_dirs:
-                            print(Rule(tiles[i], dir_prev, tiles[j], must_be=False))
+                            # print(Rule(tiles[i], dir_prev, tiles[j], must_be=False))
                             ruleset[i].append(Rule(tiles[i], dir_prev, tiles[j], must_be=False))
                         if dir_next_diag in other_valid_dirs:
-                            print(Rule(tiles[i], dir_next, tiles[j], must_be=False))
+                            # print(Rule(tiles[i], dir_next, tiles[j], must_be=False))
                             ruleset[i].append(Rule(tiles[i], dir_next, tiles[j], must_be=False))
-        
+                
         return tiles, valid_directions, ruleset
                 
     def draw(self, vsk: vsketch.Vsketch) -> None:
@@ -741,7 +875,8 @@ class WfcSketch(vsketch.SketchClass):
         if self.tileset == "knots":
             tileset, valid_directions, ruleset = self.generate_knot_tileset(width=self.width, radius=self.radius_circles)
         elif self.tileset == "metro":
-            tileset, valid_directions, ruleset = self.generate_metro_tileset(circle_radius=self.radius_circles, turn_radius=self.radius_turns) 
+            tileset, valid_directions, ruleset = self.generate_metro_tileset(circle_radius=self.radius_circles, 
+                                                                             turn_radius=self.radius_turns) 
         
         n_tiles = len(tileset)
         
