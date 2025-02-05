@@ -5,6 +5,7 @@ from itertools import compress
 from collections import deque
 from tqdm import trange, tqdm
 
+
 class Direction(Enum):
     # RIGHT = 0
     # UP = 1
@@ -23,7 +24,6 @@ class Direction(Enum):
         return self.name
 
 
-# @njit(cache=True)
 def dir_to_delta(dir):
     # if dir == Direction.RIGHT:
     #     return np.array([0, 1])
@@ -50,10 +50,11 @@ def dir_to_delta(dir):
     elif dir == Direction.LOWER_RIGHT:
         return np.array([1, 1])
 
-# @njit(cache=True)
+
 def dir_to_cell(row, col, dir):
     delta = dir_to_delta(dir)
     return np.array([row, col], dtype=int) + delta
+
 
 def delta_to_dir(delta):
     # if np.allclose(delta, np.array([0, 1])):
@@ -95,9 +96,15 @@ class Tile():
         self.sketches = sketches
         self.valid_dirs = valid_dirs
     
-    def draw(self, vsk):
-        for key, sketch in self.sketches.items():
-            vsk.sketch(sketch)
+    def draw(self, vsk, layers=None):
+        if layers is None:
+            for sketch in self.sketches.values():
+                vsk.sketch(sketch)
+        else:
+            for key, sketch in self.sketches.items():
+                vsk.stroke(layers[key] + 1)  # note: +1 just to avoid stroke 0
+                vsk.sketch(sketch)
+            vsk.stroke(1)
         
     
 class Rule():
@@ -123,7 +130,8 @@ class Rule():
             return f"Rule T{self.tile.index} cannot be {self.dir} of T{self.other_tile.index}"
         
         
-def draw_map(map, tileset, vsk, debug_tile_indices=False, debug_cell_indices=False, possibilities=None, valid_dirs=None, size=1.0):
+def draw_map(map, tileset, vsk, debug_tile_indices=False, debug_cell_indices=False, possibilities=None, 
+             valid_dirs=None, layers=None, size=1.0):
     N_rows, N_cols = map.shape
     for row in range(N_rows):
         for col in range(N_cols):
@@ -150,7 +158,10 @@ def draw_map(map, tileset, vsk, debug_tile_indices=False, debug_cell_indices=Fal
                     if not np.isnan(map[row, col]):
                         tile = int(map[row, col])
                         if tile >= 0:
-                            tileset[tile].draw(vsk)
+                            if layers is not None:
+                                tileset[tile].draw(vsk, layers[row][col])
+                            else:
+                                tileset[tile].draw(vsk)
                             
                             if valid_dirs is not None:
                                 vsk.stroke(2)
@@ -216,9 +227,10 @@ class WFC():
             elif dir == Direction.DOWN:
                 self.possibilities[self.N_rows-1,:,tiles] = False
                 
-    def draw(self, vsk, debug_tile_indices=False, debug_cell_indices=False, valid_dirs=None, size=1.0):
+    def draw(self, vsk, debug_tile_indices=False, debug_cell_indices=False, valid_dirs=None, layers=None, size=1.0):
         draw_map(self.final_map, self.tileset, vsk, debug_tile_indices=debug_tile_indices, 
-                 debug_cell_indices=debug_cell_indices, valid_dirs=valid_dirs, possibilities=self.possibilities, size=size)
+                 debug_cell_indices=debug_cell_indices, valid_dirs=valid_dirs, possibilities=self.possibilities, 
+                 layers=layers, size=size)
     
     def is_collapsed(self, row, col):
         return self.collapsed[row, col]
@@ -399,14 +411,15 @@ class WFC():
         # for i in trange(49):
         #     self.iterate()
 
-        self.solve_layers(self.final_map)
+        self.map_layers = self.solve_layers(self.final_map)
         
     def solve_layers(self, tile_map):
+        directions = [dir for dir in Direction]
         visited = np.full((self.N_rows, self.N_cols), False)
         stack = deque([[(row, col), (None, None)] for row in range(self.N_rows) for col in range(self.N_cols)])
         
         layer_count = 1
-        layers_all = [[{} for _ in range(self.N_rows)] for _ in range(self.N_cols)]  # for each key in (row, col) assign a layer int
+        layers_all = [[{} for _ in range(self.N_cols)] for _ in range(self.N_rows)]  # for each key in (row, col) assign a layer int
         
         # Search algo:
         # If has prev: get dir from prev to curr, get layer on prev (in dir if multiple)
@@ -427,110 +440,148 @@ class WFC():
             #     while stack:
             
         while stack:
-            (r, c), (r_prev, c_prev) = stack.pop()
-            tile_index = int(tile_map[r, c])
-            tile = self.tileset[tile_index]
-            layers = tile.sketches.keys()
-            valid_dirs = self.get_valid_directions(r, c)
-            
-            # Colour assignment:
-            if r_prev is not None:  # if there is a prev tile
-                # Get prev tile's layers:
-                prev_dir = delta_to_dir(np.array([r, c]) - np.array([r_prev, c_prev]))
-                prev_dir_reverse = reverse_dir(prev_dir)
-                prev_tile_index = int(tile_map[r_prev, c_prev])
-                prev_tile = self.tileset[prev_tile_index]
-                prev_layers = prev_tile.sketches.keys()
+            (row, col), (r_prev, c_prev) = stack.pop()
+            if not visited[row, col]:
+                tile_index = int(tile_map[row, col])
+                tile = self.tileset[tile_index]
+                layers = list(tile.sketches.keys())
                 
-                # Get color from prev tile to propagate to curr tile:
-                color = 0
-                if len(prev_layers) == 1:
-                    layer = prev_layers[0]
-                    color = layers_all[r_prev][c_prev][layer]
-                elif prev_dir in prev_layers:
-                    color = layers_all[r_prev][c_prev][prev_dir]
+                # valid_dirs = self.get_valid_directions(row, col)  # TODO: this is wrong
+                # valid_dirs = tile.valid_dirs  # TODO: need to check for border
+                valid_dirs = []
+                for dir in tile.valid_dirs:
+                    cell = dir_to_cell(row, col, dir)
+                    if cell[0] >= 0 and cell[1] >= 0 and cell[0] < self.N_rows and cell[1] < self.N_cols:
+                        valid_dirs.append(dir)
                 
-                # Assign color from prev tile to curr tile:
-                if len(layers) == 1:
-                    layers_all[r][c][layers[0]] = color
-                else:
-                    if prev_dir_reverse in layers:  # reverse colour should be colored same
-                        layers_all[r][c][prev_dir_reverse] = color
-                    if prev_dir in layers:  # forward colour should be colored same
-                        layers_all[r][c][prev_dir] = color
+                # print(f"stack: {stack} ")
+                print(f"*** Popped ({row}, {col}): {layers}, valid_dirs: {valid_dirs}, prev: ({r_prev}, {c_prev})")
+                
+                # Colour assignment:
+                if r_prev is not None:  # if there is a prev tile
+                    # Get prev tile's layers:
+                    prev_dir = delta_to_dir(np.array([row, col]) - np.array([r_prev, c_prev]))
+                    prev_dir_reverse = reverse_dir(prev_dir)
+                    prev_tile_index = int(tile_map[r_prev, c_prev])
+                    prev_tile = self.tileset[prev_tile_index]
+                    prev_layers = list(prev_tile.sketches.keys())
                     
-                    for layer in layers:  # assign remaining layers as new colours (except ones not a direction which go to default (0))
-                        if layer not in layers_all[r][c].keys():
-                            if layer in Direction:
-                                layers_all[r][c][layer] = layer_count
-                                layer_count += 1
-                            else:
-                                layers_all[r][c][layer] = 0
-
-                # TODO: refactor to avoid big outer if else?
+                    # Get color from prev tile to propagate to curr tile:
+                    prev_color = 0
+                    if len(prev_layers) == 1:
+                        layer = prev_layers[0]
+                        prev_color = layers_all[r_prev][c_prev][layer]
+                    elif prev_dir in prev_layers:
+                        prev_color = layers_all[r_prev][c_prev][prev_dir]
+                    # print("prev_color", prev_color)
+                    # print("prev_dir", prev_dir)
+                    
+                    # Assign color from prev tile to curr tile:
+                    if len(layers) == 1:
+                        layers_all[row][col][layers[0]] = prev_color
+                    else:
+                        if prev_dir_reverse in layers:  # reverse colour should be colored same
+                            layers_all[row][col][prev_dir_reverse] = prev_color
+                        if prev_dir in layers:  # forward colour should be colored same
+                            layers_all[row][col][prev_dir] = prev_color
+                        
+                        for layer in layers:
+                            if layer not in directions:  # not dir layers we can just set to default (zero)
+                                layers_all[row][col][layer] = 0
+                        # for layer in layers:  # assign remaining layers as new colours (except ones not a direction which go to default (0))
+                        #     if layer not in layers_all[row][col].keys():
+                        #         if layer in directions:
+                        #             layers_all[row][col][layer] = layer_count
+                        #             layer_count += 1
+                        #             # TODO: we just want one new colour for the rest in directions, not one new for each
+                        #         else:
+                        #             layers_all[row][col][layer] = 0
+                    print("colored:", layers_all[row][col])
+                    # TODO: refactor to avoid big outer if else?
+                    
+                    # Append new cells:
+                    # for dir in valid_dirs:
+                    #     if dir not in (prev_dir, prev_dir_reverse):  # add all cells except reverse (thats where we came from), and forward (important to add this on top of stack after others)
+                    #         r_n, c_n = dir_to_cell(row, col, dir)
+                    #         stack.append(((r_n, c_n), (row, col)))
+                    #         # print("appended not forward cell:", r_n, c_n)
+                    if len(valid_dirs) == 2:  # if only 2 dirs, just add not where we came from
+                        for dir in valid_dirs:
+                            if dir != prev_dir_reverse:
+                                r_n, c_n = dir_to_cell(row, col, dir)
+                                stack.append(((r_n, c_n), (row, col)))
+                                print("appended forward:", (r_n, c_n))
+                    elif len(valid_dirs) > 2:  # if more than 2 dirs, go forward if it exists (the other dirs we handle later since we dont yet know their color)
+                        if prev_dir in valid_dirs:
+                            r_n, c_n = dir_to_cell(row, col, prev_dir)
+                            stack.append(((r_n, c_n), (row, col)))
+                            print("appended prev_dir:", (r_n, c_n))
+                            
+                    # if prev_dir in valid_dirs:  # 
+                    #     r_n, c_n = dir_to_cell(row, col, prev_dir)
+                    #     stack.append(((r_n, c_n), (row, col)))
+                    #     # print("appended cell with prev_dir:", r_n, c_n)
                 
-                # Append new cells:
-                for dir in valid_dirs:
-                    if dir not in (prev_dir, prev_dir_reverse):  # add all cells except reverse (thats where we came from), and forward (important to add this on top of stack after others)
-                        neighbour = dir_to_cell(r, c, dir)
-                        r_neighbour, c_neighbour = int(neighbour[0]), int(neighbour[1])
-                        stack.append(((r_neighbour, c_neighbour), (r, c)))
-                if prev_dir in valid_dirs:
-                    neighbour = dir_to_cell(r, c, dir)
-                    r_neighbour, c_neighbour = int(neighbour[0]), int(neighbour[1])
-                    stack.append(((r_neighbour, c_neighbour), (r, c)))
-                    # TODO: refactor this operation to avoid copy paste
-                    # Now this should be possible instead with int dtype?
-                    # r_n, c_n = dir_to_cell(r, c, dir)
-                    # stack.append(((r_n, c_n), (r, c)))
-            
-            else:  # if there is no prev tile, just assign new colours
-                if len(layers) == 1:  # if a single layer, just assign new 
-                    layers_all[r][c][layers[0]] = layer_count 
-                    layer_count += 1
-                else:  # if multiple layers, assign new colours to each layer that is a direction, others go to default (0)
-                    for layer in layers:
-                        if layer in Direction:
-                            layers[r][c][layer] = layer_count
+                else:  # if there is no prev tile
+                    if len(valid_dirs) > 0:
+                        if len(valid_dirs) in (1, 2):  # if single or two dirs, go in all dirs
+                            dirs = valid_dirs
+                        else:  # if more than two directions, pick random and leave the rest
+                            dirs = [np.random.choice(valid_dirs)]
+                            if reverse_dir(dirs[0]) in valid_dirs:  # but if reversed dir is there, add that as well
+                                dirs.append(reverse_dir(dirs[0]))
+                            # TODO: make sure cell is removed from stack
+                        
+                        if len(layers) == 1:  # if single layer just assign new color
+                            layers_all[row][col][layers[0]] = layer_count
                             layer_count += 1
                         else:
-                            layers[r][c][layer] = 0
+                            for layer in layers:
+                                if layer in dirs:  # colour layers we are moving in
+                                    layers_all[row][col][layer] = layer_count
+                                else:
+                                    layers_all[row][col][layer] = 0
+                            layer_count += 1  # if moving in reverse dir as well, they should be same color so only increment after
+                         
+                        print("colored:", layers_all[row][col])
+                        
+                        # for layer in layers:
+                        #     if layer in directions or len(layers) == 1:  # if single layer, assign new color, otherwise assign all dir layers to new colors
+                        #         layers_all[row][col][layer] = layer_count
+                        #         layer_count += 1
+                        #     else:
+                        #         layers_all[row][col][layer] = 0
+                            
+                        for dir in dirs:
+                            r_n, c_n = dir_to_cell(row, col, dir)
+                            stack.append(((r_n, c_n), (row, col)))
+                            print("appended", r_n, c_n)
+                        
+                    # # Append all cells, order is irrelevant when not coming from somewhere else:
+                    # for dir in valid_dirs:
+                    #     # Add neighbour to stack:
+                    #     r_n, c_n = dir_to_cell(row, col, dir)
+                    #     stack.append(((r_n, c_n), (row, col)))
+                    #     # TODO: refactor away this operation to avoid copy paste
+                    #     # print("appended", r_n, c_n)
                 
-                # Append all cells, order is irrelevant when not coming from somewhere else:
-                for dir in valid_dirs:
-                    # Add neighbour to stack:
-                    neighbour = dir_to_cell(r, c, dir)
-                    r_neighbour, c_neighbour = int(neighbour[0]), int(neighbour[1])
-                    stack.append(((r_neighbour, c_neighbour), (r, c)))
-            
-            
-            # when popping, need to assign color 
-            # if didnt come from somewhere, set all new colours
-            # if came somewhere, that part is that colour, handle main, and set others to new colours
-            # in case of just one layer then all is that colour
-            
-            # for each item in stack, need to keep track of 
-            # 1. where we came from
-            # 2. 
-            
-            # if first iteration of queue, just go all directions
-            # meaning add all to stack
-            
+                # when popping, need to assign color 
+                # if didnt come from somewhere, set all new colours
+                # if came somewhere, that part is that colour, handle main, and set others to new colours
+                # in case of just one layer then all is that colour
                 
+                # for each item in stack, need to keep track of 
+                # 1. where we came from
+                # 2. 
                 
-            
-            # if len(valid_dirs) == 1:  # if only one valid direction, just go there
-            #     dir = valid_dirs[0]
-                
-            
-            # if len(valid_dirs) == 2:
-            #         pass
-            #     elif
-            
-            
-            
-            visited[r, c] = True
-            
+                # Set visited to true if all (dir) layers have been set:
+                if all(k in layers_all[row][col].keys() for k in layers):
+                    visited[row, col] = True
+                    print(f"Visit {row}, {col} completed")
+                # visited[row, col] = True
+        
+        return layers_all
+        
         # specify tiles to start iterating from
         # need a default layer for cells we dont visit - could extend algo to guarantee that we visit all cells
         # tiles now have a main sketch + one sketch per direction amongst its valid directions
@@ -709,8 +760,8 @@ class WfcSketch(vsketch.SketchClass):
         probs = probs / np.sum(probs)
         
         
-        tile_sketches = []
-        for i in range(probs.shape[0]):
+        tile_sketches = [{}]
+        for i in range(1, probs.shape[0]):
             tile_sketches.append({"main": self.new_tile_sketch()}) 
         
         i_forward = 1
@@ -897,8 +948,6 @@ class WfcSketch(vsketch.SketchClass):
         n_tiles = len(tileset)
         
         
-        # TODO: add option for generate tileset to generate random start state and option to init final map with such a start config
-        
         # TODO: not all rules that make sense to add are added. E.g. diagonals that crash or T11 to the right of T32.
         # Are there any cases where e.g. an up next to a diagonal in up left/right direction makes sense?
         
@@ -935,7 +984,7 @@ class WfcSketch(vsketch.SketchClass):
                       debug=self.debug_print)
             wfc.solve()
             wfc.draw(vsk, debug_tile_indices=self.debug_tile_indices, debug_cell_indices=self.debug_cell_indices, 
-                     valid_dirs=valid_dirs, size=self.tile_size)
+                     valid_dirs=valid_dirs, layers=wfc.map_layers, size=self.tile_size)
 
     def finalize(self, vsk: vsketch.Vsketch) -> None:
         vsk.vpype("linemerge linesimplify reloop linesort")
