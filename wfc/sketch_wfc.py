@@ -411,18 +411,57 @@ class WFC():
             print("Map after propagation:\n", self.final_map)
         return self.collapsed.all()
     
-    def solve(self):
+    def find_all_islands_below_length(self, tile_map, n):
+        visited = np.full((self.N_rows, self.N_cols), False)
+        tiles = [(r, c) for r in range(self.N_rows) for c in range(self.N_cols)]
+        tiles_to_erase = []
+        
+        for (row, col) in tiles:
+            if visited[row, col]:
+                continue
+            
+            length_count = 0
+            visited_tiles = []
+            stack = deque([(row, col)])
+            while stack:
+                (r, c) = stack.pop()
+                if not visited[r, c]:
+                    visited_tiles.append((r, c))
+                    visited[r, c] = True
+                    length_count += 1
+
+                    if not np.isnan(tile_map[r, c]):
+                        tile_index = int(tile_map[r, c])
+                        tile = self.tileset[tile_index]
+                        for dir in tile.valid_dirs:
+                            cell = dir_to_cell(r, c, dir)
+                            if cell[0] >= 0 and cell[1] >= 0 and cell[0] < self.N_rows and cell[1] < self.N_cols:
+                                if not visited[cell[0], cell[1]]:
+                                    stack.append((cell[0], cell[1]))
+            
+            if length_count <= n:
+                tiles_to_erase.extend(visited_tiles)
+            
+        return tiles_to_erase
+            
+    def solve(self, n_erase=None):
         with tqdm(total=self.N_rows * self.N_cols) as pbar:
             while not self.iterate():
                 pbar.update(1)
             pbar.update(1)
         
         # for i in trange(self.N_rows * self.N_cols):
-        # for i in trange(49):
+        # for i in trange(2):
         #     self.iterate()
+        
+        if n_erase is not None:
+            tiles_to_erase = self.find_all_islands_below_length(self.final_map, n_erase)
+            # print("Erasing tiles:", tiles_to_erase)
+            idices_to_erase = tuple(np.array(tiles_to_erase).T)
+            self.final_map[idices_to_erase] = 0  # assume 0 is default
 
         self.map_layers = self.solve_layers(self.final_map)
-        
+
     def solve_layers(self, tile_map):
         directions = [dir for dir in Direction]
         visited = np.full((self.N_rows, self.N_cols), False)
@@ -431,24 +470,6 @@ class WFC():
         default_color = 1
         layer_count = default_color + 1
         layers_all = [[{} for _ in range(self.N_cols)] for _ in range(self.N_rows)]  # for each key in (row, col) assign a layer int
-        
-        # Search algo:
-        # If has prev: get dir from prev to curr, get layer on prev (in dir if multiple)
-        # Otherwise assign new colour
-
-        # if single sketch, just assign layer, otherwise set layer in reverse dir, non-dir layers are set to default (0)
-        
-        # if two dirs: get next dir, get next cell, append
-        # if more: 
-            # if has forward dir, colour it and append (after any other so it is popped first - depth first)
-            # other dirs are given new colours and apoended (before forward)
-            # if opposite they are given same colour/layer
-        
-        # Choose either to have loop of each tile + stack inside loop, or just a stack. If so, how to keep track of previous tile etc...
-        # for row, col in [(r, c) for r in range(self.N_rows) for c in range(self.N_cols)]:
-            # if not visited[row, col]:
-            #     stack = deque([[(row, col), (None, None)]])  # [(row, col), (from_row, from_col)]
-            #     while stack:
             
         while stack:
             (row, col), (r_prev, c_prev) = stack.pop()
@@ -464,7 +485,7 @@ class WFC():
                         valid_dirs.append(dir)
                 
                 # print(f"stack: {stack} ")
-                print(f"*** Popped ({row}, {col}). I{tile_index}. Layers: {layers}, valid_dirs: {valid_dirs}, prev: ({r_prev}, {c_prev})")
+                # print(f"*** Popped ({row}, {col}). I{tile_index}. Layers: {layers}, valid_dirs: {valid_dirs}, prev: ({r_prev}, {c_prev})")
                                 
                 # Colour assignment:
                 if r_prev is not None:  # if there is a prev tile
@@ -497,7 +518,7 @@ class WFC():
                         for layer in layers:
                             if layer not in directions:  # not dir layers we can just set to default (one)
                                 layers_all[row][col][layer] = default_color
-                    print("colored:", layers_all[row][col])
+                    # print("colored:", layers_all[row][col])
                     # TODO: refactor to avoid big outer if else?
                     
                     # Append new cells:
@@ -505,13 +526,16 @@ class WFC():
                         for dir in valid_dirs:
                             if dir != prev_dir_reverse:
                                 r_n, c_n = dir_to_cell(row, col, dir)
-                                stack.append(((r_n, c_n), (row, col)))
-                                print("appended forward:", (r_n, c_n))
+                                stack.append([(r_n, c_n), (row, col)])
+                                # print("appended forward:", (r_n, c_n))
                     elif len(valid_dirs) > 2:  # if more than 2 dirs, go forward if it exists (the other dirs we handle later since we dont yet know their color)
                         if prev_dir in valid_dirs:
                             r_n, c_n = dir_to_cell(row, col, prev_dir)
-                            stack.append(((r_n, c_n), (row, col)))
-                            print("appended prev_dir:", (r_n, c_n))
+                            stack.append([(r_n, c_n), (row, col)])
+                            # print("appended prev_dir:", (r_n, c_n))
+                        if [(row, col), (None, None)] in stack:  # make sure cell is removed from stack, otherwise we get strange behaviour
+                            # print("removing", row, col)
+                            stack.remove([(row, col), (None, None)])
                             
                 else:  # if there is no prev tile
                     if len(valid_dirs) > 0:
@@ -521,7 +545,9 @@ class WFC():
                             dirs = [np.random.choice(valid_dirs)]
                             if reverse_dir(dirs[0]) in valid_dirs:  # but if reversed dir is there, add that as well
                                 dirs.append(reverse_dir(dirs[0]))
-                            # TODO: make sure cell is removed from stack
+                            if [(row, col), (None, None)] in stack:  # make sure cell is removed from stack, otherwise we get strange behaviour
+                                # print("removing", row, col)
+                                stack.remove([(row, col), (None, None)])
                         
                         if len(layers) == 1:  # if single layer just assign new color
                             layers_all[row][col][layers[0]] = layer_count
@@ -534,39 +560,19 @@ class WFC():
                                     layers_all[row][col][layer] = default_color
                             layer_count += 1  # if moving in reverse dir as well, they should be same color so only increment after
                          
-                        print("colored:", layers_all[row][col])
+                        # print("colored:", layers_all[row][col])
                             
                         for dir in dirs:
                             r_n, c_n = dir_to_cell(row, col, dir)
-                            stack.append(((r_n, c_n), (row, col)))
-                            print("appended", r_n, c_n)
+                            stack.append([(r_n, c_n), (row, col)])
+                            # print("appended", r_n, c_n)
                 
                 # Set visited to true if all (dir) layers have been set:
                 if all(k in layers_all[row][col].keys() for k in layers):
                     visited[row, col] = True
-                    print(f"Visit {row}, {col} completed")
+                    # print(f"Visit {row}, {col} completed")
         
         return layers_all
-        
-        # specify tiles to start iterating from
-        # need a default layer for cells we dont visit - could extend algo to guarantee that we visit all cells
-        # tiles now have a main sketch + one sketch per direction amongst its valid directions
-        # if only one other direction, add next cell to same layer
-        # depth first
-        # if other directions, they are added to stack after the main forward direction
-        
-        # alternative is simply to iterate through all cells in order.
-        # when we hit a tile with other directions start depth first searching
-        # keeping track of each isolated track
-        # should work fine, just remember to add dir if 1 dir, both dirs of same layer if back/forwards, 
-        # two different layer dirs if two not back/forwards, and so on.
-        # since the depth first search searches anything it can, there should not be a case where multiple different colors meet head on.
-        
-        # To start searching we need:
-            # separate tile sketch into dict with keys being directions + main. kind of messy. Could separate main and otehr dirs...
-            # also need to store layer/color of each of these sketches - this is only needed in solve_layers.
-            # So it can be separated from the tile class?
-            
         
         # Another question though is merging layers that do not connect. both what algo to use and how to actually go through the tiles and merge.
         # Could do an actual graph colouring problem but that seems overkill. How would it look?
@@ -592,13 +598,18 @@ class WfcSketch(vsketch.SketchClass):
     
     n_rows = vsketch.Param(5)
     n_cols = vsketch.Param(5)
-    tile_size = vsketch.Param(1.0)
+    tile_size = vsketch.Param(1.00)
     width = vsketch.Param(0.1)
-    radius_circles = vsketch.Param(0.15)
+    radius_circles = vsketch.Param(0.10)
     radius_turns = vsketch.Param(0.5)
     connected_edge = vsketch.Param(True)
     tileset = vsketch.Param("metro", choices=["knots", "metro"])
+    
     use_custom_init = vsketch.Param(False)
+    n_ends = vsketch.Param(6)
+    
+    erase_islands = vsketch.Param(True)
+    n_erase = vsketch.Param(5)
     
     detail = "0.01mm"
     
@@ -713,11 +724,11 @@ class WfcSketch(vsketch.SketchClass):
 
     @staticmethod
     def get_metro_probs():
-        probs_list = [[10], 2*[3], 2*[3], 
-                      4*[1], 4*[1], 4*[1], # turns
+        probs_list = [[8], 2*[2.5], 2*[2.5], 
+                      4*[0.7], 4*[0.7], 4*[0.5], # turns 
                       # 2*[2], 4*[0.5], 4*[0.5], [0.2], # circles
-                      2*[3], 4*[0.2], [0.2], # circles
-                      2*[3], 4*[0.2], [0.2], # diag circles
+                      2*[5], 4*[0.5], [1.0], # circles
+                      2*[4], 4*[0.5], [1.0], # diag circles
                       4*[0.2], 4*[0.1]]  # stops
         probs = np.array([p for ps in probs_list for p in ps])
         probs = probs / np.sum(probs)
@@ -1066,7 +1077,9 @@ class WfcSketch(vsketch.SketchClass):
         return tiles, valid_directions, ruleset
                 
     def draw(self, vsk: vsketch.Vsketch) -> None:
-        vsk.size("a4", landscape=True)
+        vsk.size("a3", landscape=True)
+        # Note: A3 30cm width, frame 21cm width, 2cm outer margin -> 17cm with outer margins
+        # 10x26 at 1.5 --> 1cm margin by 1.5cm margin 
         vsk.scale("cm")
         vsk.scale(self.tile_size, self.tile_size)
         
@@ -1082,10 +1095,6 @@ class WfcSketch(vsketch.SketchClass):
             draw_args = {"circle_radius": self.radius_circles, "turn_radius": self.radius_turns}
         
         n_tiles = len(tileset)
-        
-        
-        # TODO: not all rules that make sense to add are added. E.g. diagonals that crash or T11 to the right of T32.
-        # Are there any cases where e.g. an up next to a diagonal in up left/right direction makes sense?
         
         # Generate valid tiles on edges:
         if self.connected_edge:
@@ -1110,15 +1119,25 @@ class WfcSketch(vsketch.SketchClass):
             init_map = None
             if self.use_custom_init:
                 init_map = np.full((self.n_rows, self.n_cols), np.nan)
-                init_map[4, 0] = 31
-                init_map[1, 9] = 33
-                init_map[9, 7] = 32
-                # TODO: do this proper
-                
+                for i in range(self.n_ends):
+                    j = np.random.randint(2 * self.n_cols + 2 * self.n_rows - 4)
+                    if j < self.n_cols:
+                        init_map[0, j] = 34
+                    elif j < self.n_cols + self.n_rows - 1:
+                        init_map[j - self.n_cols, self.n_cols - 1] = 33
+                    elif j < 2 * self.n_cols + self.n_rows - 2:
+                        init_map[self.n_rows - 1, j - self.n_cols - self.n_rows] = 32
+                    else:
+                        init_map[j - 2 * self.n_cols - self.n_rows, 0] = 31
             
             wfc = WFC(tileset, ruleset, self.n_rows, self.n_cols, invalid_edge_tiles=invalid_edge_tiles, init_map=init_map, 
                       debug=self.debug_print)
-            wfc.solve()
+            
+            if self.erase_islands:
+                wfc.solve(n_erase=self.n_erase)
+            else:
+                wfc.solve()
+                
             wfc.draw(vsk, debug_tile_indices=self.debug_tile_indices, debug_cell_indices=self.debug_cell_indices, 
                      valid_dirs=valid_dirs, layers=wfc.map_layers, size=self.tile_size, draw_args=draw_args)
 
